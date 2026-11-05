@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reserve · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Reserve: pay on the left, the order summary on the right (on top on phones). */
+.reserve { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-xxl); align-items: start; padding: var(--space-xl) 0 var(--space-xxl); }
+.panel { display: grid; gap: var(--space-md); }
+.panel h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.panel h2 { font: 700 20px/1.3 var(--font-display); }
+.lead { color: var(--color-secondary); }
+.field2 { display: grid; gap: var(--space-xs); }
+.field2 > label, .field2 > .label-caps { color: var(--color-secondary); }
+.input { font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); width: 100%; min-height: 44px; }
+.input:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; border-color: var(--color-primary); }
+.input[aria-invalid="true"] { border-color: var(--color-error); }
+.prefix { display: grid; grid-template-columns: auto 1fr; gap: var(--space-sm); align-items: center; }
+.prefix span { font-family: var(--font-label); font-size: 17px; color: var(--color-secondary); }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
+.choice { position: relative; display: grid; gap: 2px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); cursor: pointer; }
+.choice input { position: absolute; opacity: 0; }
+.choice:has(input:checked) { background: var(--color-neutral); border-color: var(--color-primary); }
+.choice:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.choice span { color: var(--color-secondary); font-size: 15px; }
+.check { display: flex; gap: var(--space-sm); align-items: flex-start; font-size: 15px; line-height: 1.5; }
+.check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--color-primary); flex: none; }
+.error { display: flex; gap: var(--space-xs); align-items: flex-start; color: var(--color-error); font-size: 15px; line-height: 1.5; }
+.error svg { flex: none; margin-top: 2px; }
+.paying { display: flex; gap: var(--space-sm); align-items: center; color: var(--color-secondary); }
+.pay-btn { width: 100%; }
+
+/* Order summary */
+.summary { position: sticky; top: 88px; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); overflow: hidden; background: var(--color-surface); }
+.summary img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; max-width: 100%; }
+.summary-body { padding: var(--space-lg); display: grid; gap: var(--space-sm); }
+.summary-body h2 { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.lines { display: grid; gap: var(--space-xs); margin: 0; padding-top: var(--space-sm); border-top: 1px solid var(--color-border); font-size: 15px; }
+.lines div { display: flex; justify-content: space-between; gap: var(--space-md); }
+.lines dt { color: var(--color-secondary); }
+.lines dd { margin: 0; text-align: right; font-family: var(--font-label); font-feature-settings: "tnum" 1; }
+.lines .now { font-size: 17px; font-weight: 700; padding-top: var(--space-xs); border-top: 1px solid var(--color-border); }
+.lines .now dt { color: var(--color-on-surface); }
+
+/* Confirmation */
+.done { display: grid; gap: var(--space-md); }
+.done .ref { font: 700 28px/1.1 var(--font-label); letter-spacing: 0.06em; font-feature-settings: "tnum" 1; }
+.next { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-sm); }
+.next li { display: grid; grid-template-columns: 24px 1fr; gap: var(--space-sm); align-items: start; padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-border); }
+.next svg { color: var(--color-primary); margin-top: 2px; }
+.actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.ok-badge { display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--color-primary); font-weight: 700; }
+
+@media (max-width: 1024px) {
+  .reserve { grid-template-columns: 1fr; }
+  .summary { position: static; order: -1; }
+  .summary img { aspect-ratio: 3 / 1; }
+}
+@media (max-width: 767px) {
+  .panel h1 { font-size: 24px; }
+  .choices { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h4M14.5 13.5h3"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <section class="panel" id="missing" hidden style="padding:var(--space-xl) 0 var(--space-xxl);max-width:560px">
+    <h1>Pick a trip first</h1>
+    <p class="lead">Choose a trip and a date, then tap Reserve.</p>
+    <div class="actions"><a class="btn btn-primary label-caps" href="index.html">Find trips</a></div>
+  </section>
+
+  <div class="reserve" id="reserve" hidden>
+    <div>
+      <form class="panel" id="pay" novalidate aria-labelledby="pay-h">
+        <h1 id="pay-h">Reserve your slot</h1>
+        <p class="lead" id="pay-lead"></p>
+
+        <div class="field2">
+          <span class="label-caps" id="wallet-l">Pay the DP with</span>
+          <div class="choices" role="radiogroup" aria-labelledby="wallet-l">
+            <label class="choice"><input type="radio" name="wallet" value="GCash" checked><strong>GCash</strong><span>Approve in the GCash app</span></label>
+            <label class="choice"><input type="radio" name="wallet" value="Maya"><strong>Maya</strong><span>Approve in the Maya app</span></label>
+          </div>
+        </div>
+        <div class="field2">
+          <label class="label-caps" for="wnum">Wallet mobile number</label>
+          <div class="prefix"><span aria-hidden="true">+63</span><input class="input data" id="wnum" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="917 123 4567"></div>
+        </div>
+        <div class="field2">
+          <label class="label-caps" for="names">Names of everyone joining (optional)</label>
+          <input class="input" id="names" placeholder="So the organizer can register your group">
+        </div>
+        <label class="check"><input type="checkbox" id="agree"><span id="agree-text"></span></label>
+        <p class="error" id="err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        <button type="submit" class="btn btn-primary label-caps pay-btn" id="pay-btn"></button>
+        <p class="paying" id="paying" hidden aria-live="polite"><svg width="18" height="18" aria-hidden="true"><use href="#i-clock"/></svg><span></span></p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no money moves. The payment is simulated and the booking is kept in this browser only.</span></p>
+      </form>
+
+      <section class="done" id="done" hidden aria-labelledby="done-h">
+        <span class="ok-badge"><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>DP paid</span>
+        <h1 id="done-h" style="font:700 32px/1.15 var(--font-display);letter-spacing:-0.02em">You're going to <span id="done-trip"></span></h1>
+        <div><span class="label-caps" style="color:var(--color-secondary)">Booking number</span><p class="ref" id="ref"></p></div>
+        <ul class="next" id="next"></ul>
+        <div class="actions">
+          <a class="btn btn-primary label-caps" href="mytrips.html">View my trips</a>
+          <a class="btn btn-secondary label-caps" href="index.html">Find more trips</a>
+        </div>
+      </section>
+    </div>
+
+    <aside class="summary" aria-labelledby="sum-h">
+      <img id="sum-img" alt="">
+      <div class="summary-body">
+        <h2 id="sum-h"></h2>
+        <p class="meta" id="sum-place"></p>
+        <dl class="lines" id="sum-lines"></dl>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · simulated payment: no money moves</div>
+</footer>
+
+<script src="auth.js"></script>
+<script src="trips.js"></script>
+<script src="cards.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
+const digits = v => v.replace(/\D/g, "");
+const validPhone = v => /^9\d{9}$/.test(digits(v));
+const pretty = v => { const d = digits(v); return `+63 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`; };
+
+const user = getUser();
+const p = getPending();
+const T = p && tripById(p.tripId);
+if (!user) { rememberNext("reserve.html"); location.replace("signin.html"); }
+else if (!T || !(p.date in T.departures)) { $("missing").hidden = false; }
+else start();
+
+function start() {
+  $("reserve").hidden = false;
+  const pick = T.pickups[p.pickup] || T.pickups[0];
+  const size = p.size, dp = T.dp * size, balance = (T.fee - T.dp) * size;
+  document.title = `Reserve ${T.title} · TrailPeak`;
+
+  $("sum-img").src = img(T.photo);
+  $("sum-h").textContent = T.title;
+  $("sum-place").textContent = `${T.place} · by ${T.org}`;
+  $("sum-lines").innerHTML = `
+    <div><dt>Date</dt><dd>${nice(p.date)}</dd></div>
+    <div><dt>Meetup</dt><dd>${pick.place} · ${pick.time}</dd></div>
+    <div><dt>Joiners</dt><dd>${size}</dd></div>
+    <div><dt>Event fee</dt><dd>${peso(T.fee)} × ${size}</dd></div>
+    <div><dt>Pay on meetup day</dt><dd>${peso(balance)}</dd></div>
+    <div class="now"><dt>Pay now (DP)</dt><dd>${peso(dp)}</dd></div>`;
+  $("pay-lead").textContent = `${size} ${size === 1 ? "joiner" : "joiners"} on ${nice(p.date)}. You pay the ${peso(dp)} DP now; the rest is paid to the organizer on meetup day.`;
+  $("pay-btn").textContent = `Pay ${peso(dp)} DP`;
+  $("agree-text").innerHTML = `I agree to this trip's <a href="trip.html#${T.id}">cancellation policy</a>: if I cancel less than 7 days before, or don't show up, the DP isn't refunded.`;
+  if (user.phone) $("wnum").value = digits(user.phone).slice(2);
+
+  $("pay").addEventListener("submit", e => {
+    e.preventDefault();
+    const err = msg => { $("err").hidden = !msg; $("err").querySelector("span").textContent = msg || ""; };
+    $("wnum").removeAttribute("aria-invalid");
+    if (!validPhone($("wnum").value)) { err("Enter the 10-digit wallet number that starts with 9."); $("wnum").setAttribute("aria-invalid", "true"); $("wnum").focus(); return; }
+    if (!$("agree").checked) { err("Tick the box to agree to the cancellation policy."); $("agree").focus(); return; }
+    if (slotsLeft(T, p.date) < size) { err(`Only ${slotsLeft(T, p.date)} slots are left on this date now. Go back and choose fewer joiners or another date.`); return; }
+    err("");
+    const wallet = document.querySelector('input[name="wallet"]:checked').value;
+    // Simulated wallet approval. A real app hands off to GCash or Maya here and waits for the result.
+    $("pay-btn").disabled = true; $("paying").hidden = false;
+    $("paying").querySelector("span").textContent = `Waiting for ${wallet} to approve ${peso(dp)}…`;
+    setTimeout(() => {
+      const ref = "TP-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+      const booking = { ref, tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time,
+        dp, balance, wallet, walletNumber: pretty($("wnum").value), names: $("names").value.trim(),
+        status: "confirmed", moved: false, bookedAt: new Date().toISOString() };
+      saveBookings([...getBookings(), booking]);
+      setPending(null);
+      showDone(booking);
+    }, 1200);
+  });
+
+  function showDone(b) {
+    $("pay").hidden = true; $("done").hidden = false;
+    $("done-trip").textContent = T.title;
+    $("ref").textContent = b.ref;
+    const tick = '<svg width="20" height="20" aria-hidden="true"><use href="#i-tick"/></svg>';
+    $("next").innerHTML = [
+      [`${peso(b.dp)} DP paid with ${b.wallet}`, `Sent to ${T.org}. Keep your booking number.`],
+      [`Meetup ${nice(b.date)} · ${b.pickupTime} at ${b.pickup}`, "Be there 15 minutes early. The van leaves on time."],
+      [`Bring ${peso(b.balance)} for the balance`, "Paid to the organizer on meetup day, in cash or by wallet."],
+      [`${T.org} will text you 2 days before`, "With the van plate number and the coordinator's contact."],
+    ].map(([a, b2]) => `<li>${tick}<div><strong>${a}</strong><p class="meta">${b2}</p></div></li>`).join("");
+    $("done-h").tabIndex = -1; $("done-h").focus();
+  }
+}
+</script>
+</body>
+</html>

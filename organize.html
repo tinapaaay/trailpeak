@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Post a trip · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Organizer form only. Shared tokens and components live in styles.css. */
+.page-head { padding: var(--space-xl) 0 var(--space-lg); display: grid; gap: var(--space-sm); }
+.page-head h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.page-head p { color: var(--color-secondary); max-width: 60ch; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: var(--space-xl); align-items: start; padding-bottom: var(--space-xxl); }
+
+.fs { padding: var(--space-lg) 0; border-top: 1px solid var(--color-border); display: grid; gap: var(--space-md); min-width: 0; }
+.fs:first-of-type { border-top: 0; padding-top: 0; }
+.legend { margin-bottom: var(--space-xs); display: flex; align-items: baseline; gap: var(--space-sm); font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.legend .step { font: 700 16px/1 var(--font-label); color: var(--color-primary); }
+.hint { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
+
+.field2 { display: grid; gap: var(--space-xs); }
+.field2 > label, .field2 > .label-caps { color: var(--color-secondary); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); }
+
+.input, select.input {
+  font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); width: 100%; min-height: 44px;
+}
+.input:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; border-color: var(--color-primary); }
+.money { position: relative; }
+.money span { position: absolute; left: var(--space-md); top: 50%; transform: translateY(-50%); font-family: var(--font-label); color: var(--color-secondary); }
+.money .input { padding-left: 32px; font-family: var(--font-label); font-feature-settings: "tnum" 1; }
+
+/* Facts filled in from the mountain list */
+.facts-strip { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-md); align-items: center; background: var(--color-neutral); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); font-size: 15px; }
+.facts-strip .data { font-size: 16px; }
+.facts-strip .src { color: var(--color-secondary); margin-left: auto; }
+
+/* Repeating rows: dates, pick-ups */
+.rows { display: grid; gap: var(--space-sm); }
+.row { display: grid; grid-template-columns: 1fr 140px 44px; gap: var(--space-sm); align-items: center; }
+.row .remove { width: 44px; height: 44px; border: 0; border-radius: var(--rounded-md); background: transparent; color: var(--color-secondary); cursor: pointer; display: grid; place-items: center; }
+.row .remove:hover { background: var(--color-neutral); }
+.add { justify-self: start; }
+.row-head { display: grid; grid-template-columns: 1fr 140px 44px; gap: var(--space-sm); color: var(--color-secondary); }
+
+/* Toggle chips for inclusions, exclusions, who can join */
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.chip {
+  font: inherit; font-size: 15px; display: inline-flex; align-items: center; gap: var(--space-xs);
+  background: var(--color-surface); color: var(--color-on-surface);
+  border: 1px solid var(--color-border); border-radius: var(--rounded-md);
+  padding: var(--space-sm) var(--space-md); min-height: 44px; cursor: pointer;
+}
+.chip svg { display: none; color: var(--color-primary); }
+.chip[aria-pressed="true"] { background: var(--color-neutral); border-color: var(--color-primary); }
+.chip[aria-pressed="true"] svg { display: block; }
+.custom { display: grid; grid-template-columns: 1fr auto; gap: var(--space-sm); max-width: 420px; }
+
+/* Radio cards: trip type, policy */
+.choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); }
+.choice { position: relative; display: grid; gap: 2px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); cursor: pointer; }
+.choice input { position: absolute; opacity: 0; }
+.choice:has(input:checked) { background: var(--color-neutral); border-color: var(--color-primary); }
+.choice:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.choice strong { font-weight: 700; }
+.choice span { color: var(--color-secondary); font-size: 15px; line-height: 1.4; }
+.choices.two { grid-template-columns: 1fr 1fr; }
+
+/* Photos */
+.drop { display: grid; place-items: center; gap: var(--space-xs); text-align: center; border: 1px dashed var(--color-secondary); border-radius: var(--rounded-lg); padding: var(--space-lg); background: var(--color-surface); cursor: pointer; }
+.drop:hover { background: var(--color-neutral); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.thumbs { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.thumbs img { width: 96px; height: 64px; object-fit: cover; border-radius: var(--rounded-sm); }
+.check { display: flex; gap: var(--space-sm); align-items: flex-start; }
+.check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--color-primary); flex: none; }
+
+/* Inline money summary */
+.summary { background: var(--color-neutral); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); font-size: 15px; }
+
+/* Errors: color + icon + words, never color alone */
+.error { display: none; align-items: flex-start; gap: var(--space-xs); color: var(--color-error); font-size: 15px; line-height: 1.5; }
+.error svg { flex: none; margin-top: 2px; }
+.fs.invalid .error { display: flex; }
+.fs.invalid .input:invalid, .input[aria-invalid="true"] { border-color: var(--color-error); }
+
+/* Preview column */
+.preview { position: sticky; top: 88px; display: grid; gap: var(--space-md); }
+.preview > .label-caps { color: var(--color-secondary); }
+.preview .card { pointer-events: none; }
+.publish { display: grid; gap: var(--space-sm); }
+.publish .btn { width: 100%; }
+
+/* Published state */
+.done { display: none; gap: var(--space-md); background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); }
+.done.show { display: grid; }
+.done h2 { font: 700 24px/1.2 var(--font-display); }
+.done textarea { font: 400 15px/1.5 var(--font-body); min-height: 260px; resize: vertical; }
+.done .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+
+@media (max-width: 1024px) {
+  .layout { grid-template-columns: 1fr; }
+  .preview { position: static; max-width: 420px; }
+}
+@media (max-width: 767px) {
+  .page-head h1 { font-size: 24px; }
+  .grid2, .grid3, .choices, .choices.two { grid-template-columns: 1fr; }
+  .row, .row-head { grid-template-columns: 1fr 112px 44px; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html" aria-current="page">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <div class="page-head">
+    <span class="label-caps" style="color:var(--color-secondary)" id="org-label">Organizer</span>
+    <h1>Post a trip</h1>
+    <p>Fill this in once and reuse it for every date. The preview shows exactly what joiners will see.</p>
+  </div>
+
+  <div class="layout">
+    <form id="form" novalidate>
+      <section class="fs" role="group" id="f-mountain" aria-labelledby="f-mountain-h">
+        <h2 class="legend" id="f-mountain-h"><span class="step">1</span>Mountain</h2>
+        <div class="grid2">
+          <div class="field2">
+            <label class="label-caps" for="mountain">Mountain</label>
+            <select class="input" id="mountain"></select>
+          </div>
+          <div class="field2">
+            <label class="label-caps" for="hours">Hike time</label>
+            <input class="input" id="hours" value="5–6 hrs" placeholder="e.g. 5–6 hrs">
+          </div>
+        </div>
+        <div class="facts-strip" id="facts" aria-live="polite"></div>
+        <div class="field2">
+          <span class="label-caps">Trip type</span>
+          <div class="choices" role="radiogroup" aria-label="Trip type">
+            <label class="choice"><input type="radio" name="type" value="Day hike" checked><strong>Day hike</strong><span>Back the same day</span></label>
+            <label class="choice"><input type="radio" name="type" value="Overnight"><strong>Overnight</strong><span>Camp or homestay</span></label>
+            <label class="choice"><input type="radio" name="type" value="Major climb"><strong>Major climb</strong><span>2 days or more</span></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="fs" role="group" id="f-dates" aria-labelledby="f-dates-h">
+        <h2 class="legend" id="f-dates-h"><span class="step">2</span>Dates and slots</h2>
+        <div class="grid2">
+          <div class="field2">
+            <label class="label-caps" for="group">Max joiners per date</label>
+            <input class="input data" id="group" type="number" min="1" max="60" value="14">
+          </div>
+          <div class="field2">
+            <label class="label-caps" for="meet">Meetup time</label>
+            <input class="input data" id="meet" type="time" value="02:00">
+          </div>
+        </div>
+        <div class="row-head label-caps" aria-hidden="true"><span>Date</span><span>Open slots</span><span></span></div>
+        <div class="rows" id="dates"></div>
+        <button type="button" class="btn btn-secondary label-caps add" id="add-date">+ Add date</button>
+        <p class="error" id="f-dates-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Add at least one date. Open slots must be between 1 and your max per date.</span></p>
+      </section>
+
+      <section class="fs" role="group" id="f-pickups" aria-labelledby="f-pickups-h">
+        <h2 class="legend" id="f-pickups-h"><span class="step">3</span>Pick-up points</h2>
+        <div class="row-head label-caps" aria-hidden="true"><span>Place</span><span>Time</span><span></span></div>
+        <div class="rows" id="pickups"></div>
+        <button type="button" class="btn btn-secondary label-caps add" id="add-pickup">+ Add pick-up</button>
+        <p class="error" id="f-pickups-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Add at least one pick-up point with a time.</span></p>
+      </section>
+
+      <section class="fs" role="group" id="f-price" aria-labelledby="f-price-h">
+        <h2 class="legend" id="f-price-h"><span class="step">4</span>Price</h2>
+        <div class="grid2">
+          <div class="field2">
+            <label class="label-caps" for="fee">Event fee per joiner</label>
+            <div class="money"><span>₱</span><input class="input" id="fee" type="number" min="1" step="1" value="1499"></div>
+          </div>
+          <div class="field2">
+            <label class="label-caps" for="dp">Down payment to reserve</label>
+            <div class="money"><span>₱</span><input class="input" id="dp" type="number" min="1" step="1" value="500"></div>
+          </div>
+        </div>
+        <p class="summary" id="money-summary"></p>
+        <p class="hint">Joiners pay the DP on TrailPeak. TrailPeak deducts its commission and sends the rest to you. You collect the balance on meetup day.</p>
+        <p class="error" id="f-price-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Enter an event fee and a DP above ₱0. The DP can't be more than the event fee.</span></p>
+      </section>
+
+      <section class="fs" role="group" id="f-incl" aria-labelledby="f-incl-h">
+        <h2 class="legend" id="f-incl-h"><span class="step">5</span>What the fee covers</h2>
+        <div class="field2">
+          <span class="label-caps" id="incl-l">Included</span>
+          <div class="chips" id="incl" role="group" aria-labelledby="incl-l"></div>
+          <div class="custom"><input class="input" id="incl-new" aria-label="Add something that is included" placeholder="Add your own, e.g. Free coffee"><button type="button" class="btn btn-secondary label-caps" data-add="incl">Add</button></div>
+        </div>
+        <div class="field2">
+          <span class="label-caps" id="excl-l">Not included</span>
+          <p class="hint">Required. Joiners trust trips that say up front what they'll pay for themselves.</p>
+          <div class="chips" id="excl" role="group" aria-labelledby="excl-l"></div>
+          <div class="custom"><input class="input" id="excl-new" aria-label="Add something that is not included" placeholder="Add your own, e.g. Side trip fees"><button type="button" class="btn btn-secondary label-caps" data-add="excl">Add</button></div>
+        </div>
+        <p class="error" id="f-incl-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Pick at least one thing that's not included.</span></p>
+      </section>
+
+      <section class="fs" role="group" id="f-who" aria-labelledby="f-who-h">
+        <h2 class="legend" id="f-who-h"><span class="step">6</span>Who can join</h2>
+        <div class="chips" id="who" role="group" aria-labelledby="f-who-h"></div>
+        <p class="error" id="f-who-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Pick at least one kind of joiner.</span></p>
+      </section>
+
+      <section class="fs" role="group" id="f-photos" aria-labelledby="f-photos-h">
+        <h2 class="legend" id="f-photos-h"><span class="step">7</span>Photos <span class="hint" style="font:inherit;font-size:15px;font-weight:400">optional</span></h2>
+        <label class="drop">
+          <input type="file" id="photos" accept="image/*" multiple>
+          <svg width="28" height="28" aria-hidden="true" style="color:var(--color-primary)"><use href="#i-mountain"/></svg>
+          <strong>Add photos from your past trips</strong>
+          <span class="hint">No photos? We'll use TrailPeak's default photo of this mountain, with credit.</span>
+        </label>
+        <div class="thumbs" id="thumbs"></div>
+        <label class="check" id="rights-row" hidden><input type="checkbox" id="rights"><span>I took these photos or have permission to use them, and the people in them agreed to be shown.</span></label>
+        <p class="error" id="f-photos-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Tick the box to confirm you can use these photos.</span></p>
+      </section>
+
+      <section class="fs" role="group" id="f-policy" aria-labelledby="f-policy-h">
+        <h2 class="legend" id="f-policy-h"><span class="step">8</span>Cancellation policy</h2>
+        <div class="choices two">
+          <label class="choice"><input type="radio" name="policy" value="standard" checked><strong>TrailPeak standard</strong><span>Weather or closure: move or refund DP. You cancel: full refund. Joiner cancels 7+ days before: move once. Later: DP kept.</span></label>
+          <label class="choice"><input type="radio" name="policy" value="own"><strong>Write my own</strong><span>Must cover weather, your cancellation, and joiner cancellation.</span></label>
+        </div>
+        <textarea class="input" id="policy-own" rows="4" aria-label="Your cancellation policy" placeholder="Your policy" hidden></textarea>
+      </section>
+    </form>
+
+    <aside class="preview" aria-label="Preview">
+      <span class="label-caps">Preview on the search page</span>
+      <div id="preview" inert></div>
+      <div class="publish">
+        <button type="submit" form="form" class="btn btn-primary label-caps">Publish trip</button>
+        <p class="hint" id="publish-note" aria-live="polite">You can edit or close dates anytime after publishing.</p>
+      </div>
+      <section class="done" id="done" aria-live="polite">
+        <h2>Your trip is live</h2>
+        <p>Post it in your Facebook groups. Joiners who tap the link can reserve a slot right away.</p>
+        <label class="label-caps" for="fb" style="color:var(--color-secondary)">Ready-to-post text</label>
+        <textarea class="input" id="fb" readonly></textarea>
+        <div class="actions">
+          <button type="button" class="btn btn-primary label-caps" id="copy">Copy text</button>
+          <a class="btn btn-secondary label-caps" href="trip.html" id="view-trip">View trip page</a>
+          <a class="btn btn-secondary label-caps" href="dashboard.html">Go to dashboard</a>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · built from DESIGN.md · mountain heights and difficulty from published trail guides · published trips are kept in this browser only</div>
+</footer>
+
+<script src="auth.js"></script>
+<script src="trips.js"></script>
+<script src="cards.js"></script>
+<script>
+// Mountains TrailPeak keeps on file (height and difficulty from published trail guides).
+const mountains = [
+  { name: "Mt. Batulao", place: "Nasugbu, Batangas", masl: 811, score: 4, photo: "1681287622401-9a77374ce790" },
+  { name: "Mt. Mariglem", place: "Cabangan, Zambales", masl: 573, score: 3, photo: "1551677821-36cb8571bdfc" },
+  { name: "Mt. Ulap Eco-Trail", place: "Itogon, Benguet", masl: 1846, score: 3, photo: "1658296750072-6f4d37c6e4e3" },
+  { name: "Mt. Daraitan", place: "Tanay, Rizal", masl: 739, score: 4, photo: "1658296742588-df6218e30675" },
+  { name: "Mt. Pulag via Akiki", place: "Kabayan, Benguet", masl: 2922, score: 7, photo: "1633670425294-cbf6ce988408" },
+  { name: "Mt. Halcon", place: "Baco, Oriental Mindoro", masl: 2582, score: 9, photo: "1661200797529-c25677f64a14" },
+];
+const levelOf = score => score <= 3 ? "easy" : score <= 5 ? "moderate" : score <= 7 ? "hard" : "expert";
+const me = getUser();
+const isOrganizer = me && me.role === "organizer";
+const ORG = isOrganizer ? me.org : "Your organizer name";
+document.getElementById("org-label").textContent = isOrganizer ? `Organizer · ${me.org}` : "Organizer";
+
+const lists = {
+  incl: { items: ["Round-trip van", "Guide fee", "Registration fee", "Environmental fee", "Coordinator fee", "Bag tag", "Drone shots", "Meals"], on: ["Round-trip van", "Guide fee", "Registration fee", "Environmental fee", "Coordinator fee"] },
+  excl: { items: ["Meals", "Shower fee", "Tip for guides", "Side trip fees", "Personal gear"], on: ["Meals", "Shower fee", "Tip for guides"] },
+  who:  { items: ["Solo joiners", "Couples", "Barkada", "Exclusive (private group)"], on: ["Solo joiners", "Couples", "Barkada"] },
+};
+let photoUrls = [];
+const $ = id => document.getElementById(id);
+const tick = '<svg width="16" height="16" aria-hidden="true"><use href="#i-tick"/></svg>';
+const xBtn = label => `<button type="button" class="remove" aria-label="Remove ${label}"><svg width="18" height="18" aria-hidden="true"><use href="#i-x"/></svg></button>`;
+
+// Mountain list
+$("mountain").innerHTML = mountains.map((m, i) => `<option value="${i}">${m.name}</option>`).join("");
+
+// Chips
+function drawChips(key) {
+  const l = lists[key];
+  $(key).innerHTML = l.items.map(it => `<button type="button" class="chip" aria-pressed="${l.on.includes(it)}" data-item="${it}">${tick}${it}</button>`).join("");
+}
+Object.keys(lists).forEach(drawChips);
+document.addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (chip) {
+    const key = chip.parentElement.id, l = lists[key], it = chip.dataset.item;
+    l.on = l.on.includes(it) ? l.on.filter(x => x !== it) : [...l.on, it];
+    chip.setAttribute("aria-pressed", l.on.includes(it));
+    update();
+  }
+  const add = e.target.closest("[data-add]");
+  if (add) {
+    const key = add.dataset.add, input = $(key + "-new"), v = input.value.trim();
+    if (v && !lists[key].items.includes(v)) { lists[key].items.push(v); lists[key].on.push(v); drawChips(key); }
+    input.value = ""; input.focus(); update();
+  }
+  const rm = e.target.closest(".remove");
+  if (rm) { const rows = rm.closest(".rows"); if (rows.children.length > 1) rm.closest(".row").remove(); update(); }
+});
+
+// Repeating rows
+function addDate(date = "", slots = "") {
+  const n = $("dates").children.length + 1;
+  $("dates").insertAdjacentHTML("beforeend", `<div class="row"><input class="input data" type="date" min="2026-11-04" value="${date}" aria-label="Date ${n}"><input class="input data" type="number" min="1" value="${slots}" aria-label="Open slots for date ${n}">${xBtn("date " + n)}</div>`);
+}
+function addPickup(place = "", time = "") {
+  const n = $("pickups").children.length + 1;
+  $("pickups").insertAdjacentHTML("beforeend", `<div class="row"><input class="input" value="${place}" placeholder="e.g. Cubao, near the bus terminals" aria-label="Pick-up place ${n}"><input class="input data" type="time" value="${time}" aria-label="Pick-up time ${n}">${xBtn("pick-up " + n)}</div>`);
+}
+addDate("2026-11-07", 14); addDate("2026-11-14", 14);
+addPickup("Cubao", "02:00"); addPickup("Greenfield", "02:45");
+$("add-date").onclick = () => { addDate(); $("dates").lastElementChild.querySelector("input").focus(); };
+$("add-pickup").onclick = () => { addPickup(); $("pickups").lastElementChild.querySelector("input").focus(); };
+
+// Photos
+$("photos").addEventListener("change", e => {
+  photoUrls.forEach(u => URL.revokeObjectURL(u));
+  photoUrls = [...e.target.files].map(f => URL.createObjectURL(f));
+  $("thumbs").innerHTML = photoUrls.map((u, i) => `<img src="${u}" alt="Uploaded photo ${i + 1}">`).join("");
+  $("rights-row").hidden = photoUrls.length === 0;
+  update();
+});
+document.querySelectorAll('input[name="policy"]').forEach(r => r.addEventListener("change", () => { $("policy-own").hidden = r.value !== "own" || !r.checked; }));
+
+// Read the form into a trip
+const to12 = t => { if (!t) return ""; let [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return `${h}:${String(m).padStart(2, "0")} ${ap}`; };
+function readTrip() {
+  const m = mountains[$("mountain").value];
+  const type = document.querySelector('input[name="type"]:checked').value;
+  const group = Number($("group").value) || 0;
+  const departures = [...$("dates").children].map(r => { const [d, s] = r.querySelectorAll("input"); return [d.value, Number(s.value) || 0]; });
+  const pickups = [...$("pickups").children].map(r => { const [p, t] = r.querySelectorAll("input"); return [p.value.trim(), t.value]; });
+  return {
+    title: m.name, place: m.place, masl: m.masl, score: m.score, level: levelOf(m.score),
+    length: `${type} · ${$("hours").value.trim() || "time TBA"}`, rating: 0, reviews: 0,
+    group, fee: Number($("fee").value) || 0, dp: Number($("dp").value) || 0, meet: to12($("meet").value),
+    pickups: pickups.filter(([p]) => p).map(([p]) => p), pickupTimes: pickups, isNew: true, org: ORG, verified: !!(isOrganizer && me.idVerified),
+    departures, photo: m.photo, photoUrl: photoUrls[0], alt: `${m.name} trail`,
+    incl: lists.incl.on, excl: lists.excl.on, who: lists.who.on, type,
+  };
+}
+
+function update() {
+  const t = readTrip(), m = mountains[$("mountain").value];
+  $("facts").innerHTML = `<span class="data">${m.masl.toLocaleString()} MASL</span><span class="data">${m.score}/9 · ${levels[t.level].label}</span><span>${m.place}</span><span class="src">From TrailPeak's mountain list</span>`;
+  const bal = t.fee - t.dp;
+  $("money-summary").innerHTML = t.fee > 0 && t.dp > 0 && bal >= 0
+    ? `Joiners pay <strong class="data">${peso(t.dp)}</strong> now and <strong class="data">${peso(bal)}</strong> on meetup day.`
+    : t.fee > 0 && t.dp > t.fee ? "The DP can't be more than the event fee." : "Enter the event fee and the down payment.";
+  const valid = t.departures.filter(([d, s]) => d && s > 0).sort((a, b) => a[0].localeCompare(b[0]));
+  const dep = valid[0] || ["2026-11-07", t.group || 1];
+  // New trips have no reviews yet: show "New" instead of a rating.
+  $("preview").innerHTML = card(t, dep);
+}
+document.getElementById("form").addEventListener("input", update);
+document.getElementById("form").addEventListener("change", update);
+update();
+
+// Validate and publish
+function check(id, ok) {
+  $(id).classList.toggle("invalid", !ok);
+  // Link the error text only while it shows, so screen readers read it with the section.
+  if (ok) $(id).removeAttribute("aria-describedby"); else $(id).setAttribute("aria-describedby", id + "-e");
+  return ok;
+}
+document.getElementById("form").addEventListener("submit", e => {
+  e.preventDefault();
+  // Publishing needs an organizer account; the form itself can be tried by anyone.
+  if (!isOrganizer) {
+    $("publish-note").innerHTML = 'To publish, <a href="organizer-signup.html" id="need-org">create an organizer account</a>. It takes about 5 minutes; what you typed here stays on this page only until you leave.';
+    $("need-org").addEventListener("click", () => rememberNext("organize.html"));
+    $("need-org").focus();
+    return;
+  }
+  const t = readTrip();
+  const results = [
+    void [...$("dates").querySelectorAll('input[type="number"]')].forEach(i => i.setAttribute("aria-invalid", Number(i.value) < 1 || Number(i.value) > t.group)) || true,
+    check("f-dates", t.departures.some(([d, s]) => d && s > 0) && t.departures.every(([d, s]) => !d || (s > 0 && s <= t.group))),
+    check("f-pickups", t.pickupTimes.some(([p, tm]) => p && tm)),
+    check("f-price", t.fee > 0 && t.dp > 0 && t.dp <= t.fee),
+    void $("dp").setAttribute("aria-invalid", !(t.dp > 0 && t.dp <= t.fee)) || true,
+    check("f-incl", t.excl.length > 0),
+    check("f-who", t.who.length > 0),
+    check("f-photos", photoUrls.length === 0 || $("rights").checked),
+  ];
+  const firstBad = document.querySelector(".fs.invalid");
+  if (firstBad) {
+    const bad = [...document.querySelectorAll(".fs.invalid")];
+    const names = bad.map(f => f.querySelector(".legend").lastChild.textContent.trim()).join(", ");
+    $("publish-note").textContent = `${bad.length} ${bad.length === 1 ? "section needs" : "sections need"} fixing: ${names}.`;
+    const h = firstBad.querySelector(".legend"); h.tabIndex = -1; h.focus({ preventScroll: true });
+    firstBad.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    return;
+  }
+  $("publish-note").textContent = "Your trip is live. You can edit or close dates anytime.";
+  $("fb").value = facebookText(t);
+  const pub = toPublishedTrip(t);
+  try {
+    const list = JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || [];
+    localStorage.setItem(TP_PUBLISHED_KEY, JSON.stringify([...list, pub]));
+  } catch { /* storage blocked: trip shows only in the preview */ }
+  $("view-trip").href = `trip.html#${pub.id}`;
+  $("done").classList.add("show");
+  $("done").scrollIntoView({ behavior: "smooth", block: "nearest" });
+});
+
+function toPublishedTrip(t) {
+  const m = mountains[$("mountain").value];
+  const id = t.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Math.random().toString(36).slice(2, 6);
+  return {
+    id, title: t.title, place: t.place, province: t.place.split(", ").pop(),
+    level: t.level, score: t.score, masl: t.masl, trailClass: "", trailNote: "",
+    kind: t.type === "Major climb" ? "major" : "day", typeLabel: t.type, hours: $("hours").value.trim() || "Time to be announced", hoursNote: t.type,
+    rating: 0, reviews: 0, isNew: true, group: t.group, groupNote: "Set by the organizer",
+    fee: t.fee, dp: t.dp, meet: t.meet, org: t.org, verified: t.verified, orgTrips: 0,
+    departures: Object.fromEntries(t.departures.filter(([d, s]) => d && s > 0)),
+    photo: m.photo, alt: `${m.name} trail`, gallery: [[img(m.photo), `${m.name}`]],
+    about: [`${t.type} to ${t.title} in ${t.place}, run by ${t.org}.`, "Ask the organizer about anything this page doesn't cover."],
+    pickups: t.pickupTimes.filter(([p, tm]) => p && tm).map(([p, tm]) => ({ place: p, area: p, time: to12(tm), drop: "Same place" })),
+    itinerary: [], incl: t.incl, excl: t.excl, bring: "", who: t.who,
+  };
+}
+
+// Plain text on purpose: Unicode bold and emoji break screen readers and search.
+function facebookText(t) {
+  const dates = t.departures.filter(([d, s]) => d && s > 0).sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([d, s]) => `- ${niceDate(d)}: ${s} ${s === 1 ? "slot" : "slots"}`).join("\n");
+  const pick = t.pickupTimes.filter(([p, tm]) => p && tm).map(([p, tm]) => `- ${p}, ${to12(tm)}`).join("\n");
+  return `LOOKING FOR JOINERS: ${t.title.toUpperCase()} (${t.type.toLowerCase()})
+${t.place} · ${t.masl.toLocaleString()} MASL · Difficulty ${t.score}/9
+
+Dates:
+${dates}
+
+Event fee: ${peso(t.fee)} per joiner
+Reserve with ${peso(t.dp)} DP via GCash or Maya
+
+Included: ${t.incl.join(", ")}
+Not included: ${t.excl.join(", ")}
+
+Pick-up:
+${pick}
+
+Open for: ${t.who.join(", ").toLowerCase()}
+
+Reserve here: ${window.TRAILPEAK_URL || new URL("trip.html", location.href).href}
+Organized by ${t.org} (verified on TrailPeak)`;
+}
+$("copy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("fb").value); $("copy").textContent = "Copied"; }
+  catch { $("fb").select(); $("copy").textContent = "Press Ctrl/Cmd + C"; }
+  setTimeout(() => $("copy").textContent = "Copy text", 2000);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mt. Batulao · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Trip page only. Shared tokens and components live in styles.css. */
+.crumbs { display: flex; gap: var(--space-sm); flex-wrap: wrap; padding: var(--space-lg) 0 var(--space-md); color: var(--color-secondary); font-size: 15px; }
+.crumbs a { color: var(--color-secondary); display: inline-flex; align-items: center; min-height: 44px; }
+.crumbs { align-items: center; padding: var(--space-md) 0 var(--space-sm); }
+
+.trip-head { display: grid; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+.trip-head h1 { font: 700 64px/1.02 var(--font-display); letter-spacing: -0.03em; }
+.trip-head .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-md); }
+
+/* Gallery: one large photo, two stacked */
+.gallery { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: var(--space-sm); height: 440px; margin-bottom: var(--space-lg); }
+.gallery figure { position: relative; margin: 0; border-radius: var(--rounded-lg); overflow: hidden; background: var(--color-primary-deep); }
+.gallery figure:first-child { grid-row: 1 / 3; }
+.gallery.single { grid-template-columns: 1fr; }
+.gallery.single figure:first-child { grid-row: 1 / 3; }
+.gallery img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* Stats ribbon */
+.stats {
+  display: grid; grid-template-columns: repeat(var(--n, 5), 1fr);
+  background: var(--color-primary-deep); color: var(--color-surface);
+  border-radius: var(--rounded-lg); padding: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+.stat { display: grid; gap: var(--space-xs); padding: 0 var(--space-md); border-left: 1px solid var(--color-secondary); }
+.stat:first-child { border-left: 0; padding-left: 0; }
+.stat .label-caps { color: var(--color-border); }
+.stat .value { font: 700 28px/1.1 var(--font-label); font-feature-settings: "tnum" 1; }
+.stat .note { font-size: 15px; line-height: 1.4; color: var(--color-border); }
+
+/* Two columns: content + booking panel */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-xl); align-items: start; padding-bottom: var(--space-xxl); }
+.section { padding: var(--space-xl) 0; border-top: 1px solid var(--color-border); }
+.section:first-child { border-top: 0; padding-top: 0; }
+.section h2 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; margin-bottom: var(--space-md); }
+.section h3 { font: 700 20px/1.3 var(--font-display); margin-bottom: var(--space-sm); }
+.prose { max-width: 68ch; }
+.prose p + p { margin-top: var(--space-md); }
+
+/* Calendar */
+.cal-wrap { display: grid; grid-template-columns: auto 1fr; gap: var(--space-xl); align-items: start; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-sm); }
+.cal-head p { font: 700 20px/1.3 var(--font-display); }
+.cal-nav { display: flex; gap: var(--space-xs); }
+.cal-nav .icon-btn:disabled { color: var(--color-border); cursor: not-allowed; }
+.cal { display: grid; grid-template-columns: repeat(7, 44px); gap: var(--space-xs); }
+.cal .dow { text-align: center; color: var(--color-secondary); padding-bottom: var(--space-xs); }
+.day {
+  position: relative; width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border: 0; border-radius: var(--rounded-md); background: transparent;
+  font: 400 16px/1 var(--font-label); font-feature-settings: "tnum" 1;
+  color: var(--color-secondary);
+}
+.day.open { background: var(--color-surface); color: var(--color-on-surface); box-shadow: inset 0 0 0 1px var(--color-border); cursor: pointer; }
+.day.open::after { /* lake-blue dot = bookable */
+  content: ""; position: absolute; bottom: 6px; width: 5px; height: 5px; border-radius: 50%; corner-shape: round; background: var(--color-tertiary);
+}
+.day.open:hover { box-shadow: inset 0 0 0 1px var(--color-tertiary); }
+.day.full { text-decoration: line-through; }
+.day[aria-pressed="true"] { background: var(--color-tertiary); color: var(--color-surface); box-shadow: none; font-weight: 700; }
+.day[aria-pressed="true"]::after { background: var(--color-surface); }
+.legend { display: flex; gap: var(--space-md); margin-top: var(--space-md); color: var(--color-secondary); font-size: 15px; }
+.legend span { display: inline-flex; align-items: center; gap: var(--space-xs); }
+.legend i { width: 8px; height: 8px; border-radius: 50%; corner-shape: round; background: var(--color-tertiary); }
+
+.picked { background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-sm); }
+.picked .chip-spots { justify-self: start; }
+.trip-head .org-avatar { background: var(--color-neutral); }
+.picked .when { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.guide { display: flex; align-items: center; gap: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--color-border); margin-top: var(--space-xs); }
+.guide .org-avatar { width: 40px; height: 40px; }
+
+/* Itinerary timeline */
+.timeline { list-style: none; padding: 0; margin: 0; position: relative; }
+.timeline::before { content: ""; position: absolute; left: 88px; top: 10px; bottom: 10px; width: 1px; background: var(--color-border); }
+.timeline li { display: grid; grid-template-columns: 72px 1fr; gap: 33px; padding: var(--space-sm) 0; position: relative; }
+.timeline li::before { content: ""; position: absolute; left: 84px; top: 18px; width: 9px; height: 9px; border-radius: 50%; corner-shape: round; background: var(--color-surface); box-shadow: inset 0 0 0 2px var(--color-primary); }
+.timeline li.key::before { background: var(--color-primary); }
+.timeline time { font: 400 16px/1.6 var(--font-label); font-feature-settings: "tnum" 1; color: var(--color-primary); text-align: right; white-space: nowrap; }
+.timeline .what { font-weight: 700; }
+.timeline .detail { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
+
+/* Included / not included */
+.incl { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+.incl ul { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-sm); }
+.incl li { display: flex; gap: var(--space-sm); align-items: flex-start; }
+.incl li svg { flex: none; margin-top: 3px; }
+.yes svg { color: var(--color-primary); }
+.no svg { color: var(--color-secondary); }
+.no li { color: var(--color-secondary); }
+
+/* Pick-up table */
+.pickups { width: 100%; border-collapse: collapse; }
+.pickups th, .pickups td { text-align: left; padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-border); }
+.pickups th { color: var(--color-secondary); font-weight: 400; }
+.pickups td.data, .pickups th.data { text-align: right; font-family: var(--font-label); font-feature-settings: "tnum" 1; }
+
+.notice { display: flex; gap: var(--space-sm); align-items: flex-start; background: var(--color-tertiary-tint); color: var(--color-on-surface); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-lg); }
+.notice svg { flex: none; color: var(--color-tertiary); margin-top: 2px; }
+.review-sum { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.review-sum .data { font: 700 28px/1 var(--font-label); }
+.stars { color: var(--color-primary); letter-spacing: 2px; }
+.stars .off { color: var(--color-border); }
+.reviews { list-style: none; padding: 0; margin: 0; display: grid; }
+.reviews li { padding: var(--space-md) 0; border-top: 1px solid var(--color-border); display: grid; gap: var(--space-xs); max-width: 68ch; }
+.review-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.policy { background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-sm); max-width: 68ch; }
+.policy li { margin-left: var(--space-md); }
+
+.org-card { display: grid; grid-template-columns: auto 1fr; gap: var(--space-md); align-items: center; }
+.org-card .org-avatar { width: 56px; height: 56px; font-size: 16px; }
+.org-card .actions { grid-column: 1 / -1; display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+
+/* Booking panel (desktop: sticky side panel) */
+.book {
+  position: sticky; top: 88px;
+  background: var(--color-primary-deep); color: var(--color-surface);
+  border-radius: var(--rounded-lg); padding: var(--space-lg);
+  display: grid; gap: var(--space-md);
+}
+.book .price { color: var(--color-surface); }
+.book .price small { color: var(--color-border); }
+.book label, .book-row > .label-caps { color: var(--color-border); }
+.book-row { display: grid; gap: var(--space-xs); }
+.book select {
+  font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface); background: var(--color-surface);
+  border: 0; border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); width: 100%; min-height: 44px;
+}
+.stepper { display: flex; align-items: center; justify-content: space-between; background: var(--color-surface); color: var(--color-on-surface); border-radius: var(--rounded-md); padding: var(--space-xs); }
+.stepper button { width: 44px; height: 44px; border: 0; border-radius: var(--rounded-sm); background: var(--color-neutral); color: var(--color-primary); font: 700 20px/1 var(--font-label); cursor: pointer; }
+.stepper button:disabled { background: var(--color-border); color: var(--color-secondary); cursor: not-allowed; }
+.stepper output { font: 700 16px/1 var(--font-label); font-feature-settings: "tnum" 1; }
+.breakdown { display: grid; gap: var(--space-xs); padding-top: var(--space-md); border-top: 1px solid var(--color-secondary); font-size: 15px; }
+.breakdown div { display: flex; justify-content: space-between; gap: var(--space-md); }
+.breakdown dd { margin: 0; font-family: var(--font-label); font-feature-settings: "tnum" 1; }
+.breakdown dt { color: var(--color-border); }
+.breakdown .now { font-size: 17px; font-weight: 700; padding-top: var(--space-xs); }
+.breakdown .now dt { color: var(--color-surface); }
+.btn-on-dark { background: var(--color-surface); color: var(--color-primary); width: 100%; }
+.btn-on-dark:hover { background: var(--color-neutral); }
+.fine { font-size: 15px; line-height: 1.5; color: var(--color-border); }
+
+/* Phone: fixed bar at the bottom that jumps to the booking panel */
+.mobile-bar { display: none; }
+
+@media (max-width: 1024px) {
+  .mobile-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-md);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: var(--color-primary-deep); color: var(--color-surface);
+    padding: var(--space-sm) max(16px, env(safe-area-inset-right, 0px)) calc(var(--space-sm) + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    box-shadow: var(--shadow-raised);
+  }
+  .mobile-bar .price { color: var(--color-surface); }
+  .mobile-bar .price small { color: var(--color-border); }
+  .mobile-bar .btn-on-dark { width: auto; }
+  body { padding-bottom: 88px; }
+  html { scroll-padding-bottom: 96px; } /* focused items never hide under the bar */
+  .layout { grid-template-columns: 1fr; }
+  .book { position: static; }
+  .stats { grid-template-columns: repeat(3, 1fr); row-gap: var(--space-lg); }
+  .stat:nth-child(4) { border-left: 0; padding-left: 0; }
+  .cal-wrap { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .trip-head h1 { font-size: 40px; line-height: 1.08; }
+  .gallery { grid-template-columns: 1fr 1fr; grid-template-rows: 220px 120px; height: auto; }
+  .gallery figure:first-child { grid-row: auto; grid-column: 1 / -1; }
+  .gallery.single { grid-template-rows: 220px; }
+  .stats { grid-template-columns: 1fr 1fr; padding: var(--space-md); }
+  .stat, .stat:nth-child(4) { border-left: 0; padding: 0; }
+  .incl { grid-template-columns: 1fr; }
+  .section h2 { font-size: 24px; }
+  .timeline::before { left: 72px; }
+  .timeline li { grid-template-columns: 60px 1fr; gap: 29px; }
+  .timeline li::before { left: 68px; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 6-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 6 6 6-6 6"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <nav class="crumbs" aria-label="Breadcrumb" id="crumbs"></nav>
+  <header class="trip-head" id="head"></header>
+  <p class="notice" id="notice" hidden></p>
+  <section class="gallery" aria-label="Photos" id="gallery"></section>
+  <section class="stats on-dark" aria-label="Trail facts" id="stats"></section>
+
+  <div class="layout">
+    <div>
+      <section class="section prose" id="about"></section>
+
+      <section class="section" id="dates">
+        <h2>Choose a date</h2>
+        <div class="cal-wrap">
+          <div>
+            <div class="cal-head">
+              <p id="cal-month" aria-live="polite"></p>
+              <div class="cal-nav">
+                <button type="button" class="icon-btn" id="prev-month" aria-label="Previous month with trips"><svg width="20" height="20" aria-hidden="true"><use href="#i-left"/></svg></button>
+                <button type="button" class="icon-btn" id="next-month" aria-label="Next month with trips"><svg width="20" height="20" aria-hidden="true"><use href="#i-right"/></svg></button>
+              </div>
+            </div>
+            <div class="cal" id="cal" role="group" aria-label="Departure dates"></div>
+            <div class="legend"><span><i></i>Slots open</span><span><s aria-hidden="true">21</s> Crossed out: full</span></div>
+          </div>
+          <div class="picked" aria-live="polite">
+            <span class="label-caps" style="color:var(--color-secondary)">Your date</span>
+            <p class="when" id="picked-date"></p>
+            <span class="chip-spots label-caps" id="picked-slots"></span>
+            <p class="meta" id="picked-meet"></p>
+            <div class="guide" id="guide"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Itinerary</h2>
+        <ol class="timeline" id="itinerary"></ol>
+      </section>
+
+      <section class="section">
+        <h2>What the fee covers</h2>
+        <div class="incl">
+          <div class="yes"><h3>Included</h3><ul id="incl"></ul></div>
+          <div class="no"><h3>Not included</h3><ul id="excl"></ul></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Pick-up points</h2>
+        <table class="pickups">
+          <thead><tr><th>Place</th><th class="data">Pick-up</th><th class="data">Drop-off</th></tr></thead>
+          <tbody id="pickup-rows"></tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <h2>What to bring</h2>
+        <p class="prose" id="bring"></p>
+      </section>
+
+      <section class="section">
+        <h2>Cancellation policy</h2>
+        <div class="policy">
+          <ul>
+            <li><strong>Bad weather or trail closure</strong> (PAGASA signal no. 1 or higher, or an LGU closure): move to another date or get your DP back.</li>
+            <li><strong>Organizer cancels:</strong> full DP refund within 3 days.</li>
+            <li><strong>You cancel 7+ days before:</strong> move to another date once, free.</li>
+            <li><strong>You cancel less than 7 days before, or don't show up:</strong> the DP is not refunded.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Your organizer</h2>
+        <div class="org-card" id="org-card"></div>
+      </section>
+
+      <section class="section" aria-labelledby="reviews-h">
+        <h2 id="reviews-h">Reviews</h2>
+        <div id="reviews"></div>
+      </section>
+    </div>
+
+    <aside class="book on-dark" id="book" aria-label="Reserve a slot">
+      <p class="price" id="book-price"></p>
+      <div class="book-row">
+        <span class="label-caps">Date</span>
+        <p class="data" id="book-date"></p>
+      </div>
+      <div class="book-row">
+        <span class="label-caps" id="size-label">Joiners</span>
+        <div class="stepper" role="group" aria-labelledby="size-label">
+          <button type="button" id="minus" aria-label="Fewer joiners">−</button>
+          <output id="size">1</output>
+          <button type="button" id="plus" aria-label="More joiners">+</button>
+        </div>
+        <p class="fine" id="size-note"></p>
+      </div>
+      <div class="book-row">
+        <label class="label-caps" for="pickup">Pick-up</label>
+        <select id="pickup"></select>
+      </div>
+      <dl class="breakdown">
+        <div><dt>Event fee</dt><dd id="b-fee"></dd></div>
+        <div><dt>Pay on meetup day</dt><dd id="b-balance"></dd></div>
+        <div class="now"><dt>Pay now to reserve</dt><dd id="b-now"></dd></div>
+      </dl>
+      <p class="sr" id="announce" aria-live="polite"></p>
+      <a class="btn btn-on-dark label-caps" href="#" id="reserve">Reserve with GCash or Maya</a>
+      <p class="fine" id="dp-note"></p>
+      <p class="fine" id="reserve-note" aria-live="polite"></p>
+    </aside>
+  </div>
+</main>
+
+<div class="mobile-bar on-dark">
+  <p class="price"><span id="m-now"></span> <small id="m-date"></small></p>
+  <a class="btn btn-on-dark label-caps" href="#book">Reserve</a>
+</div>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · built from DESIGN.md · heights, difficulty and trail class from published trail guides; organizers, dates, fees, guides and itineraries are sample data · placeholder photos from Unsplash</div>
+</footer>
+
+<script src="auth.js"></script>
+<script src="trips.js"></script>
+<script>
+// Which trip: from the link (trip.html#mt-pulag-akiki), else the first one.
+const $ = id => document.getElementById(id);
+const T = tripById(location.hash.slice(1)) || TRIPS[0];
+const FEE = T.fee, DP = T.dp, GROUP = T.group, MEET = T.meet;
+// Slots after this browser's own bookings.
+Object.keys(T.departures).forEach(d => { T.departures[d] = slotsLeft(T, d); });
+const dates = Object.keys(T.departures).sort();
+let picked = dates.find(d => T.departures[d] > 0) || dates[0];
+let size = 1;
+const months = [...new Set(dates.map(d => d.slice(0, 7)))];
+let month = picked.slice(0, 7);
+
+const peso = n => "₱" + n.toLocaleString();
+const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const shapes = { easy: ["blaze-circle", 1], moderate: ["", 1], hard: ["blaze-diamond", 1], expert: ["blaze-diamond", 2] };
+const labels = { easy: "Easy", moderate: "Moderate", hard: "Hard", expert: "Expert" };
+const initials = n => n.split(" ").filter(w => /^[A-Z]/.test(w)).slice(0, 2).map(w => w[0]).join("");
+const seal = `<span class="verified" title="ID and business verified"><svg width="16" height="16" aria-hidden="true"><use href="#i-check"/></svg><span class="sr">Verified organizer</span></span>`;
+
+function renderStatic() {
+  document.title = `${T.title} · TrailPeak`;
+  const listPage = T.kind === "major" ? ["index.html#major", "Major climbs"] : ["index.html#day", "Day hikes"];
+  $("crumbs").innerHTML = `<a href="${listPage[0]}">${listPage[1]}</a><span aria-hidden="true">/</span><span>${esc(T.province)}</span><span aria-hidden="true">/</span><span aria-current="page">${esc(T.title)}</span>`;
+  const [shape, marks] = shapes[T.level];
+  $("head").innerHTML = `<div class="row">
+      <span class="badge badge-${T.level} label-caps"><span class="blaze ${shape}">${"<i></i>".repeat(marks)}</span>${labels[T.level]}</span>
+      <span class="chip-spots label-caps" id="head-slots"></span>
+    </div>
+    <h1>${esc(T.title)}</h1>
+    <div class="row meta">
+      <span class="meta"><svg width="16" height="16" aria-hidden="true"><use href="#i-pin"/></svg>${esc(T.place)}</span>
+      <span class="meta data"><svg width="16" height="16" aria-hidden="true"><use href="#i-star"/></svg>${T.isNew ? "New trip" : `${T.rating.toFixed(1)} (${T.reviews} reviews)`}</span>
+      <span class="organizer"><span class="org-avatar label-caps" aria-hidden="true">${initials(T.org)}</span>by ${esc(T.org)}${T.verified ? seal : ""}</span>
+    </div>`;
+  $("gallery").classList.toggle("single", T.gallery.length === 1);
+  $("gallery").innerHTML = T.gallery.map(([src, alt]) => `<figure><img src="${src}" alt="${esc(alt)}"></figure>`).join("");
+  const stats = [
+    ["Peak", `${T.masl.toLocaleString()} MASL`, esc(T.place)],
+    ["Difficulty", `${T.score}/9`, labels[T.level]],
+    ...(T.trailClass ? [["Trail class", T.trailClass, esc(T.trailNote)]] : []),
+    ["Hike time", T.hours, esc(T.hoursNote)],
+    ["Group", `${T.group} max`, esc(T.groupNote)],
+  ];
+  $("stats").style.setProperty("--n", stats.length);
+  $("stats").innerHTML = stats.map(([l, v, n]) => `<div class="stat"><span class="label-caps">${l}</span><span class="value">${v}</span><span class="note">${n}</span></div>`).join("");
+  $("about").innerHTML = `<h2>About this hike</h2>` + T.about.map(p => `<p>${esc(p)}</p>`).join("");
+  $("guide").hidden = !T.guide;
+  if (T.guide) $("guide").innerHTML = `<span class="org-avatar label-caps" aria-hidden="true">${initials(T.guide[0])}</span><div><p><strong>Lead guide: ${esc(T.guide[0])}</strong></p><p class="meta">${esc(T.guide[1])}</p></div>`;
+  $("itinerary").closest(".section").hidden = !T.itinerary.length;
+  $("itinerary").innerHTML = T.itinerary.map(([time, what, detail, key]) => `<li${key ? ' class="key"' : ""}><time>${time}</time><div><p class="what">${esc(what)}</p>${detail ? `<p class="detail">${esc(detail)}</p>` : ""}</div></li>`).join("");
+  const tick = '<svg width="18" height="18" aria-hidden="true"><use href="#i-tick"/></svg>', cross = '<svg width="18" height="18" aria-hidden="true"><use href="#i-x"/></svg>';
+  $("incl").innerHTML = T.incl.map(i => `<li>${tick}${esc(i)}</li>`).join("");
+  $("excl").innerHTML = T.excl.map(i => `<li>${cross}${esc(i)}</li>`).join("");
+  $("pickup-rows").innerHTML = T.pickups.map(p => `<tr><td>${esc(p.area)}</td><td class="data">${p.time}</td><td class="data">${p.drop}</td></tr>`).join("");
+  $("pickup").innerHTML = T.pickups.map(p => `<option>${esc(p.place)} · ${p.time}</option>`).join("");
+  if (T.notice) { $("notice").hidden = false; $("notice").innerHTML = `<svg width="20" height="20" aria-hidden="true"><use href="#i-${T.notice[0]}"/></svg><span>${esc(T.notice[1])}</span>`; }
+  const list = T.reviewList || [];
+  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
+  $("reviews").innerHTML = list.length
+    ? `<p class="review-sum"><span class="data">${T.rating.toFixed(1)}</span> ${stars(Math.round(T.rating))} <span class="meta">from ${T.reviews} reviews · only joiners who went can review</span></p>
+       <ul class="reviews">${list.map(([name, date, n, text]) => `<li><div class="review-top"><strong>${esc(name)}</strong>${stars(n)}<span class="meta">${nice(date)}</span></div><p>${esc(text)}</p></li>`).join("")}</ul>`
+    : `<p class="meta">No reviews yet. Joiners can review after the trip.</p>`;
+  $("bring").closest(".section").hidden = !T.bring;
+  $("bring").textContent = T.bring;
+  $("org-card").innerHTML = `<span class="org-avatar label-caps" aria-hidden="true">${initials(T.org)}</span>
+    <div><p><strong>${esc(T.org)}</strong> ${T.verified ? seal : ""}</p><p class="meta">${T.verified ? "ID verified" : "Not verified yet"} · ${T.orgTrips ? `${T.orgTrips} trips run · ${T.rating.toFixed(1)} average` : "New on TrailPeak"}</p></div>
+    <div class="actions"><a class="btn btn-secondary label-caps" href="#">Ask the organizer</a></div>`;
+  $("book-price").innerHTML = `${peso(FEE)} <small>event fee per joiner</small>`;
+  $("dp-note").textContent = `TrailPeak sends your DP to ${T.org}. Refunds follow this trip's cancellation policy.`;
+}
+
+function buildCalendar() {
+  const [y, m] = month.split("-").map(Number);
+  const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
+  $("cal-month").textContent = first.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const i = months.indexOf(month);
+  $("prev-month").disabled = i <= 0; $("next-month").disabled = i >= months.length - 1;
+  let html = ["S", "M", "T", "W", "T", "F", "S"].map(d => `<span class="dow label-caps" aria-hidden="true">${d}</span>`).join("");
+  html += "<span></span>".repeat(first.getDay());
+  for (let d = 1; d <= days; d++) {
+    const iso = `${month}-${String(d).padStart(2, "0")}`, left = T.departures[iso];
+    if (left === undefined) html += `<span class="day" aria-hidden="true">${d}</span>`;
+    else if (left === 0) html += `<button type="button" class="day full" disabled aria-label="${nice(iso)}, full">${d}</button>`;
+    else html += `<button type="button" class="day open" data-date="${iso}" aria-pressed="${iso === picked}" aria-label="${nice(iso)}, ${left} ${left === 1 ? "slot" : "slots"} left">${d}</button>`;
+  }
+  $("cal").innerHTML = html;
+  $("cal").querySelectorAll(".day.open").forEach(b => b.addEventListener("click", () => { picked = b.dataset.date; update(); }));
+}
+
+function update() {
+  const left = T.departures[picked];
+  size = Math.max(1, Math.min(size, left));
+  $("cal").querySelectorAll(".day.open").forEach(b => b.setAttribute("aria-pressed", b.dataset.date === picked));
+  const slots = `${left} of ${GROUP} slots left`;
+  $("picked-date").textContent = nice(picked);
+  $("picked-slots").textContent = slots;
+  $("picked-meet").innerHTML = `<svg width="16" height="16" aria-hidden="true"><use href="#i-calendar"/></svg>Meetup <span class="data">${MEET}</span> · first pick-up ${esc(T.pickups[0].place)}`;
+  $("head-slots").textContent = `${slots} · ${nice(picked)}`;
+  $("book-date").textContent = `${nice(picked)} · ${MEET}`;
+  $("size").textContent = size;
+  $("minus").disabled = size <= 1;
+  $("plus").disabled = size >= left;
+  $("size-note").textContent = `${left} ${left === 1 ? "slot" : "slots"} left on this date`;
+  $("b-fee").textContent = `${peso(FEE)} × ${size}`;
+  $("b-balance").textContent = peso((FEE - DP) * size);
+  $("b-now").textContent = peso(DP * size);
+  $("m-now").textContent = peso(DP * size);
+  $("m-date").textContent = `to reserve · ${nice(picked)}`;
+}
+
+$("prev-month").addEventListener("click", () => { month = months[months.indexOf(month) - 1]; buildCalendar(); });
+$("next-month").addEventListener("click", () => { month = months[months.indexOf(month) + 1]; buildCalendar(); });
+// Tell screen-reader users the new total when the joiner count changes.
+const announce = () => { $("announce").textContent = `${size} ${size === 1 ? "joiner" : "joiners"}. Pay ${peso(DP * size)} now, ${peso((FEE - DP) * size)} on meetup day.`; };
+$("minus").addEventListener("click", () => { size--; update(); announce(); });
+$("plus").addEventListener("click", () => { size++; update(); announce(); });
+
+// Reserve: sign in first. Payment itself isn't built in this prototype.
+$("reserve").addEventListener("click", e => {
+  e.preventDefault();
+  const user = getUser();
+  setPending({ tripId: T.id, date: picked, size, pickup: $("pickup").selectedIndex });
+  if (!user) { rememberNext("reserve.html"); location.href = "signin.html"; return; }
+  location.href = "reserve.html";
+});
+// Opening another trip from this page (for example via the back button) reloads its details.
+window.addEventListener("hashchange", () => location.reload());
+
+renderStatic();
+buildCalendar();
+update();
+</script>
+</body>
+</html>

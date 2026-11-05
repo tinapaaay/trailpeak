@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Organizer sign-up · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Organizer sign-up: a real 4-step sequence, so the steps are numbered. */
+.page { display: grid; grid-template-columns: minmax(0, 560px) 1fr; gap: var(--space-xxl); align-items: start; padding: var(--space-xl) 0 var(--space-xxl); }
+.page-head { display: grid; gap: var(--space-xs); margin-bottom: var(--space-lg); }
+.page-head h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.page-head p { color: var(--color-secondary); }
+
+.steps { list-style: none; padding: 0; margin: 0 0 var(--space-lg); display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-xs); }
+.steps li { display: grid; gap: var(--space-xs); font-size: 15px; color: var(--color-secondary); }
+.steps li::before { content: ""; height: 4px; border-radius: var(--rounded-full); corner-shape: round; background: var(--color-border); }
+.steps li.done::before, .steps li[aria-current="step"]::before { background: var(--color-primary); }
+.steps li[aria-current="step"] { color: var(--color-on-surface); font-weight: 700; }
+
+.panel { display: grid; gap: var(--space-md); }
+.panel h2 { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.panel .lead { color: var(--color-secondary); }
+.field2 { display: grid; gap: var(--space-xs); }
+.field2 > label, .field2 > .label-caps { color: var(--color-secondary); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+.input, select.input {
+  font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); width: 100%; min-height: 44px;
+}
+.input:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; border-color: var(--color-primary); }
+.input[aria-invalid="true"] { border-color: var(--color-error); }
+.prefix { display: grid; grid-template-columns: auto 1fr; gap: var(--space-sm); align-items: center; }
+.prefix span { font-family: var(--font-label); font-size: 17px; color: var(--color-secondary); }
+
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
+.choice { position: relative; display: grid; gap: 2px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); cursor: pointer; }
+.choice input { position: absolute; opacity: 0; }
+.choice:has(input:checked) { background: var(--color-neutral); border-color: var(--color-primary); }
+.choice:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.choice span { color: var(--color-secondary); font-size: 15px; line-height: 1.4; }
+
+.upload { position: relative; display: flex; gap: var(--space-md); align-items: center; border: 1px dashed var(--color-secondary); border-radius: var(--rounded-lg); padding: var(--space-md); background: var(--color-surface); cursor: pointer; min-height: 88px; }
+.upload:hover { background: var(--color-neutral); }
+.upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.upload:has(input:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.upload img { width: 88px; height: 56px; object-fit: cover; border-radius: var(--rounded-sm); flex: none; }
+.upload .ph { width: 88px; height: 56px; display: grid; place-items: center; border-radius: var(--rounded-sm); background: var(--color-neutral); color: var(--color-primary); flex: none; }
+.upload strong { display: block; }
+.upload .meta { display: block; }
+
+.error { display: flex; gap: var(--space-xs); align-items: flex-start; color: var(--color-error); font-size: 15px; line-height: 1.5; }
+.error svg { flex: none; margin-top: 2px; }
+.actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+.link-btn { background: none; border: 0; padding: 0 var(--space-xs); min-height: 44px; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; }
+.checking { display: flex; gap: var(--space-sm); align-items: center; color: var(--color-secondary); }
+
+/* Result list on the last step */
+.status { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-sm); }
+.status li { display: grid; grid-template-columns: 28px 1fr; gap: var(--space-sm); align-items: start; padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-border); }
+.status svg { margin-top: 2px; }
+.ok { color: var(--color-primary); }
+.wait { color: var(--color-tertiary); }
+.off { color: var(--color-secondary); }
+
+/* Why we ask: side column on desktop */
+.why { background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-sm); position: sticky; top: 88px; }
+.why h2 { font: 700 20px/1.3 var(--font-display); }
+.why ul { margin: 0; padding-left: var(--space-md); display: grid; gap: var(--space-xs); }
+
+@media (max-width: 1024px) {
+  .page { grid-template-columns: 1fr; }
+  .why { position: static; }
+}
+@media (max-width: 767px) {
+  .page-head h1 { font-size: 24px; }
+  .grid2, .choices { grid-template-columns: 1fr; }
+  .steps li { font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h4M14.5 13.5h3"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <div class="page">
+    <div>
+      <div class="page-head">
+        <h1>Become a TrailPeak organizer</h1>
+        <p>Post trips, take DPs online, and get a verified badge joiners trust. Takes about 5 minutes.</p>
+      </div>
+
+      <ol class="steps" aria-label="Sign-up steps">
+        <li data-step="1">1 Account</li>
+        <li data-step="2">2 Verify ID</li>
+        <li data-step="3">3 Business</li>
+        <li data-step="4">4 Payout</li>
+      </ol>
+
+      <!-- Step 1: account -->
+      <form class="panel" id="s1" novalidate aria-labelledby="h1">
+        <h2 id="h1">Your account</h2>
+        <div class="grid2">
+          <div class="field2"><label class="label-caps" for="name">Your full name</label><input class="input" id="name" autocomplete="name" placeholder="As shown on your ID"></div>
+          <div class="field2"><label class="label-caps" for="org">Organizer or business name</label><input class="input" id="org" autocomplete="organization" placeholder="e.g. Batangas Trail Co."></div>
+        </div>
+        <div class="grid2">
+          <div class="field2"><label class="label-caps" for="phone">Mobile number</label><div class="prefix"><span aria-hidden="true">+63</span><input class="input data" id="phone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="917 123 4567"></div></div>
+          <div class="field2"><label class="label-caps" for="email">Email</label><input class="input" id="email" type="email" autocomplete="email" placeholder="you@example.com"></div>
+        </div>
+        <p class="error" id="e1" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        <div class="actions"><button type="submit" class="btn btn-primary label-caps">Continue</button></div>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no real account is created, and photos stay on this device.</span></p>
+      </form>
+
+      <!-- Step 2: ID check -->
+      <form class="panel" id="s2" hidden novalidate aria-labelledby="h2">
+        <h2 id="h2">Verify your ID</h2>
+        <p class="lead">This gives you the <strong>ID verified</strong> badge and protects joiners' DPs. An ID-checking service compares your ID with a selfie; TrailPeak keeps only the result, not the photos.</p>
+        <div class="field2">
+          <label class="label-caps" for="idtype">ID type</label>
+          <select class="input" id="idtype">
+            <option value="">Choose your ID</option>
+            <option>PhilSys National ID</option><option>Driver's license</option><option>Passport</option><option>UMID</option><option>Postal ID</option>
+          </select>
+        </div>
+        <label class="upload"><input type="file" id="idfront" accept="image/*"><span class="ph" id="idfront-ph"><svg width="24" height="24" aria-hidden="true"><use href="#i-id"/></svg></span><span><strong>Photo of the front of your ID</strong><span class="meta">All four corners visible, no glare</span></span></label>
+        <label class="upload"><input type="file" id="selfie" accept="image/*" capture="user"><span class="ph" id="selfie-ph"><svg width="24" height="24" aria-hidden="true"><use href="#i-user"/></svg></span><span><strong>Selfie holding your ID</strong><span class="meta">Face and ID both clear</span></span></label>
+        <p class="error" id="e2" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        <p class="checking" id="checking" hidden aria-live="polite"><svg width="18" height="18" aria-hidden="true"><use href="#i-clock"/></svg>Checking your ID…</p>
+        <div class="actions"><button type="submit" class="btn btn-primary label-caps">Verify ID</button><button type="button" class="link-btn" data-back="1">Back</button></div>
+      </form>
+
+      <!-- Step 3: business (optional) -->
+      <form class="panel" id="s3" hidden novalidate aria-labelledby="h3">
+        <h2 id="h3">Business documents <span class="meta" style="font:inherit;font-size:15px;font-weight:400">optional</span></h2>
+        <p class="lead">Add these for the <strong>Business verified</strong> badge. Our team reviews them in 1–2 working days. You can post trips while you wait.</p>
+        <div class="choices" role="radiogroup" aria-label="Business type">
+          <label class="choice"><input type="radio" name="btype" value="DTI" checked><strong>Sole proprietor</strong><span>DTI business name registration</span></label>
+          <label class="choice"><input type="radio" name="btype" value="SEC"><strong>Corporation or partnership</strong><span>SEC registration</span></label>
+        </div>
+        <div class="field2"><label class="label-caps" for="regno">Registration number</label><input class="input data" id="regno" placeholder="From your DTI or SEC certificate"></div>
+        <label class="upload"><input type="file" id="permit" accept="image/*,application/pdf"><span class="ph" id="permit-ph"><svg width="24" height="24" aria-hidden="true"><use href="#i-id"/></svg></span><span><strong>Mayor's business permit</strong><span class="meta">Photo or PDF, this year's permit</span></span></label>
+        <div class="field2"><label class="label-caps" for="dot">DOT accreditation number (if you have one)</label><input class="input data" id="dot" placeholder="Shown as an extra badge"></div>
+        <p class="error" id="e3" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        <div class="actions"><button type="submit" class="btn btn-primary label-caps">Submit for review</button><button type="button" class="link-btn" id="skip3">Skip for now</button><button type="button" class="link-btn" data-back="2">Back</button></div>
+      </form>
+
+      <!-- Step 4: payout -->
+      <form class="panel" id="s4" hidden novalidate aria-labelledby="h4">
+        <h2 id="h4">Where we send your DPs</h2>
+        <p class="lead">When a joiner reserves, TrailPeak deducts its commission and sends the rest of the DP here. The account name must match the name on your ID.</p>
+        <div class="choices" role="radiogroup" aria-label="Payout account">
+          <label class="choice"><input type="radio" name="wallet" value="GCash" checked><strong>GCash</strong><span>Sent to your GCash number</span></label>
+          <label class="choice"><input type="radio" name="wallet" value="Maya"><strong>Maya</strong><span>Sent to your Maya number</span></label>
+        </div>
+        <div class="grid2">
+          <div class="field2"><label class="label-caps" for="wnum">Wallet number</label><div class="prefix"><span aria-hidden="true">+63</span><input class="input data" id="wnum" type="tel" inputmode="numeric" placeholder="917 123 4567"></div></div>
+          <div class="field2"><label class="label-caps" for="wname">Account name</label><input class="input" id="wname" placeholder="As registered in the wallet"></div>
+        </div>
+        <p class="error" id="e4" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        <div class="actions"><button type="submit" class="btn btn-primary label-caps">Finish</button><button type="button" class="link-btn" data-back="3">Back</button></div>
+      </form>
+
+      <!-- Done -->
+      <section class="panel" id="s5" hidden aria-labelledby="h5">
+        <h2 id="h5">You're set up</h2>
+        <ul class="status" id="status"></ul>
+        <div class="actions"><a class="btn btn-primary label-caps" href="organize.html">Post your first trip</a><a class="btn btn-secondary label-caps" href="dashboard.html">Go to your dashboard</a></div>
+      </section>
+    </div>
+
+    <aside class="why" aria-labelledby="why-h">
+      <h2 id="why-h">Why we ask</h2>
+      <ul>
+        <li><strong>ID check:</strong> joiners pay DPs before meeting you. A verified ID shows you're a real person.</li>
+        <li><strong>Business documents:</strong> optional, for the Business verified badge.</li>
+        <li><strong>Payout account:</strong> your DPs go straight to you, minus TrailPeak's commission.</li>
+      </ul>
+      <p class="meta">We keep the check results, not your ID photos (Data Privacy Act).</p>
+    </aside>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · mock sign-up: no ID is checked and nothing is sent or saved outside this browser</div>
+</footer>
+
+<script src="auth.js"></script>
+<script>
+const existing = getUser();
+const alreadyOrganizer = !!(existing && existing.role === "organizer");
+if (alreadyOrganizer) {
+  document.querySelector(".page > div").innerHTML = `<div class="page-head"><h1>You're already an organizer</h1>
+    <p>${escapeHtml(existing.org)} is set up${existing.idVerified ? " and ID verified" : ""}. Go to your dashboard to see bookings, or post a new trip.</p></div>
+    <div class="actions"><a class="btn btn-primary label-caps" href="dashboard.html">Go to dashboard</a><a class="btn btn-secondary label-caps" href="organize.html">Post a trip</a></div>`;
+}
+if (!alreadyOrganizer) {
+const $ = id => document.getElementById(id);
+const data = { idVerified: false, business: "none" };
+const digits = v => v.replace(/\D/g, "");
+const validPhone = v => /^9\d{9}$/.test(digits(v));
+const pretty = v => { const d = digits(v); return `+63 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`; };
+const norm = s => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+function go(n) {
+  [1, 2, 3, 4, 5].forEach(i => $("s" + i).hidden = i !== n);
+  document.querySelectorAll(".steps li").forEach(li => {
+    const k = Number(li.dataset.step);
+    li.classList.toggle("done", k < n);
+    if (k === n) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+  });
+  const h = $("h" + n); h.tabIndex = -1; h.focus();
+}
+function fail(n, msg, input) {
+  const e = $("e" + n); e.hidden = !msg; e.querySelector("span").textContent = msg || "";
+  document.querySelectorAll(`#s${n} .input`).forEach(i => i.removeAttribute("aria-invalid"));
+  if (msg && input) { input.setAttribute("aria-invalid", "true"); input.focus(); }
+  return !msg;
+}
+function preview(inputId) {
+  $(inputId).addEventListener("change", e => {
+    const f = e.target.files[0], ph = $(inputId + "-ph");
+    if (!f) return;
+    if (f.type.startsWith("image/")) ph.outerHTML = `<img id="${inputId}-ph" src="${URL.createObjectURL(f)}" alt="Selected photo">`;
+    else ph.innerHTML = '<svg width="24" height="24" aria-hidden="true"><use href="#i-tick"/></svg>';
+  });
+}
+["idfront", "selfie", "permit"].forEach(preview);
+document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(Number(b.dataset.back)));
+
+// Prefill from a joiner account, if signed in.
+
+if (existing) {
+  $("name").value = existing.name || "";
+  $("email").value = existing.email || "";
+  if (existing.phone) $("phone").value = digits(existing.phone).slice(2);
+}
+
+$("s1").addEventListener("submit", e => {
+  e.preventDefault();
+  const ok = fail(1, !$("name").value.trim() ? "Enter your full name as it appears on your ID." : "", $("name"))
+    && fail(1, !$("org").value.trim() ? "Enter the name joiners will see on your trips." : "", $("org"))
+    && fail(1, !validPhone($("phone").value) ? "Enter a 10-digit mobile number that starts with 9." : "", $("phone"))
+    && fail(1, !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("email").value.trim()) ? "Enter an email address like you@example.com." : "", $("email"));
+  if (!ok) return;
+  Object.assign(data, { name: $("name").value.trim(), org: $("org").value.trim(), phone: pretty($("phone").value), email: $("email").value.trim() });
+  $("wname").value = data.name;
+  go(2);
+});
+
+$("s2").addEventListener("submit", e => {
+  e.preventDefault();
+  const ok = fail(2, !$("idtype").value ? "Choose which ID you're using." : "", $("idtype"))
+    && fail(2, !$("idfront").files.length ? "Add a photo of the front of your ID." : "")
+    && fail(2, !$("selfie").files.length ? "Add a selfie holding your ID." : "");
+  if (!ok) return;
+  // Simulated check. A real app sends the photos to an ID-checking service and waits for its answer.
+  $("checking").hidden = false;
+  setTimeout(() => { $("checking").hidden = true; data.idVerified = true; data.idType = $("idtype").value; go(3); }, 1200);
+});
+
+$("s3").addEventListener("submit", e => {
+  e.preventDefault();
+  const ok = fail(3, !$("regno").value.trim() ? "Enter your DTI or SEC registration number, or tap Skip for now." : "", $("regno"))
+    && fail(3, !$("permit").files.length ? "Add a photo or PDF of your business permit, or tap Skip for now." : "");
+  if (!ok) return;
+  data.business = "review"; data.dot = $("dot").value.trim();
+  go(4);
+});
+$("skip3").onclick = () => { data.business = "none"; fail(3, ""); go(4); };
+
+$("s4").addEventListener("submit", e => {
+  e.preventDefault();
+  const ok = fail(4, !validPhone($("wnum").value) ? "Enter the 10-digit wallet number that starts with 9." : "", $("wnum"))
+    && fail(4, norm($("wname").value) !== norm(data.name) ? `The account name must match your ID name: ${data.name}.` : "", $("wname"));
+  if (!ok) return;
+  data.payout = { wallet: document.querySelector('input[name="wallet"]:checked').value, number: pretty($("wnum").value) };
+  setUser({ ...existing, ...data, role: "organizer", method: existing?.method || "organizer-signup" });
+
+  const row = (cls, icon, title, note) => `<li><svg class="${cls}" width="20" height="20" aria-hidden="true"><use href="#i-${icon}"/></svg><div><strong>${title}</strong><p class="meta">${note}</p></div></li>`;
+  $("status").innerHTML =
+    row("ok", "tick", "ID verified", `${data.idType}. The badge shows on all your trips.`) +
+    (data.business === "review"
+      ? row("wait", "clock", "Business documents in review", "Usually 1–2 working days. We'll text you when it's done.")
+      : row("off", "x", "Business documents not added", "Add them anytime from your account for the Business verified badge.")) +
+    row("ok", "tick", `${data.payout.wallet} payout added`, `DPs go to ${data.payout.number}, minus TrailPeak's commission.`);
+  go(5);
+});
+
+go(1);
+
+}
+</script>
+</body>
+</html>

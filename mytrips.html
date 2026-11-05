@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My trips · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* My trips: one card per booking, soonest first. */
+.page { padding: var(--space-xl) 0 var(--space-xxl); display: grid; gap: var(--space-lg); grid-template-columns: minmax(0, 1fr); max-width: 880px; }
+.page > * { min-width: 0; }
+.page h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.page h2 { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.lead { color: var(--color-secondary); }
+
+.booking { display: grid; grid-template-columns: 200px minmax(0, 1fr); border: 1px solid var(--color-border); border-radius: var(--rounded-lg); overflow: hidden; background: var(--color-surface); }
+.booking img { width: 100%; height: 100%; min-height: 180px; object-fit: cover; display: block; }
+.booking .body { padding: var(--space-lg); display: grid; gap: var(--space-sm); min-width: 0; }
+.booking h3 { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.top { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; justify-content: space-between; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-sm) var(--space-md); margin: 0; padding: var(--space-sm) 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+.facts div { display: grid; gap: 2px; }
+.facts dt { color: var(--color-secondary); font: 700 13px/1.2 var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; }
+.facts dd { margin: 0; font-family: var(--font-label); font-size: 16px; font-feature-settings: "tnum" 1; }
+.countdown { color: var(--color-tertiary); }
+.byline { display: block; }
+.actions { display: flex; gap: var(--space-xs); flex-wrap: wrap; align-items: center; }
+.link-btn { background: none; border: 0; padding: 0 var(--space-sm); min-height: 44px; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; }
+.link-btn.danger { color: var(--color-error); }
+
+.pill { display: inline-flex; padding: var(--space-xs) var(--space-sm); border-radius: var(--rounded-sm); font: 700 13px/1.2 var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; }
+.pill.confirmed { background: var(--color-tertiary-tint); color: var(--color-tertiary); }
+.pill.cancelled { background: var(--color-surface); color: var(--color-error); box-shadow: inset 0 0 0 1px var(--color-error); }
+.pill.past { background: var(--color-neutral); color: var(--color-on-surface); }
+
+.inline { display: grid; gap: var(--space-sm); background: var(--color-neutral); border-radius: var(--rounded-md); padding: var(--space-md); }
+.inline.warn { background: var(--color-surface); border: 1px solid var(--color-error); }
+.inline .row { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+.input { font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); min-height: 44px; }
+.btn-danger { background: var(--color-error); color: var(--color-surface); }
+.note { color: var(--color-secondary); font-size: 15px; }
+
+.empty { display: grid; gap: var(--space-sm); justify-items: start; background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-xl); }
+
+@media (max-width: 767px) {
+  .page h1 { font-size: 24px; }
+  .booking { grid-template-columns: 1fr; }
+  .booking img { min-height: 0; aspect-ratio: 16 / 7; max-width: 100%; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h4M14.5 13.5h3"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <div class="page">
+    <div>
+      <h1>My trips</h1>
+      <p class="lead" id="lead"></p>
+    </div>
+    <div id="upcoming"></div>
+    <section id="past-sec" hidden aria-labelledby="past-h"><h2 id="past-h" style="margin-bottom:var(--space-md)">Past and cancelled</h2><div id="past" style="display:grid;gap:var(--space-md)"></div></section>
+    <p class="sr" id="live" aria-live="polite"></p>
+    <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: bookings are kept in this browser only. Moving or cancelling doesn't contact anyone.</span></p>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · my trips</div>
+</footer>
+
+<script src="auth.js"></script>
+<script src="trips.js"></script>
+<script src="cards.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const today = new Date(); today.setHours(0, 0, 0, 0);
+const daysUntil = iso => Math.round((new Date(iso + "T00:00") - today) / 864e5);
+const user = getUser();
+const open = {}; // which booking has its move/cancel panel open
+
+if (!user) { rememberNext("mytrips.html"); location.replace("signin.html"); }
+else render();
+
+function render() {
+  const all = getBookings();
+  const upcoming = all.filter(b => b.status === "confirmed" && daysUntil(b.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
+  const past = all.filter(b => !upcoming.includes(b));
+  $("lead").textContent = upcoming.length
+    ? `${upcoming.length} upcoming ${upcoming.length === 1 ? "trip" : "trips"} for ${user.name}.`
+    : `No upcoming trips yet, ${user.name.split(" ")[0]}.`;
+  $("upcoming").innerHTML = upcoming.length
+    ? `<div style="display:grid;gap:var(--space-md)">${upcoming.map(card).join("")}</div>`
+    : `<div class="empty"><p style="font:700 24px/1.2 var(--font-display)">Your next hike starts here</p><p class="lead">Find a trip, pick a date and reserve with a DP. It shows up here with your meetup details.</p><a class="btn btn-primary label-caps" href="index.html">Find trips</a></div>`;
+  $("past-sec").hidden = !past.length;
+  $("past").innerHTML = past.map(card).join("");
+}
+
+function card(b) {
+  const T = tripById(b.tripId); if (!T) return "";
+  const d = daysUntil(b.date), cancelled = b.status === "cancelled", isPast = !cancelled && d < 0;
+  const status = cancelled ? ["cancelled", "Cancelled"] : isPast ? ["past", "Done"] : ["confirmed", "Confirmed"];
+  const when = d === 0 ? "Today" : d === 1 ? "Tomorrow" : `In ${d} days`;
+  const canMove = !cancelled && !isPast && d >= 7 && !b.moved;
+  let panel = "";
+  if (open[b.ref] === "move") {
+    const options = Object.keys(T.departures).sort().filter(x => x !== b.date && daysUntil(x) >= 7 && slotsLeft(T, x) >= b.size);
+    panel = options.length
+      ? `<form class="inline" data-move-form="${b.ref}"><label class="label-caps" for="mv-${b.ref}" style="color:var(--color-secondary)">Move to</label>
+          <div class="row"><select class="input" id="mv-${b.ref}">${options.map(x => `<option value="${x}">${nice(x)} · ${slotsLeft(T, x)} slots left</option>`).join("")}</select>
+          <button type="submit" class="btn btn-primary label-caps">Move my booking</button><button type="button" class="link-btn" data-close="${b.ref}">Keep this date</button></div>
+          <p class="note">Free, once. Your DP moves with you.</p></form>`
+      : `<div class="inline"><p>No other date has ${b.size} open ${b.size === 1 ? "slot" : "slots"} right now.</p><div class="row"><button type="button" class="link-btn" data-close="${b.ref}">Close</button></div></div>`;
+  }
+  if (open[b.ref] === "cancel") {
+    panel = `<div class="inline warn" role="group" aria-labelledby="cx-${b.ref}">
+      <p id="cx-${b.ref}"><strong>Cancel your booking for ${nice(b.date)}?</strong> Under this trip's policy your ${peso(b.dp)} DP won't be refunded.${canMove ? " Moving to another date is free instead." : ""}</p>
+      <div class="row"><button type="button" class="btn btn-danger label-caps" data-cancel-yes="${b.ref}">Cancel booking</button>
+      ${canMove ? `<button type="button" class="btn btn-secondary label-caps" data-move="${b.ref}">Move date instead</button>` : ""}
+      <button type="button" class="link-btn" data-close="${b.ref}">Keep my booking</button></div></div>`;
+  }
+  return `<article class="booking">
+    <img src="${img(T.photo)}" alt="">
+    <div class="body">
+      <div class="top"><span class="pill ${status[0]}">${status[1]}</span>${!cancelled && !isPast ? `<span class="data countdown">${when}</span>` : ""}</div>
+      <h3>${esc(T.title)}</h3>
+      <p class="meta byline">${esc(T.place)} · by ${esc(T.org)} · booking <span class="data">${b.ref}</span></p>
+      <dl class="facts">
+        <div><dt>Date</dt><dd>${nice(b.date)}</dd></div>
+        <div><dt>Meetup</dt><dd>${b.pickupTime} · ${esc(b.pickup)}</dd></div>
+        <div><dt>Joiners</dt><dd>${b.size}</dd></div>
+        <div><dt>DP paid</dt><dd>${peso(b.dp)} · ${b.wallet}</dd></div>
+        <div><dt>Bring for balance</dt><dd>${cancelled ? "—" : peso(b.balance)}</dd></div>
+      </dl>
+      ${b.note ? `<p class="note">${esc(b.note)}</p>` : ""}
+      ${!cancelled && !isPast ? `<div class="actions">
+        <a class="btn btn-secondary label-caps" href="trip.html#${T.id}">Trip details</a>
+        ${canMove ? `<button type="button" class="link-btn" data-move="${b.ref}">Move date<span class="sr"> for ${esc(T.title)}</span></button>` : `<span class="note">${b.moved ? "Already moved once." : d < 7 ? "Less than 7 days to go: dates can't be moved." : ""}</span>`}
+        <button type="button" class="link-btn danger" data-cancel="${b.ref}">Cancel<span class="sr"> ${esc(T.title)} booking</span></button>
+      </div>` : ""}
+      ${panel}
+    </div>
+  </article>`;
+}
+
+function update(ref, fn) {
+  const list = getBookings(); const b = list.find(x => x.ref === ref);
+  fn(b); saveBookings(list); delete open[ref]; render();
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  const d = t.dataset;
+  if (d.move) { open[d.move] = "move"; render(); document.getElementById("mv-" + d.move)?.focus(); }
+  if (d.cancel) { open[d.cancel] = "cancel"; render(); document.querySelector(`[data-cancel-yes="${d.cancel}"]`).focus(); }
+  if (d.close) { delete open[d.close]; render(); }
+  if (d.cancelYes) {
+    update(d.cancelYes, b => { b.status = "cancelled"; b.note = "You cancelled this booking. The organizer was told and your slot was released."; });
+    $("live").textContent = "Booking cancelled.";
+  }
+});
+document.addEventListener("submit", e => {
+  const f = e.target.closest("[data-move-form]"); if (!f) return;
+  e.preventDefault();
+  const ref = f.dataset.moveForm, to = document.getElementById("mv-" + ref).value;
+  update(ref, b => { b.note = `Moved from ${nice(b.date)}. The organizer was told.`; b.date = to; b.moved = true; });
+  $("live").textContent = `Booking moved to ${nice(to)}.`;
+});
+</script>
+</body>
+</html>

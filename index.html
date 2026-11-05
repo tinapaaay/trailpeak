@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrailPeak</title>
+<!-- Prototype loads fonts from Google Fonts. DESIGN.md says self-host for production. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- Icon set: thin-line, 1.5px stroke, inherits text color -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+</svg>
+
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+  <section class="hero">
+    <div class="wrap">
+      <h1>Find your group. Pick a date. Hit the trail.</h1>
+      <p>Joiner hikes from Batulao to Pulag, with the difficulty, pick-up points and event fee on every card.</p>
+
+      <form class="omnibar" role="search" id="search">
+        <div class="field">
+          <label class="label-caps" for="where">Where</label>
+          <input id="where" type="text" placeholder="Mountain or province">
+        </div>
+        <div class="field">
+          <label class="label-caps" for="when">When</label>
+          <input id="when" type="date" min="2026-11-04">
+        </div>
+        <div class="field">
+          <label class="label-caps" for="size">Joiners</label>
+          <select id="size">
+            <option value="1">1 joiner</option><option value="2">2 joiners</option><option value="3">3 joiners</option><option value="4">4 joiners</option><option value="5">5 joiners</option><option value="6">6 joiners</option><option value="7">7 joiners</option><option value="8">8 joiners</option><option value="10">10 joiners</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label-caps" for="pickup">Pick-up</label>
+          <select id="pickup">
+            <option value="">Any pick-up</option><option>Cubao</option><option>Greenfield</option><option>MOA</option><option>Alabang</option><option>Ortigas</option><option>Centris</option><option>Balintawak</option><option>Marikina</option><option>Batangas Port</option>
+          </select>
+        </div>
+        <button class="btn btn-primary label-caps" type="submit"><svg width="20" height="20"><use href="#i-search"/></svg>Find trips</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="results">
+    <div class="wrap">
+      <div class="results-head">
+        <h2 id="results-title">Upcoming trips</h2>
+        <p class="data" id="count" aria-live="polite"></p>
+        <button type="button" class="btn btn-secondary label-caps" id="show-all" hidden>Show all trips</button>
+      </div>
+
+      <div class="filters" role="group" aria-label="Filter by difficulty">
+        <button class="filter label-caps" aria-pressed="true" data-level="all">All</button>
+        <button class="filter label-caps" aria-pressed="false" data-level="easy" aria-label="Easy, difficulty 1 to 3 out of 9"><span class="blaze blaze-circle" style="color:var(--color-blaze-easy)"><i></i></span>Easy <span class="data">1–3</span></button>
+        <button class="filter label-caps" aria-pressed="false" data-level="moderate" aria-label="Moderate, difficulty 4 to 5 out of 9"><span class="blaze" style="color:var(--color-blaze-moderate)"><i></i></span>Moderate <span class="data">4–5</span></button>
+        <button class="filter label-caps" aria-pressed="false" data-level="hard" aria-label="Hard, difficulty 6 to 7 out of 9"><span class="blaze blaze-diamond" style="color:var(--color-blaze-hard)"><i></i></span>Hard <span class="data">6–7</span></button>
+        <button class="filter label-caps" aria-pressed="false" data-level="expert" aria-label="Expert, difficulty 8 to 9 out of 9"><span class="blaze blaze-diamond"><i></i><i></i></span>Expert <span class="data">8–9</span></button>
+      </div>
+
+      <div class="grid" id="grid"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · built from DESIGN.md · sample trips, fees and reviews · placeholder photos from Unsplash</div>
+</footer>
+
+<script src="auth.js"></script>
+<script src="trips.js"></script>
+<script src="cards.js"></script>
+<script>
+// Trips come from trips.js (shared with the trip page). Cards need a few fields in their own shape.
+const tours = TRIPS.map(t => ({
+  ...t, length: `${t.typeLabel} · ${t.hours}`, page: `trip.html#${t.id}`,
+  pickups: t.pickups.map(p => p.place), departures: Object.keys(t.departures).sort().map(d => [d, slotsLeft(t, d)]),
+}));
+
+// Search: a trip shows if it has a departure that matches the date, group size and pick-up.
+const grid = document.getElementById("grid");
+const count = document.getElementById("count");
+let level = "all";
+const kinds = { day: "Day hikes", major: "Major climbs" };
+let kind = kinds[location.hash.slice(1)] ? location.hash.slice(1) : "";
+function render() {
+  const where = document.getElementById("where").value.trim().toLowerCase();
+  const when = document.getElementById("when").value;
+  const size = Number(document.getElementById("size").value);
+  const pickup = document.getElementById("pickup").value;
+  const matches = [];
+  for (const t of tours) {
+    if (level !== "all" && t.level !== level) continue;
+    if (kind && t.kind !== kind) continue;
+    if (where && !(t.title + " " + t.place).toLowerCase().includes(where)) continue;
+    if (pickup && !t.pickups.includes(pickup)) continue;
+    const dep = t.departures.find(([d, left]) => left >= size && (!when || d === when));
+    if (dep) matches.push([t, dep]);
+  }
+  matches.sort((a, b) => a[1][0].localeCompare(b[1][0]));
+  document.getElementById("results-title").textContent = kind ? kinds[kind] : "Upcoming trips";
+  document.getElementById("show-all").hidden = !kind;
+  document.querySelectorAll(".nav a[data-kind]").forEach(a => a.toggleAttribute("aria-current", a.dataset.kind === kind));
+  count.textContent = `${matches.length} ${matches.length === 1 ? "trip" : "trips"} · sorted by next meetup`;
+  grid.innerHTML = matches.length
+    ? matches.map(([t, dep]) => card(t, dep)).join("")
+    : `<div class="empty"><p class="empty-title">No trips match yet</p><p>Try another date, a different pick-up point, or fewer joiners.</p><button class="btn btn-secondary label-caps" type="button" id="reset">Clear search</button></div>`;
+  const reset = document.getElementById("reset");
+  if (reset) reset.addEventListener("click", () => { document.getElementById("search").reset(); setLevel("all"); });
+}
+function setLevel(l) {
+  level = l;
+  document.querySelectorAll(".filter").forEach(b => b.setAttribute("aria-pressed", b.dataset.level === l));
+  render();
+}
+document.getElementById("search").addEventListener("submit", e => { e.preventDefault(); render(); });
+["when", "size", "pickup"].forEach(id => document.getElementById(id).addEventListener("change", render));
+document.querySelectorAll(".filter").forEach(btn => btn.addEventListener("click", () => setLevel(btn.dataset.level)));
+window.addEventListener("hashchange", () => {
+  kind = kinds[location.hash.slice(1)] ? location.hash.slice(1) : "";
+  render();
+  if (kind) document.querySelector(".results").scrollIntoView();
+});
+document.getElementById("show-all").addEventListener("click", () => { history.replaceState(null, "", "index.html"); kind = ""; render(); });
+render();
+if (kind) document.querySelector(".results").scrollIntoView();
+</script>
+</body>
+</html>

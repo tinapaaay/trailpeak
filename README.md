@@ -1,0 +1,61 @@
+# TrailPeak
+
+Find joiner hikes and group climbs across the Philippines (Batulao, Mariglem, Pulag and more), check difficulty, meetup schedule, pick-up points and the event fee, and reserve a slot with a down payment.
+
+**Live prototype:** https://tinapaaay.github.io/trailpeak/
+
+> This is a front-end prototype. Accounts, bookings and payments are simulated and saved only in your browser. No real money moves and nothing is sent anywhere.
+
+## Why
+
+Joiner hikes in the Philippines are organized in Facebook groups: long hand-typed posts with dates, fees, inclusions and pick-up points, and booking happens one DM at a time. TrailPeak turns those posts into trips people can search, compare and reserve, while organizers keep posting in their groups with a link back.
+
+## Try it
+
+- **Joiners:** search by mountain, date, group size and pick-up point, open a trip, choose a date, and reserve. Sign in with a mobile number and the test code `123456`.
+- **Organizers:** open **Post a trip**, or go to the dashboard and tap **Use the sample account** to see bookings, joiner lists and payouts.
+
+## Pages
+
+- `index.html`: search and trip cards
+- `trip.html`: trip page for any trip, e.g. `trip.html#mt-pulag-akiki`
+- `signin.html`: mock sign-in for joiners (Facebook, mobile code, email)
+- `reserve.html`: pay the DP (simulated GCash/Maya) and see the booking confirmation
+- `mytrips.html`: a joiner's bookings, with move date and cancel
+- `organizer-signup.html`: mock organizer sign-up (account, ID check, business, payout)
+- `organize.html`: organizer form to post a trip, with live preview and Facebook text
+- `dashboard.html`: organizer dashboard with sample bookings, joiner list and payouts
+- `styles.css`: shared tokens and components used by every page
+- `trips.js`: details for every trip (shared by search and trip pages)
+- `cards.js`: shared trip card code
+- `auth.js`: mock accounts and bookings kept in the browser, and the header account menu
+- `build.py`: makes a self-contained copy in `site/` (downloads photos locally) for hosts that block outside images
+
+## Run it locally
+
+No build step. Serve the folder with any static server, for example:
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open http://localhost:8000.
+
+## Design system
+
+All colors, type, spacing, shapes and components are defined in [DESIGN.md](DESIGN.md) (direction: Trail Map). Read it before building or restyling any UI, and update it in the same change when you add or alter a token or component.
+
+Lint it with:
+
+```bash
+npx -y @google/design.md@0.4.0 lint --format json DESIGN.md
+```
+
+Target: 0 errors, 0 warnings.
+
+## Credits and data
+
+- Mountain heights, difficulty (Pinoy Mountaineer 1–9 scale) and trail classes come from published trail guides such as [Pinoy Mountaineer](https://www.pinoymountaineer.com/) and [Lakbay Pinas](https://lakbaypinas.com/).
+- Organizers, dates, fees, reviews, guides and itineraries are sample data.
+- Photos are placeholders from [Unsplash](https://unsplash.com/) and don't show the exact mountains.
+- Fonts: Bricolage Grotesque, Archivo Narrow and Source Sans 3 from Google Fonts.

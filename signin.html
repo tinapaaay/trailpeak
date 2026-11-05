@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Account pages: form on the left, a trail photo on the right (desktop only). */
+.auth { display: grid; grid-template-columns: minmax(0, 480px) 1fr; gap: var(--space-xxl); align-items: start; padding: var(--space-xl) 0 var(--space-xxl); }
+.auth-photo { position: relative; min-height: 560px; border-radius: var(--rounded-lg); overflow: hidden; background: var(--color-primary-deep); }
+.auth-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.auth-photo p { position: absolute; left: var(--space-lg); right: var(--space-lg); bottom: var(--space-lg); color: var(--color-surface); font: 700 24px/1.2 var(--font-display); }
+.auth-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(20,41,30,0.85), rgba(20,41,30,0) 55%); }
+.auth-photo p { z-index: 1; }
+
+.panel { display: grid; gap: var(--space-md); }
+.panel h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.panel .lead { color: var(--color-secondary); }
+.stack { display: grid; gap: var(--space-sm); }
+.stack .btn { width: 100%; justify-content: flex-start; padding-left: var(--space-lg); }
+.btn svg { flex: none; }
+.or { display: flex; align-items: center; gap: var(--space-sm); color: var(--color-secondary); font-size: 15px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--color-border); }
+
+.field2 { display: grid; gap: var(--space-xs); }
+.field2 > label { color: var(--color-secondary); }
+.input {
+  font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); width: 100%; min-height: 44px;
+}
+.input:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; border-color: var(--color-primary); }
+.input[aria-invalid="true"] { border-color: var(--color-error); }
+.prefix { display: grid; grid-template-columns: auto 1fr; gap: var(--space-sm); align-items: center; }
+.prefix span { font-family: var(--font-label); font-size: 17px; color: var(--color-secondary); }
+.code { font: 700 28px/1 var(--font-label); letter-spacing: 0.3em; font-feature-settings: "tnum" 1; max-width: 240px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+.check { display: flex; gap: var(--space-sm); align-items: flex-start; font-size: 15px; line-height: 1.5; }
+.check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--color-primary); flex: none; }
+.error { display: flex; gap: var(--space-xs); align-items: flex-start; color: var(--color-error); font-size: 15px; line-height: 1.5; }
+.error svg { flex: none; margin-top: 2px; }
+.back { justify-self: start; background: none; border: 0; padding: 0; min-height: 44px; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; }
+.organizer-cta a { display: inline-flex; align-items: center; min-height: 44px; }
+.organizer-cta { border-top: 1px solid var(--color-border); padding-top: var(--space-md); color: var(--color-secondary); font-size: 15px; }
+
+@media (max-width: 1024px) {
+  .auth { grid-template-columns: 1fr; }
+  .auth-photo { display: none; }
+}
+@media (max-width: 767px) {
+  .panel h1 { font-size: 24px; }
+  .grid2 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h4M14.5 13.5h3"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <div class="auth">
+    <div>
+      <!-- 1. Choose a way to sign in -->
+      <section class="panel" id="step-choose" aria-labelledby="h-choose">
+        <h1 id="h-choose">Sign in to TrailPeak</h1>
+        <p class="lead">Sign in to reserve slots and see your trips. New here? The same steps create your account.</p>
+        <div class="stack">
+          <button type="button" class="btn btn-primary label-caps" id="go-facebook"><svg width="20" height="20" aria-hidden="true"><use href="#i-user"/></svg>Continue with Facebook</button>
+          <button type="button" class="btn btn-secondary label-caps" id="go-phone"><svg width="20" height="20" aria-hidden="true"><use href="#i-phone"/></svg>Continue with mobile number</button>
+          <button type="button" class="btn btn-secondary label-caps" id="go-email"><svg width="20" height="20" aria-hidden="true"><use href="#i-mail"/></svg>Continue with email</button>
+        </div>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no real account is created. What you enter stays in this browser.</span></p>
+        <p class="organizer-cta">Running joiner trips? <a href="organizer-signup.html">Create an organizer account</a></p>
+      </section>
+
+      <!-- 2a. Mobile number -->
+      <form class="panel" id="step-phone" hidden novalidate aria-labelledby="h-phone">
+        <h1 id="h-phone">Your mobile number</h1>
+        <p class="lead">We'll text you a 6-digit code. Organizers also use this number to reach you on meetup day.</p>
+        <div class="field2">
+          <label class="label-caps" for="phone">Mobile number</label>
+          <div class="prefix"><span aria-hidden="true">+63</span><input class="input data" id="phone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="917 123 4567" aria-describedby="phone-err"></div>
+        </div>
+        <p class="error" id="phone-err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Enter a 10-digit mobile number that starts with 9, like 917 123 4567.</span></p>
+        <button type="submit" class="btn btn-primary label-caps">Send code</button>
+        <button type="button" class="back" data-back>Use another way</button>
+      </form>
+
+      <!-- 2b. Code -->
+      <form class="panel" id="step-code" hidden novalidate aria-labelledby="h-code">
+        <h1 id="h-code">Enter the code</h1>
+        <p class="lead" id="code-lead">We sent a 6-digit code.</p>
+        <div class="field2">
+          <label class="label-caps" for="code">6-digit code</label>
+          <input class="input code" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-describedby="code-err code-hint">
+        </div>
+        <p class="proto-note" id="code-hint"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no text is sent. Use the test code <strong class="data">123456</strong>.</span></p>
+        <p class="error" id="code-err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>That code doesn't match. Check the text and try again.</span></p>
+        <button type="submit" class="btn btn-primary label-caps">Verify</button>
+        <button type="button" class="back" data-back>Use another way</button>
+      </form>
+
+      <!-- 2c. Email -->
+      <form class="panel" id="step-email" hidden novalidate aria-labelledby="h-email">
+        <h1 id="h-email">Your email</h1>
+        <p class="lead">We'll email you a sign-in link. No password to remember.</p>
+        <div class="field2">
+          <label class="label-caps" for="email">Email</label>
+          <input class="input" id="email" type="email" autocomplete="email" placeholder="you@example.com" aria-describedby="email-err">
+        </div>
+        <p class="error" id="email-err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Enter an email address like you@example.com.</span></p>
+        <button type="submit" class="btn btn-primary label-caps">Email me a link</button>
+        <button type="button" class="back" data-back>Use another way</button>
+      </form>
+
+      <!-- 2d. Email sent -->
+      <section class="panel" id="step-sent" hidden aria-labelledby="h-sent">
+        <h1 id="h-sent">Check your email</h1>
+        <p class="lead" id="sent-lead">We sent a sign-in link.</p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no email is sent. Tap below to act as if you opened the link.</span></p>
+        <button type="button" class="btn btn-primary label-caps" id="open-link">Open the sign-in link</button>
+        <button type="button" class="back" data-back>Use another way</button>
+      </section>
+
+      <!-- 3. Profile (new accounts) -->
+      <form class="panel" id="step-profile" hidden novalidate aria-labelledby="h-profile">
+        <h1 id="h-profile">Almost done</h1>
+        <p class="lead" id="profile-lead">Organizers see your name and mobile number on the joiner list.</p>
+        <div class="grid2">
+          <div class="field2"><label class="label-caps" for="first">First name</label><input class="input" id="first" autocomplete="given-name"></div>
+          <div class="field2"><label class="label-caps" for="last">Last name</label><input class="input" id="last" autocomplete="family-name"></div>
+        </div>
+        <div class="field2" id="profile-phone-row">
+          <label class="label-caps" for="pphone">Mobile number</label>
+          <div class="prefix"><span aria-hidden="true">+63</span><input class="input data" id="pphone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="917 123 4567"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="agree"><span>I agree to the Terms and the Privacy Notice. TrailPeak shares my name and mobile number only with organizers of trips I book.</span></label>
+        <p class="error" id="profile-err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="profile-err-text"></span></p>
+        <button type="submit" class="btn btn-primary label-caps">Create account</button>
+      </form>
+    </div>
+
+    <figure class="auth-photo" aria-hidden="true">
+      <img src="https://images.unsplash.com/photo-1658296765530-41fbaea40024?w=1000&h=1200&fit=crop&q=70" alt="">
+      <p>Sign in once, then reserve your slot in a minute.</p>
+    </figure>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · mock sign-in: nothing is sent or saved outside this browser</div>
+</footer>
+
+<script src="auth.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const steps = ["step-choose", "step-phone", "step-code", "step-email", "step-sent", "step-profile"];
+let method = "", contact = "";
+
+function show(id) {
+  steps.forEach(s => $(s).hidden = s !== id);
+  const h = $(id).querySelector("h1"); h.tabIndex = -1; h.focus();
+}
+const digits = v => v.replace(/\D/g, "");
+const validPhone = v => /^9\d{9}$/.test(digits(v));
+const prettyPhone = v => { const d = digits(v); return `+63 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`; };
+function fieldError(input, errId, bad) {
+  input.setAttribute("aria-invalid", bad); $(errId).hidden = !bad;
+  if (bad) input.focus();
+  return !bad;
+}
+
+$("go-phone").onclick = () => { method = "phone"; show("step-phone"); };
+$("go-email").onclick = () => { method = "email"; show("step-email"); };
+$("go-facebook").onclick = () => {
+  // A real app opens Facebook's own login window here and gets the name back.
+  method = "facebook"; contact = ""; $("profile-phone-row").hidden = false;
+  $("profile-lead").textContent = "In the real app your name comes from Facebook. Add your mobile number so organizers can reach you on meetup day.";
+  show("step-profile");
+};
+document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => show("step-choose"));
+
+$("step-phone").addEventListener("submit", e => {
+  e.preventDefault();
+  if (!fieldError($("phone"), "phone-err", !validPhone($("phone").value))) return;
+  contact = prettyPhone($("phone").value);
+  $("code-lead").textContent = `We sent a 6-digit code to ${contact}.`;
+  show("step-code");
+});
+$("step-code").addEventListener("submit", e => {
+  e.preventDefault();
+  if (!fieldError($("code"), "code-err", $("code").value.trim() !== "123456")) return;
+  $("pphone").value = digits(contact).slice(2);
+  $("profile-phone-row").hidden = true;
+  show("step-profile");
+});
+$("step-email").addEventListener("submit", e => {
+  e.preventDefault();
+  const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("email").value.trim());
+  if (!fieldError($("email"), "email-err", !ok)) return;
+  contact = $("email").value.trim();
+  $("sent-lead").textContent = `We sent a sign-in link to ${contact}. It works for 1 hour.`;
+  show("step-sent");
+});
+$("open-link").onclick = () => { $("profile-phone-row").hidden = false; show("step-profile"); };
+
+$("step-profile").addEventListener("submit", e => {
+  e.preventDefault();
+  const first = $("first").value.trim(), last = $("last").value.trim();
+  const phone = $("profile-phone-row").hidden ? contact : ($("pphone").value ? prettyPhone($("pphone").value) : "");
+  let msg = "";
+  if (!first || !last) msg = "Enter your first and last name.";
+  else if (!$("profile-phone-row").hidden && !validPhone($("pphone").value)) msg = "Enter a 10-digit mobile number that starts with 9.";
+  else if (!$("agree").checked) msg = "Tick the box to agree to the Terms and Privacy Notice.";
+  $("profile-err").hidden = !msg; $("profile-err-text").textContent = msg;
+  if (msg) return;
+  setUser({ name: `${first} ${last}`, phone, email: method === "email" ? contact : "", method, role: "joiner" });
+  location.href = takeNext("index.html");
+});
+</script>
+</body>
+</html>

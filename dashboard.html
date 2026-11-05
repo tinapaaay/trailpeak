@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Organizer dashboard: money first, then trips by date, then the joiner list for the chosen date. */
+.dash { padding: var(--space-xl) 0 var(--space-xxl); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-xl); }
+.dash > *, .trip-top > div { min-width: 0; } /* wide tables scroll inside their own box instead of widening the page */
+.dash-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-md); }
+.dash-head h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.dash-head .organizer { padding-top: var(--space-xs); }
+.dash-head .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.section-title { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; margin-bottom: var(--space-md); }
+
+/* Money summary: the four numbers an organizer checks first */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-md); }
+.tile { background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-xs); align-content: start; }
+.tile .label-caps { color: var(--color-secondary); }
+.tile .value { font: 700 28px/1.1 var(--font-label); font-feature-settings: "tnum" 1; }
+.tile .note { color: var(--color-secondary); font-size: 15px; line-height: 1.4; }
+.tile.money { background: var(--color-primary-deep); color: var(--color-surface); }
+.tile.money .label-caps, .tile.money .note { color: var(--color-border); }
+
+/* Trip block with its dates */
+.trip { border: 1px solid var(--color-border); border-radius: var(--rounded-lg); overflow: hidden; background: var(--color-surface); }
+.trip-top { display: grid; grid-template-columns: 120px 1fr auto; gap: var(--space-md); align-items: center; padding: var(--space-md); background: var(--color-neutral); }
+.trip-top img { width: 120px; height: 80px; object-fit: cover; border-radius: var(--rounded-sm); }
+.trip-top h3 { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.trip-top .btn-secondary { background: var(--color-surface); }
+.trip-top .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; justify-content: flex-end; }
+
+.dates { display: grid; }
+.date-row { display: grid; grid-template-columns: 170px minmax(160px, 1fr) 120px auto; gap: var(--space-md); align-items: center; padding: var(--space-sm) var(--space-md); border-top: 1px solid var(--color-border); }
+.date-row.selected { background: var(--color-neutral); box-shadow: inset 3px 0 0 var(--color-primary); }
+.date-row.selected .btn-secondary { background: var(--color-surface); }
+.date-row .when { font: 700 16px/1.3 var(--font-label); font-feature-settings: "tnum" 1; }
+.fill { display: grid; gap: var(--space-xs); }
+.bar { height: 8px; border-radius: var(--rounded-full); corner-shape: round; background: var(--color-border); overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--color-primary); border-radius: inherit; }
+.fill .data { font-size: 15px; color: var(--color-secondary); }
+.row-actions { display: flex; gap: var(--space-xs); flex-wrap: wrap; justify-content: flex-end; }
+.row-actions .btn { padding: var(--space-sm) var(--space-md); }
+.link-btn { background: none; border: 0; padding: 0 var(--space-sm); min-height: 44px; color: var(--color-primary); font: inherit; font-size: 15px; text-decoration: underline; cursor: pointer; }
+.link-btn.danger { color: var(--color-error); }
+
+/* Status pills: availability uses lake blue, cancelled uses the error color, never blaze colors */
+.pill { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-sm); border-radius: var(--rounded-sm); font: 700 13px/1.2 var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; }
+.pill.open { background: var(--color-tertiary-tint); color: var(--color-tertiary); }
+.pill.full { background: var(--color-neutral); color: var(--color-on-surface); }
+.pill.closed { background: var(--color-border); color: var(--color-on-surface); }
+.pill.cancelled { background: var(--color-surface); color: var(--color-error); box-shadow: inset 0 0 0 1px var(--color-error); }
+
+.confirm { grid-column: 1 / -1; display: grid; gap: var(--space-sm); background: var(--color-surface); border: 1px solid var(--color-error); border-radius: var(--rounded-md); padding: var(--space-md); }
+.confirm .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+.btn-danger { background: var(--color-error); color: var(--color-surface); }
+.note-line { grid-column: 1 / -1; color: var(--color-secondary); font-size: 15px; }
+
+.add-date { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: end; padding: var(--space-md); border-top: 1px solid var(--color-border); }
+.add-date .field2 { display: grid; gap: var(--space-xs); }
+.add-date label { color: var(--color-secondary); }
+.input { font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); min-height: 44px; }
+.input:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; border-color: var(--color-primary); }
+.input[aria-invalid="true"] { border-color: var(--color-error); }
+.error { display: flex; gap: var(--space-xs); color: var(--color-error); font-size: 15px; width: 100%; }
+
+/* Joiner list for the chosen date */
+.joiners-head { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: baseline; justify-content: space-between; margin-bottom: var(--space-md); }
+.joiners-head p { color: var(--color-secondary); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); }
+table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
+.joiners th, .joiners td { text-align: left; padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); }
+.joiners th { color: var(--color-secondary); font: 700 13px/1.2 var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; background: var(--color-neutral); }
+.joiners td.num, .joiners th.num { text-align: right; font-family: var(--font-label); font-feature-settings: "tnum" 1; }
+.joiners tr:last-child td { border-bottom: 0; }
+.joiners tfoot td { font-weight: 700; background: var(--color-neutral); }
+.joiners input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--color-primary); }
+.checkin { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+.empty-list { padding: var(--space-lg); color: var(--color-secondary); }
+
+/* Payouts */
+.payouts { list-style: none; padding: 0; margin: 0; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); }
+.payouts li { display: grid; grid-template-columns: 1fr auto; gap: var(--space-md); padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); }
+.payouts li:last-child { border-bottom: 0; }
+.payouts .data { font-size: 17px; }
+
+/* Signed-out / joiner view */
+.gate { display: grid; gap: var(--space-md); max-width: 560px; padding: var(--space-xl) 0 var(--space-xxl); }
+.gate h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.gate p { color: var(--color-secondary); }
+.gate .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+
+@media (max-width: 1024px) {
+  .tiles { grid-template-columns: 1fr 1fr; }
+  .date-row { grid-template-columns: 150px 1fr; }
+  .date-row .pill { justify-self: end; }
+  .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+@media (max-width: 767px) {
+  .dash-head h1, .gate h1 { font-size: 24px; }
+  .tiles { grid-template-columns: 1fr; }
+  .trip-top { grid-template-columns: 80px 1fr; }
+  .trip-top img { width: 80px; height: 56px; }
+  .trip-top .actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .date-row { grid-template-columns: 1fr auto; grid-template-areas: "when pill" "fill fill" "act act"; }
+  .date-row .when { grid-area: when; } .date-row .pill { grid-area: pill; align-self: start; }
+  .fill { grid-area: fill; } .row-actions { grid-area: act; }
+  .confirm, .note-line { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h4M14.5 13.5h3"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <section class="gate" id="gate" hidden aria-labelledby="gate-h">
+    <h1 id="gate-h">Organizer dashboard</h1>
+    <p>This is where organizers see bookings, joiner lists and DP payouts. Sign up as an organizer to use it, or look around with a sample organizer account.</p>
+    <div class="actions">
+      <a class="btn btn-primary label-caps" href="organizer-signup.html" id="gate-signup">Create organizer account</a>
+      <button type="button" class="btn btn-secondary label-caps" id="use-sample">Use the sample account</button>
+    </div>
+    <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: the bookings here are sample data, and nothing is saved.</span></p>
+  </section>
+
+  <div class="dash" id="dash" hidden>
+    <div class="dash-head">
+      <div>
+        <h1>Dashboard</h1>
+        <p class="organizer" id="org-line"></p>
+      </div>
+      <div class="actions">
+        <a class="btn btn-primary label-caps" href="organize.html">Post a trip</a>
+      </div>
+    </div>
+
+    <section aria-labelledby="money-h">
+      <h2 class="sr" id="money-h">This month</h2>
+      <div class="tiles" id="tiles"></div>
+    </section>
+
+    <section aria-labelledby="trips-h">
+      <h2 class="section-title" id="trips-h">Your trips</h2>
+      <div id="trips"></div>
+    </section>
+
+    <section aria-labelledby="joiners-h" id="joiners-sec">
+      <div class="joiners-head">
+        <div>
+          <h2 class="section-title" id="joiners-h" style="margin-bottom:var(--space-xs)">Joiners</h2>
+          <p id="joiners-sub"></p>
+        </div>
+        <div class="actions" style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
+          <button type="button" class="btn btn-secondary label-caps" id="copy-list">Copy joiner list</button>
+        </div>
+      </div>
+      <div class="table-wrap" id="joiners-wrap"></div>
+      <p class="sr" id="live" aria-live="polite"></p>
+    </section>
+
+    <section aria-labelledby="payouts-h">
+      <h2 class="section-title" id="payouts-h">Payouts</h2>
+      <ul class="payouts" id="payouts"></ul>
+    </section>
+
+    <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: bookings, joiners, numbers and payouts are sample data. Changes here aren't saved. Commission uses a sample rate of 10%.</span></p>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · organizer dashboard with sample bookings</div>
+</footer>
+
+<script src="auth.js"></script>
+<script src="trips.js"></script>
+<script src="cards.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const pesos = n => "₱" + Math.round(n).toLocaleString(); // rounds: commission makes centavos
+const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const COMMISSION = 0.10; // sample rate until the real one is decided
+const SAMPLE_ORG = { name: "Lea Santos", org: "Batangas Trail Co.", role: "organizer", idVerified: true, business: "verified", phone: "+63 917 000 0101", method: "sample", payout: { wallet: "GCash", number: "+63 917 000 0101" } };
+
+// ---- Who is looking -------------------------------------------------------
+let me = getUser();
+$("use-sample").addEventListener("click", () => { setUser(SAMPLE_ORG); location.reload(); });
+$("gate-signup").addEventListener("click", () => rememberNext("dashboard.html"));
+if (!me || me.role !== "organizer") {
+  $("gate").hidden = false;
+} else {
+  $("dash").hidden = false;
+  start();
+}
+
+function start() {
+  // The organizer's trips. A brand-new organizer gets one sample trip to try the dashboard with.
+  let mine = TRIPS.filter(t => t.org === me.org);
+  if (!mine.length) mine = [{ ...TRIPS[0], org: me.org, sample: true }];
+
+  // Sample bookings, made up the same way every time so the page is stable.
+  const first = ["Ana", "Miguel", "Carla", "Paolo", "Bea", "Jun", "Trisha", "Marco", "Kim", "Rafa", "Joy", "Enzo", "Liza", "Nico"];
+  const last = ["R.", "S.", "D.", "M.", "C.", "L.", "V.", "T.", "G.", "B."];
+  const sizes = [2, 1, 3, 1, 2, 1, 4, 1, 2, 1];
+  const state = {};   // per date: { status, bookings, note }
+  let seq = 0;
+  mine.forEach(t => Object.entries(t.departures).forEach(([date, left]) => {
+    const booked = t.group - left, bookings = [];
+    let n = 0, i = 0;
+    while (n < booked) {
+      const size = Math.min(sizes[(seq + i) % sizes.length], booked - n);
+      const p = t.pickups[(seq + i) % t.pickups.length];
+      bookings.push({ name: `${first[(seq + i) % first.length]} ${last[(seq + i * 3) % last.length]}`, size,
+        pickup: `${p.place} · ${p.time}`, phone: `+63 917 000 ${String(1100 + seq * 10 + i).slice(-4)}`,
+        wallet: (seq + i) % 3 ? "GCash" : "Maya", checked: false });
+      n += size; i++;
+    }
+    seq++;
+    state[t.id + "|" + date] = { trip: t, date, cap: t.group, status: left === 0 ? "full" : "open", bookings, note: "" };
+  }));
+  const keys = () => Object.keys(state).sort((a, b) => state[a].date.localeCompare(state[b].date));
+  let selected = keys().find(k => state[k].bookings.length) || keys()[0];
+
+  const bookedOf = s => s.bookings.reduce((a, b) => a + b.size, 0);
+  const statusOf = s => s.status === "cancelled" || s.status === "closed" ? s.status : (bookedOf(s) >= s.cap ? "full" : "open");
+  const statusLabel = { open: "Open", full: "Full", closed: "Closed", cancelled: "Cancelled" };
+
+  $("org-line").innerHTML = `<span class="org-avatar label-caps" aria-hidden="true">${esc(initialsOf(me.org))}</span>${esc(me.org)}${me.idVerified ? `<span class="verified" title="ID verified"><svg width="16" height="16" aria-hidden="true"><use href="#i-check"/></svg><span class="sr">Verified organizer</span></span>` : ""}`;
+
+  function renderTiles() {
+    const live = keys().map(k => state[k]).filter(s => s.status !== "cancelled");
+    const joiners = live.reduce((a, s) => a + bookedOf(s), 0);
+    const dp = live.reduce((a, s) => a + bookedOf(s) * s.trip.dp, 0);
+    const balance = live.reduce((a, s) => a + bookedOf(s) * (s.trip.fee - s.trip.dp), 0);
+    const nextOpen = live.filter(s => statusOf(s) === "open").length;
+    $("tiles").innerHTML = `
+      <div class="tile"><span class="label-caps">Joiners booked</span><span class="value">${joiners}</span><span class="note">Across ${live.length} upcoming ${live.length === 1 ? "date" : "dates"}, ${nextOpen} still open</span></div>
+      <div class="tile"><span class="label-caps">DPs received</span><span class="value">${pesos(dp)}</span><span class="note">Paid by joiners on TrailPeak</span></div>
+      <div class="tile money"><span class="label-caps">Sent to your ${esc(me.payout?.wallet || "wallet")}</span><span class="value">${pesos(dp * (1 - COMMISSION))}</span><span class="note">After ${pesos(dp * COMMISSION)} TrailPeak commission</span></div>
+      <div class="tile"><span class="label-caps">To collect on meetup day</span><span class="value">${pesos(balance)}</span><span class="note">Balances joiners pay you in person</span></div>`;
+  }
+
+  function renderTrips() {
+    $("trips").innerHTML = mine.map(t => {
+      const rows = keys().filter(k => state[k].trip.id === t.id).map(k => {
+        const s = state[k], booked = bookedOf(s), st = statusOf(s), pct = Math.round(booked / s.cap * 100);
+        const actions = s.status === "cancelled" ? "" :
+          `<button type="button" class="btn btn-secondary label-caps" data-view="${k}" aria-label="View joiners for ${nice(s.date)}">Joiners</button>
+           <button type="button" class="link-btn" data-close="${k}">${s.status === "closed" ? "Reopen" : "Close"}<span class="sr"> ${nice(s.date)}</span></button>
+           <button type="button" class="link-btn danger" data-cancel="${k}">Cancel for weather<span class="sr"> on ${nice(s.date)}</span></button>`;
+        return `<div class="date-row${k === selected ? " selected" : ""}" data-key="${k}">
+          <span class="when">${nice(s.date)}<br><span class="meta" style="font-family:var(--font-body);font-weight:400">Meetup ${t.meet}</span></span>
+          <div class="fill"><div class="bar" role="img" aria-label="${booked} of ${s.cap} slots booked"><span style="width:${pct}%"></span></div><span class="data">${booked} of ${s.cap} booked</span></div>
+          <span class="pill ${st}">${statusLabel[st]}</span>
+          <div class="row-actions">${actions}</div>
+          ${s.confirm ? `<div class="confirm" role="group" aria-labelledby="c-${k.replace(/\W/g, "")}">
+              <p id="c-${k.replace(/\W/g, "")}"><strong>Cancel ${nice(s.date)} for weather?</strong> ${bookedOf(s)} ${bookedOf(s) === 1 ? "joiner" : "joiners"} will get a text offering another date or a full DP refund, as your cancellation policy says.</p>
+              <div class="actions"><button type="button" class="btn btn-danger label-caps" data-confirm="${k}">Cancel this date</button><button type="button" class="btn btn-secondary label-caps" data-keep="${k}">Keep the date</button></div>
+            </div>` : ""}
+          ${s.note ? `<p class="note-line">${esc(s.note)}</p>` : ""}
+        </div>`;
+      }).join("");
+      return `<article class="trip">
+        <div class="trip-top">
+          <img src="${img(t.photo)}" alt="">
+          <div><h3>${esc(t.title)}</h3><p class="meta">${esc(t.place)} · ${pesos(t.fee)} event fee · ${pesos(t.dp)} DP${t.sample ? " · sample trip" : ""}</p></div>
+          <div class="actions"><a class="btn btn-secondary label-caps" href="trip.html#${t.id}">View trip page</a><button type="button" class="btn btn-secondary label-caps" data-fb="${t.id}">Copy Facebook text</button></div>
+        </div>
+        <div class="dates">${rows}</div>
+        <form class="add-date" data-add="${t.id}" novalidate>
+          <div class="field2"><label class="label-caps" for="nd-${t.id}">New date</label><input class="input data" type="date" id="nd-${t.id}" min="2026-11-05"></div>
+          <div class="field2"><label class="label-caps" for="ns-${t.id}">Open slots</label><input class="input data" type="number" id="ns-${t.id}" min="1" max="${t.group}" value="${t.group}" style="width:120px"></div>
+          <button type="submit" class="btn btn-secondary label-caps">+ Add date</button>
+          <p class="error" id="ne-${t.id}" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        </form>
+      </article>`;
+    }).join("");
+  }
+
+  function renderJoiners() {
+    const s = state[selected];
+    if (!s) return;
+    const booked = bookedOf(s), checked = s.bookings.filter(b => b.checked).reduce((a, b) => a + b.size, 0);
+    $("joiners-h").textContent = `Joiners · ${nice(s.date)}`;
+    $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${booked} joiners · ${checked} checked in`;
+    if (!s.bookings.length) {
+      $("joiners-wrap").innerHTML = `<p class="empty-list">No bookings yet for this date. Copy the Facebook text above and post it in your groups.</p>`;
+      return;
+    }
+    const balance = s.trip.fee - s.trip.dp;
+    $("joiners-wrap").innerHTML = `<table class="joiners">
+      <caption class="sr">Joiners for ${nice(s.date)}</caption>
+      <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">DP paid</th><th scope="col" class="num">Collect</th></tr></thead>
+      <tbody>${s.bookings.map((b, i) => `<tr>
+        <td><label class="checkin"><input type="checkbox" data-check="${i}" ${b.checked ? "checked" : ""}><span class="sr">${esc(b.name)} checked in</span></label></td>
+        <td>${esc(b.name)}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${b.phone}</td>
+        <td>${pesos(s.trip.dp * b.size)} · ${b.wallet}</td><td class="num">${pesos(balance * b.size)}</td></tr>`).join("")}</tbody>
+      <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td>${pesos(s.trip.dp * booked)}</td><td class="num">${pesos(balance * booked)}</td></tr></tfoot>
+    </table>`;
+  }
+
+  function renderPayouts() {
+    const w = me.payout?.wallet || "GCash", num = me.payout?.number || "your wallet";
+    const paid = keys().map(k => state[k]).filter(s => s.bookings.length && s.status !== "cancelled").slice(0, 3);
+    $("payouts").innerHTML = paid.map(s => {
+      const dp = bookedOf(s) * s.trip.dp;
+      return `<li><span>${esc(s.trip.title)}, ${nice(s.date)}: ${bookedOf(s)} DPs<br><span class="meta">Sent to ${w} ${esc(num)} the next working day</span></span><span class="data">${pesos(dp * (1 - COMMISSION))}</span></li>`;
+    }).join("") || `<li><span class="meta">No payouts yet.</span></li>`;
+  }
+
+  const renderAll = () => { renderTiles(); renderTrips(); renderJoiners(); renderPayouts(); };
+  renderAll();
+
+  // ---- Actions ------------------------------------------------------------
+  const say = msg => { $("live").textContent = msg; };
+  document.addEventListener("click", async e => {
+    const t = e.target.closest("button"); if (!t) return;
+    const d = t.dataset;
+    if (d.view) { selected = d.view; renderTrips(); renderJoiners(); $("joiners-h").tabIndex = -1; $("joiners-h").focus(); }
+    if (d.close) { const s = state[d.close]; s.status = s.status === "closed" ? "open" : "closed"; s.note = s.status === "closed" ? "Closed: joiners can't book this date any more. Existing bookings stay." : ""; renderAll(); say(`${nice(s.date)} ${s.status === "closed" ? "closed" : "reopened"}.`); }
+    if (d.cancel) { state[d.cancel].confirm = true; renderTrips(); document.querySelector(`[data-confirm="${d.cancel}"]`).focus(); }
+    if (d.keep) { state[d.keep].confirm = false; renderTrips(); say("Date kept."); }
+    if (d.confirm) {
+      const s = state[d.confirm]; s.confirm = false; s.status = "cancelled";
+      s.note = `Cancelled for weather. ${bookedOf(s)} joiners were texted: move to another date or get a full DP refund.`;
+      if (selected === d.confirm) selected = keys().find(k => state[k].status !== "cancelled" && state[k].bookings.length) || selected;
+      renderAll(); say(`${nice(s.date)} cancelled. Joiners notified.`);
+    }
+    if (d.fb) {
+      const trip = mine.find(x => x.id === d.fb);
+      const open = keys().filter(k => state[k].trip.id === trip.id && statusOf(state[k]) === "open")
+        .map(k => `- ${nice(state[k].date)}: ${state[k].cap - bookedOf(state[k])} slots`).join("\n");
+      const text = `LOOKING FOR JOINERS: ${trip.title.toUpperCase()}\n${trip.place} · ${trip.masl.toLocaleString()} MASL · Difficulty ${trip.score}/9\n\nDates:\n${open || "- No open dates right now"}\n\nEvent fee: ${pesos(trip.fee)} per joiner\nReserve with ${pesos(trip.dp)} DP via GCash or Maya\n\nReserve here: ${window.TRAILPEAK_URL || new URL("trip.html#" + trip.id, location.href).href}\nOrganized by ${me.org} (verified on TrailPeak)`;
+      await copy(text, t, "Copy Facebook text");
+    }
+    if (t.id === "copy-list") {
+      const s = state[selected];
+      const text = `${s.trip.title} · ${nice(s.date)} · meetup ${s.trip.meet}\n` + s.bookings.map((b, i) => `${i + 1}. ${b.name} (${b.size}) · ${b.pickup} · ${b.phone} · collect ${pesos((s.trip.fee - s.trip.dp) * b.size)}`).join("\n");
+      await copy(text, t, "Copy joiner list");
+    }
+  });
+  document.addEventListener("change", e => {
+    const c = e.target.closest("[data-check]"); if (!c) return;
+    state[selected].bookings[Number(c.dataset.check)].checked = c.checked;
+    const s = state[selected], checked = s.bookings.filter(b => b.checked).reduce((a, b) => a + b.size, 0);
+    $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${bookedOf(s)} joiners · ${checked} checked in`;
+  });
+  document.addEventListener("submit", e => {
+    const f = e.target.closest("[data-add]"); if (!f) return;
+    e.preventDefault();
+    const id = f.dataset.add, trip = mine.find(x => x.id === id);
+    const date = $("nd-" + id).value, slots = Number($("ns-" + id).value), err = $("ne-" + id);
+    let msg = "";
+    if (!date) msg = "Pick a date.";
+    else if (state[id + "|" + date]) msg = "That date is already on this trip.";
+    else if (!(slots >= 1 && slots <= trip.group)) msg = `Open slots must be between 1 and ${trip.group}.`;
+    err.hidden = !msg; err.querySelector("span").textContent = msg;
+    if (msg) return;
+    state[id + "|" + date] = { trip, date, cap: slots, status: "open", bookings: [], note: "New date: joiners can book it now." };
+    renderAll(); say(`${nice(date)} added with ${slots} open slots.`);
+  });
+
+  async function copy(text, btn, label) {
+    try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+    catch { say("Copy isn't available here. Select the text on the page instead."); btn.textContent = "Copy failed"; }
+    setTimeout(() => btn.textContent = label, 2000);
+  }
+}
+</script>
+</body>
+</html>
