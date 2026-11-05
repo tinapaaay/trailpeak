@@ -116,11 +116,22 @@
 .reviews { list-style: none; padding: 0; margin: 0; display: grid; }
 .reviews li { padding: var(--space-md) 0; border-top: 1px solid var(--color-border); display: grid; gap: var(--space-xs); max-width: 68ch; }
 .review-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.going-sum { margin-bottom: var(--space-sm); }
+.going-sum .data { font: 700 28px/1 var(--font-label); margin-right: var(--space-xs); }
+.going { list-style: none; padding: 0; margin: 0 0 var(--space-sm); display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.going li { display: flex; align-items: center; gap: var(--space-sm); background: var(--color-neutral); border-radius: var(--rounded-md); padding: var(--space-xs) var(--space-md) var(--space-xs) var(--space-xs); }
+.going li.you { box-shadow: inset 0 0 0 1px var(--color-primary); }
+.going .org-avatar { width: 32px; height: 32px; background: var(--color-surface); }
 .policy { background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-sm); max-width: 68ch; }
 .policy li { margin-left: var(--space-md); }
 
 .org-card { display: grid; grid-template-columns: auto 1fr; gap: var(--space-md); align-items: center; }
 .org-card .org-avatar { width: 56px; height: 56px; font-size: 16px; }
+.ask-panel { grid-column: 1 / -1; display: grid; gap: var(--space-sm); background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-md); max-width: 68ch; }
+.ask-panel label { color: var(--color-secondary); }
+.ask-msg { font: 400 17px/1.5 var(--font-body); color: var(--color-on-surface); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); width: 100%; resize: vertical; }
+.ask-msg:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.fine-dark { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
 .org-card .actions { grid-column: 1 / -1; display: flex; gap: var(--space-sm); flex-wrap: wrap; }
 
 /* Booking panel (desktop: sticky side panel) */
@@ -258,6 +269,11 @@
         </div>
       </section>
 
+      <section class="section" aria-labelledby="going-h">
+        <h2 id="going-h">Who's going</h2>
+        <div id="going" aria-live="polite"></div>
+      </section>
+
       <section class="section">
         <h2>Itinerary</h2>
         <ol class="timeline" id="itinerary"></ol>
@@ -356,6 +372,7 @@ const $ = id => document.getElementById(id);
 const T = tripById(location.hash.slice(1)) || TRIPS[0];
 const FEE = T.fee, DP = T.dp, GROUP = T.group, MEET = T.meet;
 // Slots after this browser's own bookings.
+T.baseDepartures = { ...T.departures }; // before this browser's bookings, for the joiner list
 Object.keys(T.departures).forEach(d => { T.departures[d] = slotsLeft(T, d); });
 const dates = Object.keys(T.departures).sort();
 let picked = dates.find(d => T.departures[d] > 0) || dates[0];
@@ -418,7 +435,14 @@ function renderStatic() {
   $("bring").textContent = T.bring;
   $("org-card").innerHTML = `<span class="org-avatar label-caps" aria-hidden="true">${initials(T.org)}</span>
     <div><p><strong>${esc(T.org)}</strong> ${T.verified ? seal : ""}</p><p class="meta">${T.verified ? "ID verified" : "Not verified yet"} · ${T.orgTrips ? `${T.orgTrips} trips run · ${T.rating.toFixed(1)} average` : "New on TrailPeak"}</p></div>
-    <div class="actions"><a class="btn btn-secondary label-caps" href="#">Ask the organizer</a></div>`;
+    <div class="actions"><a class="btn btn-secondary label-caps" href="org.html#${T.org.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}">View profile</a><button type="button" class="btn btn-secondary label-caps" id="ask" aria-expanded="false" aria-controls="ask-panel">Ask the organizer</button></div>
+    <div class="ask-panel" id="ask-panel" hidden>
+      <label class="label-caps" for="ask-msg">Your message to ${esc(T.org)}</label>
+      <textarea class="ask-msg" id="ask-msg" rows="4"></textarea>
+      <p class="meta">Mobile: <span class="data">${T.contact || "Shared after you reserve"}</span></p>
+      <div class="actions"><button type="button" class="btn btn-primary label-caps" id="copy-msg">Copy message</button>${T.contact ? '<button type="button" class="btn btn-secondary label-caps" id="copy-num">Copy number</button>' : ""}</div>
+      <p class="fine-dark" id="ask-note" aria-live="polite">In the real app this opens a chat with the organizer. For now, copy the message and send it by text or Messenger.</p>
+    </div>`;
   $("book-price").innerHTML = `${peso(FEE)} <small>event fee per joiner</small>`;
   $("dp-note").textContent = `TrailPeak sends your DP to ${T.org}. Refunds follow this trip's cancellation policy.`;
 }
@@ -441,6 +465,26 @@ function buildCalendar() {
   $("cal").querySelectorAll(".day.open").forEach(b => b.addEventListener("click", () => { picked = b.dataset.date; update(); }));
 }
 
+function renderGoing() {
+  const list = joinersFor(T, picked);
+  const people = list.reduce((a, j) => a + j.size, 0);
+  const solo = list.filter(j => j.size === 1).length, groups = list.length - solo;
+  const iAmGoing = list.some(j => j.you);
+  const summary = people
+    ? `<p class="going-sum"><span class="data">${people}</span> going on ${nice(picked)} · ${solo} solo, ${groups} ${groups === 1 ? "group" : "groups"}</p>`
+    : `<p class="meta">No one has booked ${nice(picked)} yet. Be the first.</p>`;
+  if (!people) { $("going").innerHTML = summary; return; }
+  if (!iAmGoing) {
+    $("going").innerHTML = summary + `<p class="meta">Reserve this date to see the first names of other joiners who chose to be listed.</p>`;
+    return;
+  }
+  const listed = list.filter(j => j.listed || j.you), hidden = list.filter(j => !j.listed && !j.you).length;
+  $("going").innerHTML = summary + `<ul class="going">${listed.map(j =>
+    `<li${j.you ? ' class="you"' : ""}><span class="org-avatar label-caps" aria-hidden="true">${esc(j.name.split(" ").map(w => w[0]).join("").slice(0, 2))}</span><span>${esc(j.name)}${j.you ? " (you)" : ""}<span class="meta"> · ${j.size === 1 ? "solo" : `group of ${j.size}`}</span></span></li>`).join("")}</ul>`
+    + (hidden ? `<p class="meta">and ${hidden} ${hidden === 1 ? "booking" : "bookings"} not listed</p>` : "")
+    + `<p class="meta">Only first names and last initials of joiners who chose to be listed. Mobile numbers go to the organizer only.</p>`;
+}
+
 function update() {
   const left = T.departures[picked];
   size = Math.max(1, Math.min(size, left));
@@ -460,6 +504,7 @@ function update() {
   $("b-now").textContent = peso(DP * size);
   $("m-now").textContent = peso(DP * size);
   $("m-date").textContent = `to reserve · ${nice(picked)}`;
+  renderGoing();
 }
 
 $("prev-month").addEventListener("click", () => { month = months[months.indexOf(month) - 1]; buildCalendar(); });
@@ -476,6 +521,27 @@ $("reserve").addEventListener("click", e => {
   setPending({ tripId: T.id, date: picked, size, pickup: $("pickup").selectedIndex });
   if (!user) { rememberNext("reserve.html"); location.href = "signin.html"; return; }
   location.href = "reserve.html";
+});
+// Ask the organizer: a ready message with the date, joiners and pick-up already filled in.
+// Listens on the page: the organizer card (and this button) is drawn later by renderStatic().
+document.addEventListener("click", e => {
+  if (!e.target.closest("#ask")) return;
+  const panel = $("ask-panel"), open = panel.hidden;
+  panel.hidden = !open; $("ask").setAttribute("aria-expanded", open);
+  if (open) {
+    const pick = $("pickup").value.split(" · ")[0];
+    $("ask-msg").value = `Hi ${T.org}! I'm interested in ${T.title} on ${nice(picked)} for ${size} ${size === 1 ? "joiner" : "joiners"}, pick-up at ${pick}. Is the slot still open? Thank you!`;
+    $("ask-msg").focus();
+  }
+});
+async function copyText(text, btn, label) {
+  try { await navigator.clipboard.writeText(text); btn.textContent = "Copied"; }
+  catch { $("ask-note").textContent = "Copy isn't available here. Select the text and copy it yourself."; }
+  setTimeout(() => btn.textContent = label, 2000);
+}
+document.addEventListener("click", e => {
+  if (e.target.id === "copy-msg") copyText($("ask-msg").value, e.target, "Copy message");
+  if (e.target.id === "copy-num") copyText(T.contact, e.target, "Copy number");
 });
 // Opening another trip from this page (for example via the back button) reloads its details.
 window.addEventListener("hashchange", () => location.reload());

@@ -56,7 +56,10 @@
         </div>
         <div class="field">
           <label class="label-caps" for="when">When</label>
-          <input id="when" type="date" min="2026-11-04">
+          <select id="when">
+            <option value="">Any date</option><option value="this-weekend">This weekend</option><option value="next-weekend">Next weekend</option><option value="30-days">Next 30 days</option><option value="pick">Pick a date…</option>
+          </select>
+          <input id="when-date" type="date" aria-label="Date" hidden>
         </div>
         <div class="field">
           <label class="label-caps" for="size">Joiners</label>
@@ -110,6 +113,36 @@ const tours = TRIPS.map(t => ({
   pickups: t.pickups.map(p => p.place), departures: Object.keys(t.departures).sort().map(d => [d, slotsLeft(t, d)]),
 }));
 
+// Dates: weekends run Friday to Sunday, because many joiner vans leave on Friday night.
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const today = new Date(); today.setHours(0, 0, 0, 0);
+function weekend(offsetWeeks) {
+  const day = today.getDay(); // 0 Sun … 5 Fri, 6 Sat
+  const fri = day === 0 ? addDays(today, -2) : day === 6 ? addDays(today, -1) : addDays(today, 5 - day);
+  const start = addDays(fri, 7 * offsetWeeks);
+  return [start < today ? today : start, addDays(start, 2)];
+}
+const short = d => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+// "Nov 6–8", or "Nov 30–Dec 2" when the weekend crosses a month.
+const span = (a, b) => a.getMonth() === b.getMonth() ? `${short(a)}–${b.getDate()}` : `${short(a)}–${short(b)}`;
+function labelWeekends() {
+  const opts = document.getElementById("when").options;
+  opts[1].textContent = `This weekend · ${span(...weekend(0))}`;
+  opts[2].textContent = `Next weekend · ${span(...weekend(1))}`;
+  document.getElementById("when-date").min = iso(today);
+}
+// Returns [from, to] as ISO dates. Past dates never show.
+function dateRange() {
+  const v = document.getElementById("when").value, picked = document.getElementById("when-date").value;
+  if (v === "this-weekend") return weekend(0).map(iso);
+  if (v === "next-weekend") return weekend(1).map(iso);
+  if (v === "30-days") return [iso(today), iso(addDays(today, 30))];
+  if (v === "pick" && picked) return [picked, picked];
+  return [iso(today), "9999-12-31"];
+}
+labelWeekends();
+
 // Search: a trip shows if it has a departure that matches the date, group size and pick-up.
 const grid = document.getElementById("grid");
 const count = document.getElementById("count");
@@ -118,7 +151,7 @@ const kinds = { day: "Day hikes", major: "Major climbs" };
 let kind = kinds[location.hash.slice(1)] ? location.hash.slice(1) : "";
 function render() {
   const where = document.getElementById("where").value.trim().toLowerCase();
-  const when = document.getElementById("when").value;
+  const [from, to] = dateRange();
   const size = Number(document.getElementById("size").value);
   const pickup = document.getElementById("pickup").value;
   const matches = [];
@@ -127,7 +160,7 @@ function render() {
     if (kind && t.kind !== kind) continue;
     if (where && !(t.title + " " + t.place).toLowerCase().includes(where)) continue;
     if (pickup && !t.pickups.includes(pickup)) continue;
-    const dep = t.departures.find(([d, left]) => left >= size && (!when || d === when));
+    const dep = t.departures.find(([d, left]) => left >= size && d >= from && d <= to);
     if (dep) matches.push([t, dep]);
   }
   matches.sort((a, b) => a[1][0].localeCompare(b[1][0]));
@@ -147,7 +180,13 @@ function setLevel(l) {
   render();
 }
 document.getElementById("search").addEventListener("submit", e => { e.preventDefault(); render(); });
-["when", "size", "pickup"].forEach(id => document.getElementById(id).addEventListener("change", render));
+["when", "when-date", "size", "pickup"].forEach(id => document.getElementById(id).addEventListener("change", render));
+// "Pick a date…" shows a date box; the other choices hide it.
+document.getElementById("when").addEventListener("change", e => {
+  const box = document.getElementById("when-date");
+  box.hidden = e.target.value !== "pick";
+  if (!box.hidden) box.focus();
+});
 document.querySelectorAll(".filter").forEach(btn => btn.addEventListener("click", () => setLevel(btn.dataset.level)));
 window.addEventListener("hashchange", () => {
   kind = kinds[location.hash.slice(1)] ? location.hash.slice(1) : "";

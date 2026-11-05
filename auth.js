@@ -85,3 +85,29 @@ function slotsLeft(trip, date) {
 }
 function setPending(p) { try { sessionStorage.setItem(TP_PENDING_KEY, JSON.stringify(p)); } catch { /* ignore */ } }
 function getPending() { try { return JSON.parse(sessionStorage.getItem(TP_PENDING_KEY)); } catch { return null; } }
+
+// ---- Who's going (prototype) -------------------------------------------
+// Sample joiners for a date, made the same way every time. About 6 in 10 chose to be listed.
+// Only first name + last initial and group size are ever shown, never contact details.
+function joinersFor(trip, date) {
+  const first = ["Ana", "Miguel", "Carla", "Paolo", "Bea", "Jun", "Trisha", "Marco", "Kim", "Rafa", "Joy", "Enzo", "Liza", "Nico"];
+  const last = "RSDMCLVTGB";
+  const sizes = [1, 2, 1, 3, 1, 1, 2, 4, 1, 2];
+  let seed = [...(trip.id + date)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+  const base = (trip.baseDepartures || trip.departures)[date] ?? trip.group;
+  const sampleBooked = Math.max(0, (trip.group || 0) - base);
+  const list = [], offset = Math.floor(rnd() * first.length);
+  let n = 0;
+  while (n < sampleBooked) {
+    const size = Math.min(sizes[Math.floor(rnd() * sizes.length)], sampleBooked - n);
+    // Step through the name list (5 doesn't divide 14) so names don't repeat on one date.
+    const k = list.length;
+    list.push({ name: `${first[(offset + k * 5) % first.length]} ${last[(offset + k * 3) % last.length]}.`, size, listed: rnd() < 0.6, you: false });
+    n += size;
+  }
+  const me = getUser();
+  getBookings().filter(b => b.tripId === trip.id && b.date === date && b.status !== "cancelled")
+    .forEach(b => list.push({ name: b.displayName || "You", size: b.size, listed: !!b.listed, you: true, mine: me && b.userName === me.name }));
+  return list;
+}

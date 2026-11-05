@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Organizer · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Organizer profile: who they are and what's verified, then their trips, then reviews. */
+.profile { padding: var(--space-xl) 0 var(--space-xxl); display: grid; gap: var(--space-xl); grid-template-columns: minmax(0, 1fr); }
+.profile > * { min-width: 0; }
+.who { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-lg); align-items: center; }
+.who .org-avatar { width: 96px; height: 96px; font-size: 28px; background: var(--color-neutral); }
+.who h1 { font: 700 40px/1.1 var(--font-display); letter-spacing: -0.02em; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.who .verified svg { width: 28px; height: 28px; }
+.who p { color: var(--color-secondary); }
+.stats-row { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin-top: var(--space-sm); }
+.stats-row div { display: grid; gap: 2px; }
+.stats-row .value { font: 700 28px/1.1 var(--font-label); font-feature-settings: "tnum" 1; color: var(--color-on-surface); }
+.stats-row .label-caps { color: var(--color-secondary); }
+
+.checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); }
+.check-item { background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-xs); align-content: start; }
+.check-item svg { color: var(--color-primary); }
+.check-item.no svg { color: var(--color-secondary); }
+.check-item p { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
+.section-title { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; margin-bottom: var(--space-md); }
+
+.reviews { list-style: none; padding: 0; margin: 0; display: grid; }
+.reviews li { padding: var(--space-md) 0; border-top: 1px solid var(--color-border); display: grid; gap: var(--space-xs); max-width: 68ch; }
+.review-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
+.stars { color: var(--color-primary); letter-spacing: 2px; }
+.stars .off { color: var(--color-border); }
+.missing { display: grid; gap: var(--space-sm); justify-items: start; padding: var(--space-xl) 0; }
+
+@media (max-width: 1024px) { .checks { grid-template-columns: 1fr; } }
+@media (max-width: 767px) {
+  .who { grid-template-columns: 1fr; }
+  .who .org-avatar { width: 72px; height: 72px; font-size: 22px; }
+  .who h1 { font-size: 32px; }
+  .section-title { font-size: 24px; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h4M14.5 13.5h3"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav label-caps" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day Hikes</a>
+      <a href="index.html#major" data-kind="major">Major Climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <div class="profile" id="profile"></div>
+</main>
+
+<footer class="footer">
+  <div class="wrap">TrailPeak prototype · organizers, trips and reviews are sample data</div>
+</footer>
+
+<script src="auth.js"></script>
+<script src="trips.js"></script>
+<script src="cards.js"></script>
+<script>
+const slugOf = name => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const today = new Date().toISOString().slice(0, 10);
+const slug = location.hash.slice(1);
+const trips = TRIPS.filter(t => slugOf(t.org) === slug);
+const root = document.getElementById("profile");
+
+if (!trips.length) {
+  root.innerHTML = `<div class="missing"><h1 class="section-title">Organizer not found</h1><p class="meta">This organizer may have stopped posting trips.</p><a class="btn btn-primary label-caps" href="index.html">Find trips</a></div>`;
+} else {
+  const org = trips[0].org, verified = trips.some(t => t.verified);
+  const runs = Math.max(...trips.map(t => t.orgTrips || 0));
+  const reviews = trips.flatMap(t => (t.reviewList || []).map(r => [...r, t])).sort((a, b) => b[1].localeCompare(a[1]));
+  const rated = trips.filter(t => t.reviews);
+  const avg = rated.length ? rated.reduce((a, t) => a + t.rating * t.reviews, 0) / rated.reduce((a, t) => a + t.reviews, 0) : 0;
+  const count = rated.reduce((a, t) => a + t.reviews, 0);
+  const pickups = [...new Set(trips.flatMap(t => t.pickups.map(p => p.place)))];
+  const mountains = [...new Set(trips.map(t => t.title))];
+  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
+  document.title = `${org} · TrailPeak`;
+
+  // Cards: next open date per trip, with this browser's bookings taken off.
+  const cards = trips.map(t => {
+    const deps = Object.keys(t.departures).sort().filter(d => d >= today).map(d => [d, slotsLeft(t, d)]).filter(([, l]) => l > 0);
+    if (!deps.length) return "";
+    const tour = { ...t, length: `${t.typeLabel} · ${t.hours}`, page: `trip.html#${t.id}`, pickups: t.pickups.map(p => p.place) };
+    return card(tour, deps[0]);
+  }).join("");
+
+  root.innerHTML = `
+    <section class="who" aria-labelledby="org-h">
+      <span class="org-avatar label-caps" aria-hidden="true">${esc(initialsOf(org))}</span>
+      <div>
+        <h1 id="org-h">${esc(org)}${verified ? `<span class="verified" title="Verified organizer">${icon("check", 28)}<span class="sr">Verified organizer</span></span>` : ""}</h1>
+        <p>Joiner trips to ${esc(mountains.join(", "))}. Pick-ups in ${esc(pickups.join(", "))}.</p>
+        <div class="stats-row">
+          <div><span class="value">${runs || "New"}</span><span class="label-caps">${runs ? "Trips run" : "On TrailPeak"}</span></div>
+          <div><span class="value">${count ? avg.toFixed(1) : "—"}</span><span class="label-caps">${count ? `Average from ${count} reviews` : "No reviews yet"}</span></div>
+          <div><span class="value">${trips.length}</span><span class="label-caps">${trips.length === 1 ? "Trip listed" : "Trips listed"}</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="checks-h">
+      <h2 class="sr" id="checks-h">Verification</h2>
+      <div class="checks">
+        <div class="check-item${verified ? "" : " no"}">${icon(verified ? "tick" : "x", 24)}<strong>${verified ? "ID verified" : "ID not verified yet"}</strong><p>${verified ? "A government ID and a live selfie were checked when the organizer signed up." : "Book with care: TrailPeak hasn't checked this organizer's ID yet."}</p></div>
+        <div class="check-item${verified ? "" : " no"}">${icon(verified ? "tick" : "x", 24)}<strong>${verified ? "Business verified" : "Business not verified yet"}</strong><p>${verified ? "DTI or SEC registration and a mayor's business permit were reviewed." : "No business documents have been reviewed yet."}</p></div>
+        <div class="check-item">${icon("calendar", 24)}<strong>Standard cancellation policy</strong><p>Weather or closure: move or refund. Organizer cancels: full DP refund. Joiner cancels 7+ days before: move once.</p></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="trips-h">
+      <h2 class="section-title" id="trips-h">Upcoming trips</h2>
+      ${cards ? `<div class="grid">${cards}</div>` : `<p class="meta">No upcoming dates right now.</p>`}
+    </section>
+
+    <section aria-labelledby="reviews-h">
+      <h2 class="section-title" id="reviews-h">Reviews</h2>
+      ${reviews.length
+        ? `<ul class="reviews">${reviews.map(([name, date, n, text, t]) => `<li><div class="review-top"><strong>${esc(name)}</strong>${stars(n)}<span class="meta">${new Date(date + "T00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · ${esc(t.title)}</span></div><p>${esc(text)}</p></li>`).join("")}</ul>`
+        : `<p class="meta">No reviews yet. Joiners can review after their trip.</p>`}
+    </section>`;
+}
+window.addEventListener("hashchange", () => location.reload());
+</script>
+</body>
+</html>

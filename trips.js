@@ -10,7 +10,7 @@ const TRIPS = [
     level: "moderate", score: 4, masl: 811, trailClass: "3", trailNote: "Steep, some rope",
     kind: "day", typeLabel: "Day hike", hours: "5–6 hrs", hoursNote: "Day hike, traverse",
     rating: 4.8, reviews: 212, group: 14, groupNote: "One van, 2 guides", fee: 1499, dp: 500, meet: "2:00 AM",
-    org: "Batangas Trail Co.", verified: true, orgTrips: 186,
+    org: "Batangas Trail Co.", verified: true, orgTrips: 186, contact: "+63 917 000 0201",
     departures: { "2026-11-07": 3, "2026-11-14": 9, "2026-11-21": 0, "2026-11-28": 14 },
     photo: "1681287622401-9a77374ce790", alt: "Green forested hills under a hazy sky",
     gallery: [
@@ -51,7 +51,7 @@ const TRIPS = [
     level: "easy", score: 3, masl: 573, trailClass: "1–2", trailNote: "Loose scree, open",
     kind: "day", typeLabel: "Day hike", hours: "5–6 hrs", hoursNote: "Loop, 6–7 km",
     rating: 4.7, reviews: 96, group: 14, groupNote: "One van, 2 guides", fee: 1899, dp: 500, meet: "1:00 AM",
-    org: "Zambales Hike Club", verified: false, orgTrips: 42,
+    org: "Zambales Hike Club", verified: false, orgTrips: 42, contact: "+63 917 000 0202",
     departures: { "2026-11-15": 6, "2026-11-29": 14 },
     photo: "1551677821-36cb8571bdfc", alt: "Open grassy ridge under a clear blue sky",
     gallery: [
@@ -90,7 +90,7 @@ const TRIPS = [
     level: "easy", score: 3, masl: 1846, trailClass: "1–3", trailNote: "Ridges and pine forest",
     kind: "day", typeLabel: "Traverse", hours: "6–7 hrs", hoursNote: "Traverse, about 9.4 km",
     rating: 4.9, reviews: 318, group: 12, groupNote: "One van, 2 guides", fee: 2999, dp: 1000, meet: "10:00 PM",
-    org: "Northbound Joiners", verified: true, orgTrips: 254,
+    org: "Northbound Joiners", verified: true, orgTrips: 254, contact: "+63 917 000 0203",
     departures: { "2026-11-13": 5, "2026-11-20": 12 },
     photo: "1658296750072-6f4d37c6e4e3", alt: "Pine-dotted ridges with low clouds",
     gallery: [
@@ -129,7 +129,7 @@ const TRIPS = [
     level: "moderate", score: 4, masl: 739, trailClass: "", trailNote: "",
     kind: "day", typeLabel: "Day hike", hours: "6–7 hrs", hoursNote: "Day hike + river",
     rating: 4.8, reviews: 184, group: 14, groupNote: "One van, 2 guides", fee: 1399, dp: 500, meet: "3:00 AM",
-    org: "Rizal Peaks PH", verified: true, orgTrips: 131,
+    org: "Rizal Peaks PH", verified: true, orgTrips: 131, contact: "+63 917 000 0204",
     departures: { "2026-11-08": 4, "2026-11-14": 8, "2026-11-15": 10 },
     photo: "1658296742588-df6218e30675", alt: "Green mountain range under grey clouds",
     gallery: [
@@ -168,7 +168,7 @@ const TRIPS = [
     level: "hard", score: 7, masl: 2922, trailClass: "3", trailNote: "Long, steep assault",
     kind: "major", typeLabel: "Major climb", hours: "2 days", hoursNote: "Overnight camp",
     rating: 4.9, reviews: 73, group: 10, groupNote: "One van, 3 guides", fee: 6499, dp: 2000, meet: "8:00 PM",
-    org: "Cordillera Expeditions", verified: true, orgTrips: 97,
+    org: "Cordillera Expeditions", verified: true, orgTrips: 97, contact: "+63 917 000 0205",
     departures: { "2026-11-20": 2, "2026-12-04": 10 },
     photo: "1633670425294-cbf6ce988408", alt: "Sunrise over a sea of clouds from a grassy summit",
     gallery: [
@@ -206,7 +206,7 @@ const TRIPS = [
     level: "expert", score: 9, masl: 2582, trailClass: "", trailNote: "",
     kind: "major", typeLabel: "Major climb", hours: "4 days", hoursNote: "Open Feb–May only",
     rating: 5.0, reviews: 28, group: 8, groupNote: "Small group, 3 guides", fee: 9999, dp: 3000, meet: "4:00 AM",
-    org: "Mindoro Trek Guides", verified: false, orgTrips: 19,
+    org: "Mindoro Trek Guides", verified: false, orgTrips: 19, contact: "+63 917 000 0206",
     departures: { "2027-02-18": 1, "2027-03-11": 8 },
     photo: "1661200797529-c25677f64a14", alt: "Cloud-wrapped forested mountain range",
     gallery: [

@@ -103,6 +103,8 @@
 .done { display: none; gap: var(--space-md); background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); }
 .done.show { display: grid; }
 .done h2 { font: 700 24px/1.2 var(--font-display); }
+.share-img { width: 100%; aspect-ratio: 1200 / 630; border-radius: var(--rounded-md); background: var(--color-primary-deep); object-fit: cover; }
+.done .btn[download] { justify-self: start; }
 .done textarea { font: 400 15px/1.5 var(--font-body); min-height: 260px; resize: vertical; }
 .done .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
 
@@ -282,6 +284,10 @@
         <p>Post it in your Facebook groups. Joiners who tap the link can reserve a slot right away.</p>
         <label class="label-caps" for="fb" style="color:var(--color-secondary)">Ready-to-post text</label>
         <textarea class="input" id="fb" readonly></textarea>
+        <span class="label-caps" style="color:var(--color-secondary)">Share image (1200 × 630)</span>
+        <img class="share-img" id="share-img" alt="Share image for this trip: photo, name, height, difficulty, dates and fee">
+        <a class="btn btn-secondary label-caps" id="share-dl" download="trailpeak-trip.png" hidden>Download image</a>
+        <p class="hint" id="share-note"></p>
         <div class="actions">
           <button type="button" class="btn btn-primary label-caps" id="copy">Copy text</button>
           <a class="btn btn-secondary label-caps" href="trip.html" id="view-trip">View trip page</a>
@@ -448,6 +454,7 @@ document.getElementById("form").addEventListener("submit", e => {
   }
   $("publish-note").textContent = "Your trip is live. You can edit or close dates anytime.";
   $("fb").value = facebookText(t);
+  makeShareImage(t);
   const pub = toPublishedTrip(t);
   try {
     const list = JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || [];
@@ -473,6 +480,42 @@ function toPublishedTrip(t) {
     pickups: t.pickupTimes.filter(([p, tm]) => p && tm).map(([p, tm]) => ({ place: p, area: p, time: to12(tm), drop: "Same place" })),
     itinerary: [], incl: t.incl, excl: t.excl, bring: "", who: t.who,
   };
+}
+
+// Share image: the trip photo with the facts joiners compare first, sized for Facebook (1200 × 630).
+async function makeShareImage(t) {
+  const W = 1200, H = 630, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d"), css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const deep = css("--color-primary-deep"), paper = css("--color-surface"), line = css("--color-border");
+  try { await Promise.all(["700 64px 'Bricolage Grotesque'", "700 28px 'Archivo Narrow'", "400 28px 'Source Sans 3'"].map(f => document.fonts.load(f))); } catch { /* fallback fonts */ }
+  g.fillStyle = deep; g.fillRect(0, 0, W, H);
+  try {
+    const photo = new Image(); photo.crossOrigin = "anonymous";
+    await new Promise((res, rej) => { photo.onload = res; photo.onerror = rej; setTimeout(rej, 8000); photo.src = img(t.photo).replace("w=900&h=600", "w=1200&h=630"); });
+    // Crop to fill (like object-fit: cover) so the photo never stretches.
+    const scale = Math.max(W / photo.naturalWidth, H / photo.naturalHeight);
+    const sw = W / scale, sh = H / scale;
+    g.drawImage(photo, (photo.naturalWidth - sw) / 2, (photo.naturalHeight - sh) / 2, sw, sh, 0, 0, W, H);
+  } catch { /* no photo: plain pine background */ }
+  const fade = g.createLinearGradient(0, 0, W * 0.75, 0);
+  fade.addColorStop(0, "rgba(20,41,30,0.94)"); fade.addColorStop(0.65, "rgba(20,41,30,0.75)"); fade.addColorStop(1, "rgba(20,41,30,0)");
+  g.fillStyle = fade; g.fillRect(0, 0, W, H);
+  const dates = t.departures.filter(([d, n]) => d && n > 0).sort((a, b) => a[0].localeCompare(b[0])).slice(0, 3).map(([d]) => niceDate(d)).join(" · ");
+  g.fillStyle = line; g.font = "700 24px 'Archivo Narrow', sans-serif"; g.fillText("LOOKING FOR JOINERS", 64, 96);
+  g.fillStyle = paper; g.font = "700 76px 'Bricolage Grotesque', sans-serif"; g.fillText(t.title, 64, 190, 760);
+  g.font = "400 30px 'Source Sans 3', sans-serif"; g.fillText(`${t.place} · ${t.masl.toLocaleString()} MASL · Difficulty ${t.score}/9`, 64, 250, 760);
+  g.font = "700 30px 'Archivo Narrow', sans-serif"; g.fillText(dates || "Dates coming soon", 64, 330, 760);
+  g.font = "700 64px 'Archivo Narrow', sans-serif"; g.fillText(peso(t.fee), 64, 450);
+  g.font = "400 30px 'Source Sans 3', sans-serif"; g.fillText(`event fee · ${peso(t.dp)} to reserve`, 64, 495);
+  g.fillStyle = line; g.font = "400 26px 'Source Sans 3', sans-serif"; g.fillText(`by ${t.org} · reserve on TrailPeak`, 64, 570, 760);
+  try {
+    const url = URL.createObjectURL(await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(), "image/png")));
+    $("share-img").src = url; $("share-dl").href = url;
+    $("share-dl").download = `trailpeak-${t.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`; $("share-dl").hidden = false;
+    $("share-note").textContent = "Attach this image to your Facebook post together with the text below.";
+  } catch {
+    $("share-note").textContent = "This browser couldn't make the image. The text below still works on its own.";
+  }
 }
 
 // Plain text on purpose: Unicode bold and emoji break screen readers and search.

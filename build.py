@@ -11,7 +11,7 @@ import os, re, shutil, urllib.request
 
 SRC = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(SRC, "site")
-PAGES = ["index.html", "trip.html", "organize.html", "signin.html", "organizer-signup.html", "dashboard.html", "reserve.html", "mytrips.html", "styles.css", "cards.js", "auth.js", "trips.js"]
+PAGES = ["index.html", "trip.html", "organize.html", "signin.html", "organizer-signup.html", "dashboard.html", "reserve.html", "mytrips.html", "org.html", "styles.css", "cards.js", "auth.js", "trips.js"]
 URL_RE = re.compile(r"https://images\.unsplash\.com/photo-([0-9]+-[0-9a-f]+)\?([^\"'`)\s]*)")
 
 os.makedirs(os.path.join(OUT, "photos"), exist_ok=True)
