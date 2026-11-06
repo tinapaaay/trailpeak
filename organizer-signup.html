@@ -147,7 +147,7 @@
         </div>
         <p class="error" id="e1" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
         <div class="actions"><button type="submit" class="btn btn-primary label-caps">Continue</button></div>
-        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no real account is created, and photos stay on this device.</span></p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><span id="acct-note">Prototype: no real account is created, and photos stay on this device.</span></span></p>
       </form>
 
       <!-- Step 2: ID check -->
@@ -220,7 +220,7 @@
 </main>
 
 <footer class="footer">
-  <div class="wrap">TrailPeak prototype · mock sign-up: no ID is checked and nothing is sent or saved outside this browser</div>
+  <div class="wrap" id="foot-note">TrailPeak prototype · mock sign-up: no ID is checked and nothing is sent or saved outside this browser</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -232,6 +232,8 @@ const existing = getUser();
 const alreadyOrganizer = !!(existing && existing.role === "organizer");
 // Online, an organizer account starts from a signed-in account (email code).
 if (TP.online && !existing) { rememberNext("organizer-signup.html"); location.replace("signin.html"); }
+if (TP.online) $("acct-note").textContent = "Your details save to your TrailPeak account. Photos stay on this device: the ID check is simulated.";
+if (TP.online) $("foot-note").textContent = "TrailPeak prototype · your organizer profile is saved to your account; ID and business checks are simulated";
 if (alreadyOrganizer) {
   document.querySelector(".page > div").innerHTML = `<div class="page-head"><h1>You're already an organizer</h1>
     <p>${escapeHtml(existing.org)} is set up${existing.idVerified ? " and ID verified" : ""}. Go to your dashboard to see bookings, or post a new trip.</p></div>
