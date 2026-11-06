@@ -99,13 +99,13 @@
       <!-- 1. Choose a way to sign in -->
       <section class="panel" id="step-choose" aria-labelledby="h-choose">
         <h1 id="h-choose">Sign in or create an account</h1>
-        <p class="lead">New or returning, it's the same step: enter your email and we'll send a code. New emails get a TrailPeak account automatically. No password needed.</p>
+        <p class="lead" id="choose-lead">New or returning, it's the same step: enter your email and we'll send you a sign-in link. New emails get a TrailPeak account automatically. No password needed.</p>
         <div class="stack">
           <button type="button" class="btn btn-primary label-caps" id="go-facebook"><svg width="20" height="20" aria-hidden="true"><use href="#i-user"/></svg>Continue with Facebook</button>
           <button type="button" class="btn btn-secondary label-caps" id="go-phone"><svg width="20" height="20" aria-hidden="true"><use href="#i-phone"/></svg>Continue with mobile number</button>
           <button type="button" class="btn btn-secondary label-caps" id="go-email"><svg width="20" height="20" aria-hidden="true"><use href="#i-mail"/></svg>Continue with email</button>
         </div>
-        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="choose-note">Prototype: no real account is created. What you enter stays in this browser.</span></p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="choose-note">Sign in with your email for now. Facebook and mobile-number sign-in are coming later.</span></p>
         <p class="organizer-cta">Running joiner trips? <a href="organizer-signup.html">Create an organizer account</a></p>
       </section>
 
@@ -184,7 +184,7 @@
 </main>
 
 <footer class="footer">
-  <div class="wrap" id="foot-note">TrailPeak prototype · mock sign-in: nothing is sent or saved outside this browser</div>
+  <div class="wrap" id="foot-note">TrailPeak prototype · accounts and bookings are real; payments are simulated</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -217,13 +217,17 @@ $("go-facebook").onclick = () => {
   $("profile-lead").textContent = "In the real app your name comes from Facebook. Add your mobile number so organizers can reach you on meetup day.";
   show("step-profile");
 };
+// Offline demo (no config.js): mock wording.
+if (!TP.online) {
+  $("choose-lead").textContent = "New or returning, it's the same step: we'll send a code. New accounts are created automatically. No password needed.";
+  $("choose-note").textContent = "Prototype: no real account is created. What you enter stays in this browser.";
+  $("foot-note").textContent = "TrailPeak prototype · mock sign-in: nothing is sent or saved outside this browser";
+}
 // Online: email codes are real. Facebook and text-message sign-in need their own services first.
 if (TP.online) {
   $("go-facebook").hidden = true; $("go-phone").hidden = true;
   $("go-email").classList.replace("btn-secondary", "btn-primary");
-  $("choose-note").textContent = "Sign in with your email for now. Facebook and mobile-number sign-in are coming later.";
   $("code").maxLength = 8;
-  $("foot-note").textContent = "TrailPeak prototype · accounts and bookings are real; payments are simulated";
 }
 if (TP.online) {
   // A link that failed (expired, already used) comes back with the reason in the address.

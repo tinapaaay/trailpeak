@@ -136,7 +136,7 @@
         <p class="error" id="err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
         <button type="submit" class="btn btn-primary label-caps pay-btn" id="pay-btn"></button>
         <p class="paying" id="paying" hidden aria-live="polite"><svg width="18" height="18" aria-hidden="true"><use href="#i-clock"/></svg><span></span></p>
-        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="pay-note">Prototype: no money moves. The payment is simulated and the booking is kept in this browser only.</span></p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="pay-note">Prototype: no money moves. The payment is simulated, but your booking is real: the organizer sees it and the slots update for everyone.</span></p>
       </form>
 
       <section class="done" id="done" hidden aria-labelledby="done-h">
@@ -208,7 +208,7 @@ function start() {
   $("pay-btn").textContent = `Pay ${peso(dp)} DP`;
   $("agree-text").innerHTML = `I agree to this trip's <a href="trip.html#${T.id}">cancellation policy</a>: if I cancel less than 7 days before, or don't show up, the DP isn't refunded.`;
   if (user.phone) $("wnum").value = digits(user.phone).slice(2);
-  if (TP.online) $("pay-note").textContent = "Prototype: no money moves. The payment is simulated, but your booking is real: the organizer sees it and the slots update for everyone.";
+  if (!TP.online) $("pay-note").textContent = "Prototype: no money moves. The payment is simulated and the booking is kept in this browser only.";
   $("listname").textContent = shortName(user.name);
 
   $("pay").addEventListener("submit", e => {
