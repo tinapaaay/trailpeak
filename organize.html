@@ -299,10 +299,13 @@
 </main>
 
 <footer class="footer">
-  <div class="wrap">TrailPeak prototype · built from DESIGN.md · mountain heights and difficulty from published trail guides · published trips are kept in this browser only</div>
+  <div class="wrap">TrailPeak prototype · built from DESIGN.md · mountain heights and difficulty from published trail guides · trips publish to the TrailPeak database when it's connected</div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="auth.js"></script>
+<script src="api.js"></script>
 <script src="trips.js"></script>
 <script src="cards.js"></script>
 <script>
@@ -452,17 +455,29 @@ document.getElementById("form").addEventListener("submit", e => {
     firstBad.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     return;
   }
-  $("publish-note").textContent = "Your trip is live. You can edit or close dates anytime.";
-  $("fb").value = facebookText(t);
-  makeShareImage(t);
   const pub = toPublishedTrip(t);
+  const finish = () => {
+    $("publish-note").textContent = "Your trip is live. You can edit or close dates anytime.";
+    $("fb").value = facebookText(t);
+    makeShareImage(t);
+    $("view-trip").href = `trip.html#${pub.id}`;
+    $("done").classList.add("show");
+    $("done").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+  if (TP.online) {
+    // Saved to the database: the trip shows for everyone right away.
+    const btn = document.querySelector('button[form="form"]'); btn.disabled = true;
+    $("publish-note").textContent = "Publishing…";
+    TP.publishTrip(pub).then(finish)
+      .catch(err => { $("publish-note").textContent = `Couldn't publish: ${err.message}`; })
+      .finally(() => { btn.disabled = false; });
+    return;
+  }
   try {
     const list = JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || [];
     localStorage.setItem(TP_PUBLISHED_KEY, JSON.stringify([...list, pub]));
   } catch { /* storage blocked: trip shows only in the preview */ }
-  $("view-trip").href = `trip.html#${pub.id}`;
-  $("done").classList.add("show");
-  $("done").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  finish();
 });
 
 function toPublishedTrip(t) {

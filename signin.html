@@ -105,7 +105,7 @@
           <button type="button" class="btn btn-secondary label-caps" id="go-phone"><svg width="20" height="20" aria-hidden="true"><use href="#i-phone"/></svg>Continue with mobile number</button>
           <button type="button" class="btn btn-secondary label-caps" id="go-email"><svg width="20" height="20" aria-hidden="true"><use href="#i-mail"/></svg>Continue with email</button>
         </div>
-        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no real account is created. What you enter stays in this browser.</span></p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="choose-note">Prototype: no real account is created. What you enter stays in this browser.</span></p>
         <p class="organizer-cta">Running joiner trips? <a href="organizer-signup.html">Create an organizer account</a></p>
       </section>
 
@@ -127,7 +127,7 @@
         <h1 id="h-code">Enter the code</h1>
         <p class="lead" id="code-lead">We sent a 6-digit code.</p>
         <div class="field2">
-          <label class="label-caps" for="code">6-digit code</label>
+          <label class="label-caps" for="code">Code</label>
           <input class="input code" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-describedby="code-err code-hint">
         </div>
         <p class="proto-note" id="code-hint"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no text is sent. Use the test code <strong class="data">123456</strong>.</span></p>
@@ -187,7 +187,10 @@
   <div class="wrap">TrailPeak prototype · mock sign-in: nothing is sent or saved outside this browser</div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="auth.js"></script>
+<script src="api.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const steps = ["step-choose", "step-phone", "step-code", "step-email", "step-sent", "step-profile"];
@@ -214,6 +217,13 @@ $("go-facebook").onclick = () => {
   $("profile-lead").textContent = "In the real app your name comes from Facebook. Add your mobile number so organizers can reach you on meetup day.";
   show("step-profile");
 };
+// Online: email codes are real. Facebook and text-message sign-in need their own services first.
+if (TP.online) {
+  $("go-facebook").hidden = true; $("go-phone").hidden = true;
+  $("go-email").classList.replace("btn-secondary", "btn-primary");
+  $("choose-note").textContent = "Sign in with your email for now. Facebook and mobile-number sign-in are coming later.";
+  $("code").maxLength = 8;
+}
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => show("step-choose"));
 
 $("step-phone").addEventListener("submit", e => {
@@ -223,8 +233,19 @@ $("step-phone").addEventListener("submit", e => {
   $("code-lead").textContent = `We sent a 6-digit code to ${contact}.`;
   show("step-code");
 });
-$("step-code").addEventListener("submit", e => {
+$("step-code").addEventListener("submit", async e => {
   e.preventDefault();
+  if (TP.online) {
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      const user = await TP.verifyCode(contact, $("code").value.trim());
+      if (user && user.name) { location.href = takeNext("index.html"); return; }
+      $("profile-phone-row").hidden = false;
+      show("step-profile");
+    } catch (err) { $("code-err").querySelector("span").textContent = err.message; fieldError($("code"), "code-err", true); }
+    btn.disabled = false;
+    return;
+  }
   if (!fieldError($("code"), "code-err", $("code").value.trim() !== "123456")) return;
   $("pphone").value = digits(contact).slice(2);
   $("profile-phone-row").hidden = true;
@@ -235,6 +256,19 @@ $("step-email").addEventListener("submit", e => {
   const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("email").value.trim());
   if (!fieldError($("email"), "email-err", !ok)) return;
   contact = $("email").value.trim();
+  if (TP.online) {
+    const btn = e.submitter; btn.disabled = true;
+    TP.sendCode(contact).then(() => {
+      $("code-lead").textContent = `We emailed a sign-in code to ${contact}. It can take a minute; check spam too.`;
+      $("code-hint").hidden = true;
+      show("step-code");
+    }).catch(err => {
+      $("email-err").querySelector("span").textContent = /rate|limit|seconds/i.test(err.message)
+        ? "Too many codes sent just now. Wait a minute, then try again." : err.message;
+      fieldError($("email"), "email-err", true);
+    }).finally(() => { btn.disabled = false; });
+    return;
+  }
   $("sent-lead").textContent = `We sent a sign-in link to ${contact}. It works for 1 hour.`;
   show("step-sent");
 });
@@ -250,6 +284,11 @@ $("step-profile").addEventListener("submit", e => {
   else if (!$("agree").checked) msg = "Tick the box to agree to the Terms and Privacy Notice.";
   $("profile-err").hidden = !msg; $("profile-err-text").textContent = msg;
   if (msg) return;
+  if (TP.online) {
+    TP.saveProfile({ name: `${first} ${last}`, phone }).then(() => { location.href = takeNext("index.html"); })
+      .catch(err => { $("profile-err").hidden = false; $("profile-err-text").textContent = err.message; });
+    return;
+  }
   setUser({ name: `${first} ${last}`, phone, email: method === "email" ? contact : "", method, role: "joiner" });
   location.href = takeNext("index.html");
 });

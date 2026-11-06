@@ -364,7 +364,10 @@
   <div class="wrap">TrailPeak prototype · built from DESIGN.md · heights, difficulty and trail class from published trail guides; organizers, dates, fees, guides and itineraries are sample data · placeholder photos from Unsplash</div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="auth.js"></script>
+<script src="api.js"></script>
 <script src="trips.js"></script>
 <script>
 // Which trip: from the link (trip.html#mt-pulag-akiki), else the first one.
@@ -465,8 +468,20 @@ function buildCalendar() {
   $("cal").querySelectorAll(".day.open").forEach(b => b.addEventListener("click", () => { picked = b.dataset.date; update(); }));
 }
 
-function renderGoing() {
-  const list = joinersFor(T, picked);
+async function renderGoing() {
+  const date = picked;
+  let list = joinersFor(T, date);
+  if (TP.online) {
+    try {
+      const real = await TP.whosGoing(T.id, date);
+      if (date !== picked) return; // a newer date was chosen while this loaded
+      // Sample seats show names only to people booked on this date, like real ones.
+      const booked = real.some(r => r.is_you);
+      list = list.map(j => ({ ...j, listed: j.listed && booked }))
+        .concat(real.map(r => ({ name: r.display_name || "", size: r.size, listed: !!r.display_name && !r.is_you, you: !!r.is_you })));
+      list.forEach(j => { if (j.you && !j.name) j.name = "You"; });
+    } catch { /* keep the sample list */ }
+  }
   const people = list.reduce((a, j) => a + j.size, 0);
   const solo = list.filter(j => j.size === 1).length, groups = list.length - solo;
   const iAmGoing = list.some(j => j.you);

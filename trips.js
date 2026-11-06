@@ -244,8 +244,12 @@ const TRIPS = [
 
 // Trips published from the organizer form in this browser (prototype: not shared with anyone else).
 const TP_PUBLISHED_KEY = "trailpeak.published";
-try {
-  (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).forEach(t => { if (!TRIPS.some(x => x.id === t.id)) TRIPS.push(t); });
-} catch { /* storage blocked: only the sample trips show */ }
+if (typeof TP !== "undefined" && TP.online) {
+  TP.applyTo(TRIPS); // trips, dates and live slots from Supabase (see api.js)
+} else {
+  try {
+    (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).forEach(t => { if (!TRIPS.some(x => x.id === t.id)) TRIPS.push(t); });
+  } catch { /* storage blocked: only the sample trips show */ }
+}
 
 function tripById(id) { return TRIPS.find(t => t.id === id); }

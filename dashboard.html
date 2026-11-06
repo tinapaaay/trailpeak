@@ -201,7 +201,7 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
       <ul class="payouts" id="payouts"></ul>
     </section>
 
-    <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: bookings, joiners, numbers and payouts are sample data. Changes here aren't saved. Commission uses a sample rate of 10%.</span></p>
+    <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><span id="dash-note">Prototype: bookings, joiners, numbers and payouts are sample data. Changes here aren't saved. Commission uses a sample rate of 10%.</span></span></p>
   </div>
 </main>
 
@@ -209,7 +209,10 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
   <div class="wrap">TrailPeak prototype · organizer dashboard with sample bookings</div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="auth.js"></script>
+<script src="api.js"></script>
 <script src="trips.js"></script>
 <script src="cards.js"></script>
 <script>
@@ -223,18 +226,31 @@ const SAMPLE_ORG = { name: "Lea Santos", org: "Batangas Trail Co.", role: "organ
 // ---- Who is looking -------------------------------------------------------
 let me = getUser();
 $("use-sample").addEventListener("click", () => { setUser(SAMPLE_ORG); location.reload(); });
+if (TP.online) $("use-sample").hidden = true;
 $("gate-signup").addEventListener("click", () => rememberNext("dashboard.html"));
 if (!me || me.role !== "organizer") {
   $("gate").hidden = false;
 } else {
   $("dash").hidden = false;
+  if (TP.online) $("dash-note").textContent = "Bookings and dates are real and saved. Payments, payouts and text messages are still simulated; commission uses a sample rate of 10%.";
   start();
 }
 
-function start() {
-  // The organizer's trips. A brand-new organizer gets one sample trip to try the dashboard with.
-  let mine = TRIPS.filter(t => t.org === me.org);
-  if (!mine.length) mine = [{ ...TRIPS[0], org: me.org, sample: true }];
+async function start() {
+  // Online: the organizer's own trips and their real bookings from the database.
+  // Offline: trips matching the organizer's name, or one sample trip, with sample bookings.
+  let mine, real = null;
+  if (TP.online) {
+    mine = TRIPS.filter(t => t.organizerId === me.id);
+    try { real = (await TP.organizerBookings()).filter(b => b.status === "confirmed"); }
+    catch (e) { real = []; console.warn(e); }
+    if (!mine.length) {
+      $("trips").innerHTML = `<div class="empty-list" style="background:var(--color-neutral);border-radius:var(--rounded-lg)"><p style="font:700 24px/1.2 var(--font-display);color:var(--color-on-surface)">No trips yet</p><p>Post your first trip and its bookings will show up here.</p><p style="margin-top:var(--space-md)"><a class="btn btn-primary label-caps" href="organize.html">Post a trip</a></p></div>`;
+    }
+  } else {
+    mine = TRIPS.filter(t => t.org === me.org);
+    if (!mine.length) mine = [{ ...TRIPS[0], org: me.org, sample: true }];
+  }
 
   // Sample bookings, made up the same way every time so the page is stable.
   const first = ["Ana", "Miguel", "Carla", "Paolo", "Bea", "Jun", "Trisha", "Marco", "Kim", "Rafa", "Joy", "Enzo", "Liza", "Nico"];
@@ -243,6 +259,15 @@ function start() {
   const state = {};   // per date: { status, bookings, note }
   let seq = 0;
   mine.forEach(t => Object.entries(t.departures).forEach(([date, left]) => {
+    if (real) {
+      const bookings = real.filter(b => b.trip_id === t.id && b.date === date).map(b => ({
+        name: b.joiner_name || "Joiner", size: b.size, pickup: `${b.pickup} · ${b.pickup_time}`,
+        phone: b.joiner_phone || "No number yet", wallet: b.wallet, checked: false }));
+      const taken = bookings.reduce((a, b) => a + b.size, 0) + (t.sampleBooked?.[date] || 0);
+      const status = t.dateStatus?.[date] === "open" ? "open" : (t.dateStatus?.[date] || "open");
+      state[t.id + "|" + date] = { trip: t, date, cap: t.capacity?.[date] || t.group, status, bookings, note: "" };
+      return;
+    }
     const booked = t.group - left, bookings = [];
     let n = 0, i = 0;
     while (n < booked) {
@@ -355,12 +380,20 @@ function start() {
     const t = e.target.closest("button"); if (!t) return;
     const d = t.dataset;
     if (d.view) { selected = d.view; renderTrips(); renderJoiners(); $("joiners-h").tabIndex = -1; $("joiners-h").focus(); }
+    if (d.close && TP.online) {
+      const s = state[d.close], to = s.status === "closed" ? "open" : "closed";
+      try { await TP.setDateStatus(s.trip.id, s.date, to); } catch (err) { say(err.message); return; }
+    }
     if (d.close) { const s = state[d.close]; s.status = s.status === "closed" ? "open" : "closed"; s.note = s.status === "closed" ? "Closed: joiners can't book this date any more. Existing bookings stay." : ""; renderAll(); say(`${nice(s.date)} ${s.status === "closed" ? "closed" : "reopened"}.`); }
     if (d.cancel) { state[d.cancel].confirm = true; renderTrips(); document.querySelector(`[data-confirm="${d.cancel}"]`).focus(); }
     if (d.keep) { state[d.keep].confirm = false; renderTrips(); say("Date kept."); }
     if (d.confirm) {
-      const s = state[d.confirm]; s.confirm = false; s.status = "cancelled";
-      s.note = `Cancelled for weather. ${bookedOf(s)} joiners were texted: move to another date or get a full DP refund.`;
+      const s = state[d.confirm];
+      if (TP.online) { try { await TP.setDateStatus(s.trip.id, s.date, "cancelled"); } catch (err) { say(err.message); return; } }
+      s.confirm = false; s.status = "cancelled";
+      s.note = TP.online
+        ? `Cancelled for weather. Text messages aren't connected yet, so tell the ${bookedOf(s)} joiners yourself: move to another date or a full DP refund.`
+        : `Cancelled for weather. ${bookedOf(s)} joiners were texted: move to another date or get a full DP refund.`;
       if (selected === d.confirm) selected = keys().find(k => state[k].status !== "cancelled" && state[k].bookings.length) || selected;
       renderAll(); say(`${nice(s.date)} cancelled. Joiners notified.`);
     }
@@ -383,7 +416,7 @@ function start() {
     const s = state[selected], checked = s.bookings.filter(b => b.checked).reduce((a, b) => a + b.size, 0);
     $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${bookedOf(s)} joiners · ${checked} checked in`;
   });
-  document.addEventListener("submit", e => {
+  document.addEventListener("submit", async e => {
     const f = e.target.closest("[data-add]"); if (!f) return;
     e.preventDefault();
     const id = f.dataset.add, trip = mine.find(x => x.id === id);
@@ -394,6 +427,7 @@ function start() {
     else if (!(slots >= 1 && slots <= trip.group)) msg = `Open slots must be between 1 and ${trip.group}.`;
     err.hidden = !msg; err.querySelector("span").textContent = msg;
     if (msg) return;
+    if (TP.online) { try { await TP.addDate(id, date, slots); } catch (e2) { err.hidden = false; err.querySelector("span").textContent = e2.message; return; } }
     state[id + "|" + date] = { trip, date, cap: slots, status: "open", bookings: [], note: "New date: joiners can book it now." };
     renderAll(); say(`${nice(date)} added with ${slots} open slots.`);
   });

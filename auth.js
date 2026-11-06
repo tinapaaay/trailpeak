@@ -95,8 +95,9 @@ function joinersFor(trip, date) {
   const sizes = [1, 2, 1, 3, 1, 1, 2, 4, 1, 2];
   let seed = [...(trip.id + date)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
   const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+  // Online, the server says how many seats are sample data; offline, it's capacity minus slots.
   const base = (trip.baseDepartures || trip.departures)[date] ?? trip.group;
-  const sampleBooked = Math.max(0, (trip.group || 0) - base);
+  const sampleBooked = trip.sampleBooked ? (trip.sampleBooked[date] || 0) : Math.max(0, (trip.group || 0) - base);
   const list = [], offset = Math.floor(rnd() * first.length);
   let n = 0;
   while (n < sampleBooked) {
@@ -106,6 +107,7 @@ function joinersFor(trip, date) {
     list.push({ name: `${first[(offset + k * 5) % first.length]} ${last[(offset + k * 3) % last.length]}.`, size, listed: rnd() < 0.6, you: false });
     n += size;
   }
+  if (typeof TP !== "undefined" && TP.online) return list; // real bookings come from TP.whosGoing()
   const me = getUser();
   getBookings().filter(b => b.tripId === trip.id && b.date === date && b.status !== "cancelled")
     .forEach(b => list.push({ name: b.displayName || "You", size: b.size, listed: !!b.listed, you: true, mine: me && b.userName === me.name }));
