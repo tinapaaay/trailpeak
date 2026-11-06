@@ -225,6 +225,12 @@ if (TP.online) {
   $("code").maxLength = 8;
 }
 if (TP.online) {
+  // A link that failed (expired, already used) comes back with the reason in the address.
+  const linkError = new URLSearchParams(location.hash.slice(1) || location.search).get("error_description");
+  if (linkError) {
+    $("choose-note").textContent = `That sign-in link didn't work (${linkError.replace(/\+/g, " ")}). Ask for a new code below.`;
+    history.replaceState(null, "", location.pathname);
+  }
   TP.db.auth.getSession().then(async ({ data: { session } }) => {
     if (!session) return;
     await TP.sync({ reload: false });

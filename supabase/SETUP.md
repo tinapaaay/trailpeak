@@ -30,7 +30,7 @@ Both files are safe to run again later.
    ```
 3. Open **Authentication → URL Configuration**:
    - **Site URL:** `https://tinapaaay.github.io/trailpeak/`
-   - **Redirect URLs:** add `http://localhost:5391/**`
+   - **Redirect URLs:** add `https://tinapaaay.github.io/trailpeak/**` and `http://localhost:5391/**` (the email link returns to the sign-in page)
 
 The free plan's built-in email sender only sends a few emails per hour. That's enough for testing; a real launch needs your own email service.
 
