@@ -66,6 +66,10 @@ TP.sync = async function ({ reload = true } = {}) {
   if (session) {
     const { data: profile } = await TP.db.from("profiles").select("*").eq("id", session.user.id).single();
     if (profile) setUser(tpUser(profile, session.user.email));
+    if (profile && !profile.name && !/signin\.html$/.test(location.pathname)) {
+      rememberNext((location.pathname.split("/").pop() || "index.html") + location.hash);
+      location.replace("signin.html"); return;
+    }
     const { data: mine } = await TP.db.from("bookings").select("*").eq("user_id", session.user.id).order("date");
     saveBookings((mine || []).map(tpBooking));
   } else {
@@ -83,7 +87,9 @@ TP.sendCode = async email => {
   if (error) throw new Error(error.message);
 };
 TP.verifyCode = async (email, token) => {
-  const { error } = await TP.db.auth.verifyOtp({ email, token, type: "email" });
+  // New accounts get the "Confirm signup" email, returning ones the "Magic Link" email; try both kinds.
+  let { error } = await TP.db.auth.verifyOtp({ email, token, type: "email" });
+  if (error) ({ error } = await TP.db.auth.verifyOtp({ email, token, type: "signup" }));
   if (error) throw new Error("That code doesn't match or has expired. Check the email and try again.");
   await TP.sync({ reload: false });
   return getUser();

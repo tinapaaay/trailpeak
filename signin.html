@@ -224,6 +224,17 @@ if (TP.online) {
   $("choose-note").textContent = "Sign in with your email for now. Facebook and mobile-number sign-in are coming later.";
   $("code").maxLength = 8;
 }
+if (TP.online) {
+  TP.db.auth.getSession().then(async ({ data: { session } }) => {
+    if (!session) return;
+    await TP.sync({ reload: false });
+    const u = getUser();
+    if (u && u.name) { location.replace(takeNext("index.html")); return; }
+    contact = session.user.email; method = "email";
+    $("profile-phone-row").hidden = false;
+    show("step-profile");
+  });
+}
 document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => show("step-choose"));
 
 $("step-phone").addEventListener("submit", e => {

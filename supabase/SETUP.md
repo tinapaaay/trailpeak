@@ -23,7 +23,7 @@ Both files are safe to run again later.
 ## 3. Turn on sign-in by email code
 
 1. Open **Authentication → Sign In / Providers**. **Email** should already be on.
-2. Open **Authentication → Email Templates → Magic Link** and add this line to the message, so people get a 6-digit code instead of only a link:
+2. Open **Authentication → Email Templates** and add this line to **both** the **Confirm signup** template (new accounts) and the **Magic Link** template (returning accounts), so people get a code instead of only a link:
 
    ```html
    <p>Your TrailPeak code: <strong>{{ .Token }}</strong></p>
