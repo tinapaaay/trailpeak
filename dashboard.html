@@ -206,7 +206,7 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 </main>
 
 <footer class="footer">
-  <div class="wrap">TrailPeak prototype · organizer dashboard with sample bookings</div>
+  <div class="wrap" id="foot-note">TrailPeak prototype · organizer dashboard with sample bookings</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -227,6 +227,7 @@ const SAMPLE_ORG = { name: "Lea Santos", org: "Batangas Trail Co.", role: "organ
 let me = getUser();
 $("use-sample").addEventListener("click", () => { setUser(SAMPLE_ORG); location.reload(); });
 if (TP.online) $("use-sample").hidden = true;
+if (TP.online) $("foot-note").textContent = "TrailPeak prototype · real bookings on your trips; payments and payouts are simulated";
 $("gate-signup").addEventListener("click", () => rememberNext("dashboard.html"));
 if (!me || me.role !== "organizer") {
   $("gate").hidden = false;
