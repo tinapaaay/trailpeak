@@ -9,6 +9,7 @@ This adds real accounts and shared trips and bookings. **Payments and ID checks 
    - **Name:** `trailpeak`
    - **Database password:** make a strong one and save it in your password manager. You won't need to share it with anyone, including Claude.
    - **Region:** Southeast Asia (Singapore), closest to the Philippines.
+   - **Security:** keep **Enable Data API** on, turn **Automatically expose new tables** off (`schema.sql` opens each table on purpose), and turn **Enable automatic RLS** on.
 3. Wait a minute or two while the project starts.
 
 ## 2. Create the tables

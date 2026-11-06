@@ -244,3 +244,15 @@ $$;
 revoke all on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings from public, anon;
 grant execute on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings to authenticated;
 grant execute on function public.slots_left, public.all_slots, public.whos_going to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Table access for the website's API roles (the project has "automatically expose
+-- new tables" turned off, so each table is opened on purpose here). Row Level
+-- Security above still decides which rows each person sees.
+-- ---------------------------------------------------------------------------
+grant usage on schema public to anon, authenticated;
+grant select on public.trips, public.departures to anon, authenticated;
+grant select, insert, update on public.profiles to authenticated;
+grant insert, update on public.trips to authenticated;
+grant insert, update, delete on public.departures to authenticated;
+grant select on public.bookings to authenticated;   -- changes go through the functions only
