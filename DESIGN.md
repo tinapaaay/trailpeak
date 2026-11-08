@@ -239,6 +239,18 @@ components:
     typography: "{typography.data-md}"
     rounded: "{rounded.md}"
     size: 44px
+  star-rating:
+    backgroundColor: "{colors.neutral}"
+    textColor: "{colors.secondary}"
+    typography: "{typography.data-lg}"
+    rounded: "{rounded.sm}"
+    size: 44px
+  star-rating-selected:
+    backgroundColor: "{colors.neutral}"
+    textColor: "{colors.primary}"
+    typography: "{typography.data-lg}"
+    rounded: "{rounded.sm}"
+    size: 44px
   stats-ribbon:
     backgroundColor: "{colors.primary-deep}"
     textColor: "{colors.surface}"
@@ -409,7 +421,7 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - *Organizer line:* a 28px round initials avatar (`avatar-guide` colors on a `surface` fill), "by" + the organizer's name in `body-sm`, and a verified seal icon in `primary` when they are verified (with screen-reader text "Verified organizer"). Unverified organizers show no seal; never a warning color.
 - *Footer:* hairline above; price in `data-lg` (`₱1,499`) with two `text-meta` lines under it: "event fee" and the down payment ("₱500 to reserve"), and a `button-primary` "View & join". Never write "all-in": most trips have exclusions.
 
-**Organizer form** (`organize.html`). Form on the left, a sticky live preview on the right (400px; below the form on tablets and phones). The preview uses the exact search-page card, so organizers see what joiners will see.
+**Organizer form** (`organize.html`, and `organize.html?edit=<trip id>` to edit a trip you published). Form on the left, a sticky live preview on the right (400px; below the form on tablets and phones). The preview uses the exact search-page card, so organizers see what joiners will see.
 - *Sections* are numbered groups (1 Mountain … 8 Cancellation policy), each a `headline-md` title with a `data-md` step number in `primary`, separated by hairlines. Labels above fields are `label-caps` in `secondary`; help text is `text-meta`.
 - *Facts from the mountain list:* choosing a mountain fills a `neutral` strip with MASL, x/9 + level, and place, labelled "From TrailPeak's mountain list". Organizers never type heights or scores.
 - *Inputs* follow `input`: 44px minimum height, 20px corners, a 2px `primary` focus ring. Money fields show a ₱ prefix inside the field and use tabular figures.
@@ -418,6 +430,8 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - *Repeating rows* (dates + slots, pick-up place + time) with a 44px remove button (× in `secondary`) and a `button-secondary` "+ Add" under them.
 - *Photo upload:* a dashed 1px `secondary` drop zone with 28px corners. When photos are added, a required rights checkbox appears. No photos is fine: the mountain's default photo is used, credited.
 - *Errors:* checked on Publish. Each failing section shows one `input-error` line with an alert icon and a plain sentence of what to fix; bad fields get an `error` border; the page scrolls to the first problem. Never color alone.
+- *Editing:* the same form, filled in, titled "Edit Mt. Batulao", with a `button-primary` "Save changes". Dates aren't edited here: section 2 lists the upcoming dates and points to the dashboard, where dates change one at a time. A line says joiners who already booked keep the price and DP they paid. Saving shows "Changes saved" with links to the trip page and the dashboard.
+- *Dates* start from today: the date boxes don't allow past days, and new forms suggest the next two Saturdays.
 - *Published:* a `neutral` panel with "Your trip is live", a 1200 × 630 share image for the Facebook post (the trip photo cropped to fill, a pine fade on the left, and in paper-colored type: LOOKING FOR JOINERS, the mountain, place · MASL · x/9, up to three dates, the fee and DP, and the organizer) with a Download image button, the ready-to-post Facebook text in a read-only box (plain text, no Unicode bold or emoji, ends with the reserve link), a `button-primary` "Copy text" and a `button-secondary` "View trip page".
 
 **Accounts (mock).** Sign-in and organizer sign-up are prototypes: the account lives in the viewer's browser and every account page carries a `proto-note` (a `neutral` strip with an alert icon) saying nothing is sent or saved.
@@ -432,6 +446,7 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - *Reserve page:* pay form on the left, an order summary on the right (on top, with a short 3:1 photo, below 1024px). The summary lists date, meetup, joiners, event fee × joiners, Pay on meetup day, and **Pay now (DP)** in bold under a hairline. The form: GCash or Maya as choice cards, wallet number with the +63 prefix, optional names of the group, a policy checkbox that states the no-refund rule in plain words, and a full-width `button-primary` "Pay ₱1,500 DP" with the exact amount. While paying: a clock icon and "Waiting for GCash to approve ₱1,500…".
 - *Confirmation:* a `primary` "DP paid" seal, "You're going to Mt. Daraitan" in `headline-lg`, the booking number in `data-lg` with wide tracking, and a ticked list of what happens next (DP sent to whom, meetup time and place, balance to bring, the organizer's text 2 days before).
 - *My trips:* one card per booking, soonest first: photo, status pill (Confirmed = `tertiary`, Cancelled = `error` outline, Done = `neutral`), a lake-blue countdown ("In 10 days"), and the facts in two columns. Move date and Cancel follow the policy: moving is free once and only 7+ days before; cancelling always shows a red-bordered inline warning that the DP isn't refunded, and offers a free move instead when one is allowed. Past and cancelled bookings sit in their own section below.
+- *Reviews:* once a trip's date has passed, its card shows a `button-secondary` "Write a review". It opens an inline `neutral` panel: five 44px stars as a real radio group (`star-rating`: outline stars ☆ in `secondary`, dark enough to see; every star up to the chosen one becomes a filled ★ in `primary` as `star-rating-selected`, so shape shows the choice as well as color; each has screen-reader text like "4 stars", and arrow keys move between them), a text box, a line saying the name other joiners will see ("Shown on the trip page as Ana R."), and `button-primary` "Post review". One review per booking. Afterwards the card shows "Your review" with the stars and text instead of the button.
 - *Slots:* every booking lowers the slots shown on the search and trip pages for that date.
 
 **Organizer profile** (`org.html#<organizer>`, linked as "View profile" from every trip's organizer card). A 96px initials avatar and the name in `headline-lg` with the seal, one line on where they go and where they pick up, and three `data-lg` stats (trips run, average rating with count, trips listed). Three `neutral` verification tiles: ID, business, cancellation policy; an unverified organizer gets a `secondary` cross and a plain "Book with care" line, never a warning color. Then their upcoming trips as search cards, and all reviews from their trips, newest first, each naming the trip.
@@ -439,8 +454,8 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 **Organizer dashboard** (`dashboard.html`). Money first, then trips by date, then the joiner list for the chosen date.
 - *Signed out or a joiner:* a short explanation with `button-primary` "Create organizer account" and `button-secondary` "Use the sample account" (for demos and interviews).
 - *Money tiles:* four `neutral` tiles: Joiners booked, DPs received, Sent to your wallet, To collect on meetup day. Values in `data-lg`, a `label-caps` label and one `text-meta` line. Only the payout tile is `primary-deep`, because that's the number organizers care about most. Four across on desktop, two on tablets, one on phones.
-- *Trip block:* 1px `border`, 28px corners; a `neutral` header with a thumbnail, name, fee and DP, and two `button-secondary` actions on `surface` (View trip page, Copy Facebook text). One row per date: date and meetup time, a booked bar (8px, `primary` fill on a `border` track, labelled "11 of 14 booked"), a status pill, and actions. The selected date gets a `neutral` fill with a 3px `primary` edge.
-- *Status pills* (13px caps, 12px corners): Open = `tertiary` on `tertiary-tint` (availability), Full = ink on `neutral`, Closed = ink on `border`, Cancelled = `error` text with an `error` outline. Never blaze colors.
+- *Trip block:* 1px `border`, 28px corners; a `neutral` header with a thumbnail, name, fee and DP, and `button-secondary` actions on `surface` (Edit trip, for trips this account published; View trip page; Copy Facebook text). One row per date: date and meetup time, a booked bar (8px, `primary` fill on a `border` track, labelled "11 of 14 booked"), a status pill, and actions. The selected date gets a `neutral` fill with a 3px `primary` edge.
+- *Status pills* (13px caps, 12px corners): Open = `tertiary` on `tertiary-tint` (availability), Full = ink on `neutral`, Closed = ink on `border`, Cancelled = `error` text with an `error` outline, Done (the date has passed) = ink on `neutral`. A done date keeps only its Joiners button: it can't be closed or cancelled. Never blaze colors.
 - *Cancel for weather* is a red text button. It opens an inline confirm panel with an `error` border that says how many joiners will be texted and what they're offered, with a red "Cancel this date" and a "Keep the date" button. No browser pop-ups.
 - *Joiner list:* a real table (caption, column headers) that scrolls sideways inside its own box on phones and never widens the page. Columns: checked-in box (44px tap area), name, joiners, pick-up, mobile, DP paid, amount to collect, with a totals row. "Copy joiner list" turns it into plain text for the van.
 - *Payouts:* a hairline list of DP payouts per date with the amount after commission.
@@ -456,7 +471,7 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - *Gallery:* 3-photo mosaic (one large left, two stacked right; on phones one wide on top, two below), 28px squircle corners, 440px tall on desktop.
 - *Stats ribbon:* `primary-deep` band with 4–5 stats (a stat with no sourced value, like an unknown trail class, is left out, never shown as "n/a"), each a `label-caps` label, a `data-lg` value and a `text-meta` note: Peak (MASL), Difficulty (x/9), Trail class, Hike time, Group size. Dividers between stats are 1px `secondary`. 5 across on desktop, 3 on tablet, 2 on phones.
 - *Two columns on desktop:* content on the left, booking panel on the right (380px, sticky 88px from the top). One column below 1024px.
-- *Choose a date:* a month calendar of 44px day cells, opening on the month of the first open date. Previous/next month buttons (44px, chevron icons) step only between months that have departures and dim at either end. A day with a departure is `calendar-day` with a 1px `border` ring and a lake-blue dot under the number; the chosen day is `calendar-day-selected` (lake fill, paper text, paper dot). A full day is struck through in `secondary` and disabled. Days with no departure are plain `secondary` numbers, not buttons. A legend sits under it. Next to the calendar, a `neutral` panel repeats the chosen date in `headline-md`, the slots in `chip-spots`, the meetup time, and the lead guide (`avatar-guide` + name + one line of experience).
+- *Choose a date:* a month calendar of 44px day cells, opening on the month of the first open date. Previous/next month buttons (44px, chevron icons) step only between months that have departures and dim at either end. A day with a departure is `calendar-day` with a 1px `border` ring and a lake-blue dot under the number; the chosen day is `calendar-day-selected` (lake fill, paper text, paper dot). A full day is struck through in `secondary` and disabled. Days with no departure, and departures whose date has passed, are plain `secondary` numbers, not buttons. If a trip has no date from today on, the calendar and booking panel say "No upcoming dates" and point to Ask the organizer, and the phone bar hides. A legend sits under it. Next to the calendar, a `neutral` panel repeats the chosen date in `headline-md`, the slots in `chip-spots`, the meetup time, and the lead guide (`avatar-guide` + name + one line of experience).
 - *Itinerary timeline:* a 1px `border` line with 9px round markers; times right-aligned in `timeline-time`, the step in `body-strong`, a detail line in `text-meta`. Key moments (meetup, summit) get a filled `primary` marker; the rest are hollow.
 - *What the fee covers:* two lists side by side. Included items use a `primary` tick; Not included items use a `secondary` cross and `secondary` text. Never blaze colors here: green and red already mean difficulty.
 - *Pick-up points:* a table with hairline rows: place, pick-up time, drop-off time (times right-aligned in `data-md`).

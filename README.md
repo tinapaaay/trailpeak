@@ -22,10 +22,10 @@ Joiner hikes in the Philippines are organized in Facebook groups: long hand-type
 - `org.html`: organizer profile, e.g. `org.html#batangas-trail-co`
 - `signin.html`: mock sign-in for joiners (Facebook, mobile code, email)
 - `reserve.html`: pay the DP (simulated GCash/Maya) and see the booking confirmation
-- `mytrips.html`: a joiner's bookings, with move date and cancel
+- `mytrips.html`: a joiner's bookings, with move date and cancel, and a review once the trip date has passed
 - `organizer-signup.html`: mock organizer sign-up (account, ID check, business, payout)
-- `organize.html`: organizer form to post a trip, with live preview, Facebook text and a share image
-- `dashboard.html`: organizer dashboard with sample bookings, joiner list and payouts
+- `organize.html`: organizer form to post a trip, with live preview, Facebook text and a share image; `organize.html?edit=<trip id>` edits a trip you published
+- `dashboard.html`: organizer dashboard with bookings, joiner list, payouts, and add/close/cancel dates (past dates show as Done)
 - `styles.css`: shared tokens and components used by every page
 - `trips.js`: details for every trip (shared by search and trip pages)
 - `cards.js`: shared trip card code

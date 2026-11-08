@@ -199,7 +199,7 @@
         <div class="row-head label-caps" aria-hidden="true"><span>Date</span><span>Open slots</span><span></span></div>
         <div class="rows" id="dates"></div>
         <button type="button" class="btn btn-secondary label-caps add" id="add-date">+ Add date</button>
-        <p class="error" id="f-dates-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Add at least one date. Open slots must be between 1 and your max per date.</span></p>
+        <p class="error" id="f-dates-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Add at least one date from today on. Open slots must be between 1 and your max per date.</span></p>
       </section>
 
       <section class="fs" role="group" id="f-pickups" aria-labelledby="f-pickups-h">
@@ -321,6 +321,10 @@ const mountains = [
 const levelOf = score => score <= 3 ? "easy" : score <= 5 ? "moderate" : score <= 7 ? "hard" : "expert";
 const me = getUser();
 const isOrganizer = me && me.role === "organizer";
+const editId = new URLSearchParams(location.search).get("edit");
+const E = editId ? tripById(editId) : null;
+const ownTrip = !!(E && isOrganizer && (TP.online ? E.organizerId === me.id
+  : (() => { try { return (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).some(x => x.id === E.id); } catch { return false; } })()));
 const ORG = isOrganizer ? me.org : "Your organizer name";
 document.getElementById("org-label").textContent = isOrganizer ? `Organizer · ${me.org}` : "Organizer";
 
@@ -364,13 +368,17 @@ document.addEventListener("click", e => {
 // Repeating rows
 function addDate(date = "", slots = "") {
   const n = $("dates").children.length + 1;
-  $("dates").insertAdjacentHTML("beforeend", `<div class="row"><input class="input data" type="date" min="2026-11-04" value="${date}" aria-label="Date ${n}"><input class="input data" type="number" min="1" value="${slots}" aria-label="Open slots for date ${n}">${xBtn("date " + n)}</div>`);
+  $("dates").insertAdjacentHTML("beforeend", `<div class="row"><input class="input data" type="date" min="${todayIso()}" value="${date}" aria-label="Date ${n}"><input class="input data" type="number" min="1" value="${slots}" aria-label="Open slots for date ${n}">${xBtn("date " + n)}</div>`);
 }
 function addPickup(place = "", time = "") {
   const n = $("pickups").children.length + 1;
-  $("pickups").insertAdjacentHTML("beforeend", `<div class="row"><input class="input" value="${place}" placeholder="e.g. Cubao, near the bus terminals" aria-label="Pick-up place ${n}"><input class="input data" type="time" value="${time}" aria-label="Pick-up time ${n}">${xBtn("pick-up " + n)}</div>`);
+  $("pickups").insertAdjacentHTML("beforeend", `<div class="row"><input class="input" value="${escapeHtml(place)}" placeholder="e.g. Cubao, near the bus terminals" aria-label="Pick-up place ${n}"><input class="input data" type="time" value="${time}" aria-label="Pick-up time ${n}">${xBtn("pick-up " + n)}</div>`);
 }
-addDate("2026-11-07", 14); addDate("2026-11-14", 14);
+// Sample dates: the next two Saturdays at least 3 days away, so a new form never starts in the past.
+const nextSaturdays = () => { const d = new Date(); d.setDate(d.getDate() + 3); while (d.getDay() !== 6) d.setDate(d.getDate() + 1);
+  const iso = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  const a = iso(d); d.setDate(d.getDate() + 7); return [a, iso(d)]; };
+nextSaturdays().forEach(d => addDate(d, 14));
 addPickup("Cubao", "02:00"); addPickup("Greenfield", "02:45");
 $("add-date").onclick = () => { addDate(); $("dates").lastElementChild.querySelector("input").focus(); };
 $("add-pickup").onclick = () => { addPickup(); $("pickups").lastElementChild.querySelector("input").focus(); };
@@ -391,7 +399,9 @@ function readTrip() {
   const m = mountains[$("mountain").value];
   const type = document.querySelector('input[name="type"]:checked').value;
   const group = Number($("group").value) || 0;
-  const departures = [...$("dates").children].map(r => { const [d, s] = r.querySelectorAll("input"); return [d.value, Number(s.value) || 0]; });
+  // Editing: dates aren't in the form (they change on the dashboard), so use the trip's upcoming ones.
+  const departures = ownTrip ? Object.keys(E.departures).filter(d => !isPastDate(d)).sort().map(d => [d, E.departures[d] || 1])
+    : [...$("dates").children].map(r => { const [d, s] = r.querySelectorAll("input"); return [d.value, Number(s.value) || 0]; });
   const pickups = [...$("pickups").children].map(r => { const [p, t] = r.querySelectorAll("input"); return [p.value.trim(), t.value]; });
   return {
     title: m.name, place: m.place, masl: m.masl, score: m.score, level: levelOf(m.score),
@@ -411,13 +421,39 @@ function update() {
     ? `Joiners pay <strong class="data">${peso(t.dp)}</strong> now and <strong class="data">${peso(bal)}</strong> on meetup day.`
     : t.fee > 0 && t.dp > t.fee ? "The DP can't be more than the event fee." : "Enter the event fee and the down payment.";
   const valid = t.departures.filter(([d, s]) => d && s > 0).sort((a, b) => a[0].localeCompare(b[0]));
-  const dep = valid[0] || ["2026-11-07", t.group || 1];
+  const dep = valid[0] || [todayIso(), t.group || 1];
   // New trips have no reviews yet: show "New" instead of a rating.
   $("preview").innerHTML = card(t, dep);
 }
 document.getElementById("form").addEventListener("input", update);
 document.getElementById("form").addEventListener("change", update);
 update();
+
+// Edit mode (organize.html?edit=<trip id>): the same form, filled in from a trip this organizer published.
+function fillEditForm() {
+  const to24 = t => { const m = /^(\d+):(\d\d) ([AP]M)$/.exec(t || ""); if (!m) return ""; return `${String(Number(m[1]) % 12 + (m[3] === "PM" ? 12 : 0)).padStart(2, "0")}:${m[2]}`; };
+  document.title = `Edit ${E.title} · TrailPeak`;
+  document.querySelector(".page-head h1").textContent = `Edit ${E.title}`;
+  document.querySelector(".page-head p").innerHTML = 'Changes show on the trip page as soon as you save. Dates and slots change on the <a href="dashboard.html">dashboard</a>, one date at a time.';
+  const mi = mountains.findIndex(m => m.name === E.title); if (mi >= 0) $("mountain").value = mi;
+  $("hours").value = E.hours || "";
+  const type = document.querySelector(`input[name="type"][value="${E.typeLabel}"]`); if (type) type.checked = true;
+  $("group").value = E.group; $("meet").value = to24(E.meet);
+  ["dates", "add-date", "f-dates-e"].forEach(id => { $(id).hidden = true; });
+  const upcoming = Object.keys(E.departures).filter(d => !isPastDate(d)).sort();
+  $("f-dates").insertAdjacentHTML("beforeend", `<p class="hint">${upcoming.length ? `Upcoming: ${upcoming.map(niceDate).join(" · ")}.` : "No upcoming dates."} Add, close or cancel dates on the <a href="dashboard.html">dashboard</a>. A new max per date applies to dates you add after this.</p>`);
+  $("pickups").innerHTML = ""; (E.pickups || []).forEach(p => addPickup(p.place, to24(p.time)));
+  $("fee").value = E.fee; $("dp").value = E.dp;
+  ["incl", "excl", "who"].forEach(key => {
+    const have = E[key] || [];
+    have.forEach(it => { if (!lists[key].items.includes(it)) lists[key].items.push(it); });
+    lists[key].on = [...have]; drawChips(key);
+  });
+  document.querySelector('button[form="form"]').textContent = "Save changes";
+  $("publish-note").textContent = "Joiners who already booked keep the price and DP they paid.";
+}
+if (editId && !ownTrip) $("publish-note").textContent = "You can only edit trips you published, so this form starts a new trip.";
+if (ownTrip) { fillEditForm(); update(); }
 
 // Validate and publish
 function check(id, ok) {
@@ -438,7 +474,7 @@ document.getElementById("form").addEventListener("submit", e => {
   const t = readTrip();
   const results = [
     void [...$("dates").querySelectorAll('input[type="number"]')].forEach(i => i.setAttribute("aria-invalid", Number(i.value) < 1 || Number(i.value) > t.group)) || true,
-    check("f-dates", t.departures.some(([d, s]) => d && s > 0) && t.departures.every(([d, s]) => !d || (s > 0 && s <= t.group))),
+    check("f-dates", ownTrip || (t.departures.some(([d, s]) => d && s > 0) && t.departures.every(([d, s]) => !d || (s > 0 && s <= t.group && !isPastDate(d))))),
     check("f-pickups", t.pickupTimes.some(([p, tm]) => p && tm)),
     check("f-price", t.fee > 0 && t.dp > 0 && t.dp <= t.fee),
     void $("dp").setAttribute("aria-invalid", !(t.dp > 0 && t.dp <= t.fee)) || true,
@@ -455,6 +491,7 @@ document.getElementById("form").addEventListener("submit", e => {
     firstBad.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     return;
   }
+  if (ownTrip) { saveEdit(t); return; }
   const pub = toPublishedTrip(t);
   const finish = () => {
     $("publish-note").textContent = "Your trip is live. You can edit or close dates anytime.";
@@ -479,6 +516,38 @@ document.getElementById("form").addEventListener("submit", e => {
   } catch { /* storage blocked: trip shows only in the preview */ }
   finish();
 });
+
+// Save an edited trip. Only the page content changes: the id, dates, reviews and anything
+// the form doesn't show (itinerary, guide, packing list) stay as they were.
+function saveEdit(t) {
+  const fresh = toPublishedTrip(t), mountainChanged = fresh.title !== E.title;
+  let stored = null;
+  if (!TP.online) { try { stored = (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).find(x => x.id === E.id); } catch { /* ignore */ } }
+  const base = TP.online ? (E.saved || {}) : (stored || {});
+  // Keep each pick-up's area and drop-off note if the place name didn't change.
+  const pickups = fresh.pickups.map(p => { const old = (base.pickups || []).find(o => o.place === p.place); return old ? { ...old, time: p.time } : p; });
+  const changed = ["title", "place", "province", "level", "score", "masl", "kind", "typeLabel", "hours", "hoursNote", "group", "fee", "dp", "meet", "org", "verified", "incl", "excl", "who"];
+  const details = { ...base, ...Object.fromEntries(changed.map(k => [k, fresh[k]])), pickups,
+    ...(mountainChanged ? { photo: fresh.photo, alt: fresh.alt, gallery: fresh.gallery, about: fresh.about } : {}) };
+  const btn = document.querySelector('button[form="form"]');
+  const saved = () => {
+    $("publish-note").innerHTML = `Changes saved. <a href="trip.html#${encodeURIComponent(E.id)}">View trip page</a> · <a href="dashboard.html">Dashboard</a>`;
+    TP.dirty = false;
+  };
+  if (TP.online) {
+    const { departures, ...rest } = details; // dates live in their own table
+    btn.disabled = true; $("publish-note").textContent = "Saving…";
+    TP.updateTrip(E.id, rest).then(saved)
+      .catch(err => { $("publish-note").textContent = `Couldn't save: ${err.message}`; })
+      .finally(() => { btn.disabled = false; });
+    return;
+  }
+  try {
+    const list = JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || [];
+    localStorage.setItem(TP_PUBLISHED_KEY, JSON.stringify(list.map(x => x.id === E.id ? { ...details, id: E.id, departures: x.departures } : x)));
+  } catch { /* storage blocked */ }
+  saved();
+}
 
 function toPublishedTrip(t) {
   const m = mountains[$("mountain").value];

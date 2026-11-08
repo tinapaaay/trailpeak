@@ -26,7 +26,8 @@ TP.applyTo = function (trips) {
   if (!c.trips) return;
   trips.length = 0;
   for (const row of c.trips) {
-    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
+    // `saved` keeps the stored details as they are, so editing a trip never saves page-only fields back.
+    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
     for (const s of (c.slots || []).filter(s => s.trip_id === row.id)) {
       t.departures[s.date] = s.status === "open" ? s.left_count : 0;
       t.sampleBooked[s.date] = s.sample_booked || 0;
@@ -35,6 +36,7 @@ TP.applyTo = function (trips) {
     }
     trips.push(t);
   }
+  mergeReviews(trips, c.reviews || []);
 };
 
 // Server booking row -> the shape the pages already use.
@@ -52,15 +54,17 @@ function tpUser(p, email) {
 // Fetch everything this person may see, save it, and reload once if it changed.
 TP.sync = async function ({ reload = true } = {}) {
   if (!TP.online) return;
-  const before = JSON.stringify([tpReadCache().trips, tpReadCache().slots, localStorage.getItem(TP_USER_KEY), localStorage.getItem(TP_BOOKINGS_KEY)]);
-  const [{ data: trips, error: e1 }, { data: slots, error: e2 }, { data: deps }] = await Promise.all([
+  const before = JSON.stringify([tpReadCache().trips, tpReadCache().slots, tpReadCache().reviews, localStorage.getItem(TP_USER_KEY), localStorage.getItem(TP_BOOKINGS_KEY)]);
+  const [{ data: trips, error: e1 }, { data: slots, error: e2 }, { data: deps }, { data: reviews }] = await Promise.all([
     TP.db.from("trips").select("id, organizer_id, org_name, details").order("created_at"),
     TP.db.rpc("all_slots"),
     TP.db.from("departures").select("trip_id, date, sample_booked, capacity"),
+    TP.db.rpc("all_reviews"),
   ]);
   if (e1 || e2) { console.warn("TrailPeak: couldn't load trips", e1 || e2); return; }
   const dep = Object.fromEntries((deps || []).map(d => [d.trip_id + "|" + d.date, d]));
-  tpWriteCache({ trips, slots: slots.map(s => ({ ...s, sample_booked: dep[s.trip_id + "|" + s.date]?.sample_booked || 0, capacity: dep[s.trip_id + "|" + s.date]?.capacity })), at: Date.now() });
+  tpWriteCache({ trips, slots: slots.map(s => ({ ...s, sample_booked: dep[s.trip_id + "|" + s.date]?.sample_booked || 0, capacity: dep[s.trip_id + "|" + s.date]?.capacity })),
+    reviews: (reviews || []).map(r => ({ tripId: r.trip_id, name: r.display_name, date: r.created_at.slice(0, 10), stars: r.stars, text: r.body })), at: Date.now() });
 
   const { data: { session } } = await TP.db.auth.getSession();
   if (session) {
@@ -70,12 +74,16 @@ TP.sync = async function ({ reload = true } = {}) {
       rememberNext((location.pathname.split("/").pop() || "index.html") + location.hash);
       location.replace("signin.html"); return;
     }
-    const { data: mine } = await TP.db.from("bookings").select("*").eq("user_id", session.user.id).order("date");
+    const [{ data: mine }, { data: myReviews }] = await Promise.all([
+      TP.db.from("bookings").select("*").eq("user_id", session.user.id).order("date"),
+      TP.db.from("reviews").select("booking_ref, trip_id, stars, body, created_at").eq("user_id", session.user.id),
+    ]);
     saveBookings((mine || []).map(tpBooking));
+    saveMyReviews((myReviews || []).map(r => ({ ref: r.booking_ref, tripId: r.trip_id, stars: r.stars, text: r.body, date: r.created_at.slice(0, 10) })));
   } else {
-    try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); localStorage.removeItem(TP_REVIEWS_KEY); } catch { /* ignore */ }
   }
-  const after = JSON.stringify([tpReadCache().trips, tpReadCache().slots, localStorage.getItem(TP_USER_KEY), localStorage.getItem(TP_BOOKINGS_KEY)]);
+  const after = JSON.stringify([tpReadCache().trips, tpReadCache().slots, tpReadCache().reviews, localStorage.getItem(TP_USER_KEY), localStorage.getItem(TP_BOOKINGS_KEY)]);
   if (reload && before !== after && !TP.dirty) location.reload();
 };
 // Once someone starts typing or choosing, never reload the page under them.
@@ -125,6 +133,11 @@ TP.cancel = async ref => {
   if (error) throw tpErr(error);
   await TP.sync({ reload: false });
 };
+TP.addReview = async (ref, stars, text) => {
+  const { error } = await TP.db.rpc("add_review", { p_ref: ref, p_stars: stars, p_body: text });
+  if (error) throw tpErr(error);
+  await TP.sync({ reload: false });
+};
 TP.whosGoing = async (tripId, date) => {
   const { data, error } = await TP.db.rpc("whos_going", { p_trip: tripId, p_date: date });
   if (error) throw tpErr(error);
@@ -141,6 +154,12 @@ TP.publishTrip = async trip => {
   const rows = Object.entries(departures).map(([date, cap]) => ({ trip_id: trip.id, date, capacity: cap }));
   const { error: e2 } = await TP.db.from("departures").insert(rows);
   if (e2) throw tpErr(e2);
+  await TP.sync({ reload: false });
+};
+// Save changes to a trip's page (not its dates: those change one by one on the dashboard).
+TP.updateTrip = async (id, details) => {
+  const { error } = await TP.db.from("trips").update({ details, org_name: details.org }).eq("id", id);
+  if (error) throw tpErr(error);
   await TP.sync({ reload: false });
 };
 TP.organizerBookings = async () => {
@@ -165,7 +184,7 @@ if (TP.online) {
   slotsLeft = (trip, date) => Math.max(0, trip.departures[date] ?? 0); // eslint-disable-line no-global-assign
   signOut = async () => { // eslint-disable-line no-global-assign
     await TP.db.auth.signOut();
-    try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); localStorage.removeItem(TP_REVIEWS_KEY); } catch { /* ignore */ }
     location.href = "index.html";
   };
   // Refresh in the background after the page has drawn.

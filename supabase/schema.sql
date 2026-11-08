@@ -10,6 +10,8 @@
 --     which check slots and the cancellation policy on the server.
 --   * "Who's going" shows first name + last initial of opted-in joiners, and only
 --     to people who are booked on the same date. Phone numbers never leave the organizer.
+--   * Reviews: one per booking, written after the trip date by the joiner who went.
+--     Everyone sees the stars, text and "Ana R."; never who wrote it beyond that.
 
 -- ---------------------------------------------------------------------------
 -- Profiles: one per account
@@ -129,6 +131,11 @@ create policy "Joiners read their bookings, organizers read bookings on their tr
     user_id = auth.uid()
     or exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()));
 
+-- Today in the Philippines. The database clock runs on UTC, which is still "yesterday"
+-- until 8 AM Manila time, so every date rule uses this instead of current_date.
+create or replace function public.ph_today()
+returns date language sql stable as $$ select (now() at time zone 'Asia/Manila')::date $$;
+
 -- Seats left on a date: capacity minus sample seats minus confirmed bookings.
 create or replace function public.slots_left(p_trip text, p_date date)
 returns int language sql stable security definer set search_path = public as $$
@@ -161,7 +168,7 @@ begin
   if me is null then raise exception 'Sign in to reserve.'; end if;
   select * into dep from public.departures where trip_id = p_trip and date = p_date for update;
   if not found or dep.status <> 'open' then raise exception 'This date is not open for booking.'; end if;
-  if p_date < current_date then raise exception 'This date has passed.'; end if;
+  if p_date < public.ph_today() then raise exception 'This date has passed.'; end if;
   if public.slots_left(p_trip, p_date) < p_size then raise exception 'Not enough slots left on this date.'; end if;
   select * into t from public.trips where id = p_trip;
   select * into who from public.profiles where id = me;
@@ -187,8 +194,8 @@ begin
   select * into b from public.bookings where ref = p_ref and user_id = auth.uid() for update;
   if not found or b.status <> 'confirmed' then raise exception 'Booking not found.'; end if;
   if b.moved then raise exception 'This booking was already moved once.'; end if;
-  if b.date - current_date < 7 then raise exception 'Dates can only be moved 7 or more days before.'; end if;
-  if p_new_date - current_date < 7 then raise exception 'Pick a date at least 7 days away.'; end if;
+  if b.date - public.ph_today() < 7 then raise exception 'Dates can only be moved 7 or more days before.'; end if;
+  if p_new_date - public.ph_today() < 7 then raise exception 'Pick a date at least 7 days away.'; end if;
   perform 1 from public.departures where trip_id = b.trip_id and date = p_new_date and status = 'open' for update;
   if not found then raise exception 'That date is not open.'; end if;
   if public.slots_left(b.trip_id, p_new_date) < b.size then raise exception 'Not enough slots on that date.'; end if;
@@ -203,11 +210,12 @@ create or replace function public.cancel_booking(p_ref text)
 returns public.bookings language plpgsql security definer set search_path = public as $$
 declare b public.bookings;
 begin
+  select * into b from public.bookings where ref = p_ref and user_id = auth.uid() and status = 'confirmed' for update;
+  if not found then raise exception 'Booking not found.'; end if;
+  if b.date < public.ph_today() then raise exception 'This trip date has passed, so it can''t be cancelled.'; end if;
   update public.bookings set status = 'cancelled',
          note = 'You cancelled this booking. The organizer was told and your slot was released.'
-   where ref = p_ref and user_id = auth.uid() and status = 'confirmed'
-   returning * into b;
-  if not found then raise exception 'Booking not found.'; end if;
+   where ref = p_ref returning * into b;
   return b;
 end $$;
 
@@ -240,10 +248,52 @@ language sql stable security definer set search_path = public as $$
   order by b.date, b.created_at;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Reviews: one per booking, only after the trip date, only by the joiner who booked
+-- ---------------------------------------------------------------------------
+create table if not exists public.reviews (
+  booking_ref   text primary key references public.bookings (ref) on delete cascade,
+  trip_id       text not null references public.trips (id) on delete cascade,
+  user_id       uuid not null references public.profiles (id) on delete cascade,
+  stars         int  not null check (stars between 1 and 5),
+  body          text not null check (char_length(body) between 1 and 1000),
+  display_name  text not null,                       -- "Ana R.", never the full name
+  created_at    timestamptz not null default now()
+);
+alter table public.reviews enable row level security;
+
+-- You read your own reviews directly; everyone reads all reviews through all_reviews(),
+-- which leaves out who wrote them (no user ids or booking numbers).
+drop policy if exists "Read own reviews" on public.reviews;
+create policy "Read own reviews" on public.reviews for select using (user_id = auth.uid());
+
+create or replace function public.add_review(p_ref text, p_stars int, p_body text)
+returns public.reviews language plpgsql security definer set search_path = public as $$
+declare b public.bookings; r public.reviews;
+begin
+  select * into b from public.bookings where ref = p_ref and user_id = auth.uid();
+  if not found then raise exception 'Booking not found.'; end if;
+  if b.status <> 'confirmed' then raise exception 'Cancelled bookings can''t be reviewed.'; end if;
+  if b.date >= public.ph_today() then raise exception 'You can review this trip after the hike date.'; end if;
+  if exists (select 1 from public.reviews where booking_ref = p_ref) then raise exception 'You already reviewed this trip.'; end if;
+  if p_stars is null or p_stars not between 1 and 5 then raise exception 'Choose 1 to 5 stars.'; end if;
+  if coalesce(trim(p_body), '') = '' then raise exception 'Write a few words about the trip.'; end if;
+  insert into public.reviews (booking_ref, trip_id, user_id, stars, body, display_name)
+  values (p_ref, b.trip_id, auth.uid(), p_stars, left(trim(p_body), 1000), coalesce(b.display_name, 'Joiner'))
+  returning * into r;
+  return r;
+end $$;
+
+create or replace function public.all_reviews()
+returns table (trip_id text, display_name text, stars int, body text, created_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select r.trip_id, r.display_name, r.stars, r.body, r.created_at from public.reviews r order by r.created_at desc;
+$$;
+
 -- Only signed-in people can call the functions that change or reveal bookings.
-revoke all on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings from public, anon;
-grant execute on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings to authenticated;
-grant execute on function public.slots_left, public.all_slots, public.whos_going to anon, authenticated;
+revoke all on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings, public.add_review from public, anon;
+grant execute on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings, public.add_review to authenticated;
+grant execute on function public.slots_left, public.all_slots, public.whos_going, public.all_reviews, public.ph_today to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Table access for the website's API roles (the project has "automatically expose
@@ -256,3 +306,4 @@ grant select, insert, update on public.profiles to authenticated;
 grant insert, update on public.trips to authenticated;
 grant insert, update, delete on public.departures to authenticated;
 grant select on public.bookings to authenticated;   -- changes go through the functions only
+grant select on public.reviews to authenticated;    -- own rows only; writes go through add_review

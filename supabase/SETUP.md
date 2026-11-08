@@ -45,6 +45,10 @@ These two are meant to be public: they go in the website's code, and the privacy
 
 **Never share** the `service_role` / secret key or the database password. Those can bypass every rule.
 
+## After an update
+
+When `schema.sql` changes (for example, the November 2026 update added reviews and Manila-time date rules), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Until you do, the site still works, but reviews can't be posted.
+
 ## What's real and what's still simulated
 
 | Real now | Still simulated |
@@ -54,5 +58,7 @@ These two are meant to be public: they go in the website's code, and the privacy
 | Bookings, move and cancel, checked on the server | ID and business checks |
 | Organizers see joiners' bookings | Texts to joiners |
 | Who's going (opt-in, same-date only) | |
+| Reviews (one per booking, after the trip date) | |
+| Editing a published trip | |
 
 **Known shortcut:** a signed-in user can currently mark their own profile as an organizer and as ID verified, because the ID check is simulated. Before any real launch, only an admin or the ID-check service should be able to set those.

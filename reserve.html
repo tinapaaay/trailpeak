@@ -185,7 +185,10 @@ const user = getUser();
 const p = getPending();
 const T = p && tripById(p.tripId);
 if (!user) { rememberNext("reserve.html"); location.replace("signin.html"); }
-else if (!T || !(p.date in T.departures)) { $("missing").hidden = false; }
+else if (!T || !(p.date in T.departures) || isPastDate(p.date)) {
+  $("missing").hidden = false;
+  if (T && isPastDate(p.date)) { $("missing").querySelector("h1").textContent = "That date has passed"; $("missing").querySelector(".lead").textContent = "Choose an upcoming date for this trip, then tap Reserve."; $("missing").querySelector("a").href = `trip.html#${T.id}`; $("missing").querySelector("a").textContent = "Choose a date"; }
+}
 else start();
 
 function start() {

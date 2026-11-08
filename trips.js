@@ -244,12 +244,27 @@ const TRIPS = [
 
 // Trips published from the organizer form in this browser (prototype: not shared with anyone else).
 const TP_PUBLISHED_KEY = "trailpeak.published";
+// Joiners' reviews ({ tripId, name, date, stars, text }) go on top of each trip's list,
+// and the average and count are worked out again with them included.
+function mergeReviews(trips, list) {
+  for (const t of trips) {
+    const mine = list.filter(r => r.tripId === t.id);
+    if (!mine.length) continue;
+    const sum = mine.reduce((a, r) => a + r.stars, 0), before = t.reviews || 0;
+    t.rating = ((t.rating || 0) * before + sum) / (before + mine.length);
+    t.reviews = before + mine.length;
+    t.reviewList = [...mine.map(r => [r.name, r.date, r.stars, r.text]), ...(t.reviewList || [])];
+    t.isNew = false;
+  }
+}
 if (typeof TP !== "undefined" && TP.online) {
-  TP.applyTo(TRIPS); // trips, dates and live slots from Supabase (see api.js)
+  TP.applyTo(TRIPS); // trips, dates, live slots and reviews from Supabase (see api.js)
 } else {
   try {
+    // Trips published from this browser; an edited one replaces its earlier copy.
     (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).forEach(t => { if (!TRIPS.some(x => x.id === t.id)) TRIPS.push(t); });
   } catch { /* storage blocked: only the sample trips show */ }
+  mergeReviews(TRIPS, getMyReviews());
 }
 
 function tripById(id) { return TRIPS.find(t => t.id === id); }

@@ -43,6 +43,17 @@
 .btn-danger { background: var(--color-error); color: var(--color-surface); }
 .note { color: var(--color-secondary); font-size: 15px; }
 
+/* Star rating: five radio buttons, 44px each. Outline stars until chosen; chosen ones fill in primary. */
+.rate { border: 0; padding: 0; margin: 0; display: flex; gap: 0; }
+.rate legend { padding: 0; margin-bottom: var(--space-xs); color: var(--color-secondary); }
+.rate label { width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--rounded-sm); cursor: pointer; color: var(--color-secondary); font-size: 28px; line-height: 1; }
+.rate label.on { color: var(--color-primary); }
+.rate input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.rate input:focus-visible + label { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.my-review .stars { color: var(--color-primary); letter-spacing: 2px; }
+.my-review .stars .off { color: var(--color-border); }
+textarea.input { width: 100%; resize: vertical; }
+
 .empty { display: grid; gap: var(--space-sm); justify-items: start; background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-xl); }
 
 @media (max-width: 767px) {
@@ -118,7 +129,8 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 const today = new Date(); today.setHours(0, 0, 0, 0);
 const daysUntil = iso => Math.round((new Date(iso + "T00:00") - today) / 864e5);
 const user = getUser();
-const open = {}; // which booking has its move/cancel panel open
+const open = {}; // which booking has its move/cancel/review panel open
+const draft = {}; // stars picked in an open review form
 
 if (!user) { rememberNext("mytrips.html"); location.replace("signin.html"); }
 else { if (!TP.online) $("mt-note").textContent = "Prototype: bookings are kept in this browser only. Moving or cancelling doesn't contact anyone."; render(); }
@@ -160,6 +172,23 @@ function card(b) {
       ${canMove ? `<button type="button" class="btn btn-secondary label-caps" data-move="${b.ref}">Move date instead</button>` : ""}
       <button type="button" class="link-btn" data-close="${b.ref}">Keep my booking</button></div></div>`;
   }
+  // Done (the date has passed, not cancelled): one review per booking.
+  const reviewed = isPast && getMyReviews().find(r => r.ref === b.ref);
+  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
+  let review = "";
+  if (reviewed) review = `<div class="my-review"><p class="note">Your review ${stars(reviewed.stars)}</p><p>${esc(reviewed.text)}</p></div>`;
+  else if (isPast && open[b.ref] === "review") {
+    const v = draft[b.ref] || 0;
+    review = `<form class="inline" data-review-form="${b.ref}" novalidate>
+      <fieldset class="rate"><legend class="label-caps">How was ${esc(T.title)}?</legend>
+        ${[1, 2, 3, 4, 5].map(n => `<input type="radio" name="rate-${b.ref}" id="rate-${b.ref}-${n}" value="${n}"${n === v ? " checked" : ""}><label for="rate-${b.ref}-${n}" class="${n <= v ? "on" : ""}"><span aria-hidden="true">${n <= v ? "★" : "☆"}</span><span class="sr">${n} ${n === 1 ? "star" : "stars"}</span></label>`).join("")}
+      </fieldset>
+      <label class="label-caps" for="rv-${b.ref}" style="color:var(--color-secondary)">Your review</label>
+      <textarea class="input" id="rv-${b.ref}" rows="4" maxlength="1000" placeholder="The trail, the guides, the van, the pick-up: what should other joiners know?"></textarea>
+      <p class="note">Shown on the trip page as ${esc(b.displayName || "your first name and last initial")}.</p>
+      <div class="row"><button type="submit" class="btn btn-primary label-caps">Post review</button><button type="button" class="link-btn" data-close="${b.ref}">Not now</button></div>
+    </form>`;
+  }
   return `<article class="booking">
     <img src="${img(T.photo)}" alt="">
     <div class="body">
@@ -179,14 +208,16 @@ function card(b) {
         ${canMove ? `<button type="button" class="link-btn" data-move="${b.ref}">Move date<span class="sr"> for ${esc(T.title)}</span></button>` : `<span class="note">${b.moved ? "Already moved once." : d < 7 ? "Less than 7 days to go: dates can't be moved." : ""}</span>`}
         <button type="button" class="link-btn danger" data-cancel="${b.ref}">Cancel<span class="sr"> ${esc(T.title)} booking</span></button>
       </div>` : ""}
+      ${isPast && !reviewed && open[b.ref] !== "review" ? `<div class="actions"><button type="button" class="btn btn-secondary label-caps" data-review="${b.ref}">Write a review<span class="sr"> of ${esc(T.title)}</span></button><a class="link-btn" href="trip.html#${T.id}">Trip page</a></div>` : ""}
+      ${review}
       ${panel}
     </div>
   </article>`;
 }
 
 // Shows a server error (for example "Not enough slots on that date") inside the open panel.
-function alertPanel(msg) {
-  const panel = document.querySelector(".inline"); if (!panel) return;
+function alertPanel(msg, panel = document.querySelector(".inline")) {
+  if (!panel) return;
   let p = panel.querySelector(".srv-err");
   if (!p) { p = document.createElement("p"); p.className = "note srv-err"; p.style.color = "var(--color-error)"; panel.append(p); }
   p.textContent = msg;
@@ -201,6 +232,7 @@ document.addEventListener("click", e => {
   if (d.move) { open[d.move] = "move"; render(); document.getElementById("mv-" + d.move)?.focus(); }
   if (d.cancel) { open[d.cancel] = "cancel"; render(); document.querySelector(`[data-cancel-yes="${d.cancel}"]`).focus(); }
   if (d.close) { delete open[d.close]; render(); }
+  if (d.review) { open[d.review] = "review"; render(); document.getElementById(`rate-${d.review}-1`)?.focus(); }
   if (d.cancelYes) {
     if (TP.online) {
       t.disabled = true;
@@ -211,6 +243,30 @@ document.addEventListener("click", e => {
     update(d.cancelYes, b => { b.status = "cancelled"; b.note = "You cancelled this booking. The organizer was told and your slot was released."; });
     $("live").textContent = "Booking cancelled.";
   }
+});
+// Stars: light up every star up to the one picked (the radios themselves stay the source of truth).
+document.addEventListener("change", e => {
+  const r = e.target.closest('.rate input'); if (!r) return;
+  const ref = r.closest("[data-review-form]").dataset.reviewForm;
+  draft[ref] = Number(r.value);
+  r.closest(".rate").querySelectorAll("label").forEach((l, i) => { l.classList.toggle("on", i < draft[ref]); l.firstElementChild.textContent = i < draft[ref] ? "★" : "☆"; });
+});
+document.addEventListener("submit", e => {
+  const f = e.target.closest("[data-review-form]"); if (!f) return;
+  e.preventDefault();
+  const ref = f.dataset.reviewForm, stars = draft[ref] || 0, text = document.getElementById("rv-" + ref).value.trim();
+  const btn = f.querySelector('button[type="submit"]');
+  if (!stars) { alertPanel("Choose 1 to 5 stars.", f); f.querySelector("input").focus(); return; }
+  if (!text) { alertPanel("Write a few words about the trip.", f); document.getElementById("rv-" + ref).focus(); return; }
+  const done = () => { delete open[ref]; delete draft[ref]; render(); $("live").textContent = "Review posted. Thanks for helping other joiners."; };
+  if (TP.online) {
+    btn.disabled = true;
+    TP.addReview(ref, stars, text).then(done).catch(err => { btn.disabled = false; alertPanel(err.message, f); $("live").textContent = err.message; });
+    return;
+  }
+  const b = getBookings().find(x => x.ref === ref);
+  saveMyReviews([...getMyReviews(), { ref, tripId: b.tripId, name: b.displayName || "You", date: todayIso(), stars, text }]);
+  done();
 });
 document.addEventListener("submit", e => {
   const f = e.target.closest("[data-move-form]"); if (!f) return;

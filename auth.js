@@ -83,6 +83,19 @@ function bookedHere(tripId, date) {
 function slotsLeft(trip, date) {
   return Math.max(0, (trip.departures[date] ?? 0) - bookedHere(trip.id, date));
 }
+// Today as "2026-11-09" in the visitor's own time zone. A trip date before today has passed:
+// it can't be booked, moved to or changed, and it shows as done.
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+const isPastDate = iso => iso < todayIso();
+
+// ---- Reviews written in this browser (offline demo only; online they're in Supabase) ----
+const TP_REVIEWS_KEY = "trailpeak.reviews";
+function getMyReviews() { try { return JSON.parse(localStorage.getItem(TP_REVIEWS_KEY)) || []; } catch { return []; } }
+function saveMyReviews(list) { try { localStorage.setItem(TP_REVIEWS_KEY, JSON.stringify(list)); } catch { /* storage blocked */ } }
+
 function setPending(p) { try { sessionStorage.setItem(TP_PENDING_KEY, JSON.stringify(p)); } catch { /* ignore */ } }
 function getPending() { try { return JSON.parse(sessionStorage.getItem(TP_PENDING_KEY)); } catch { return null; } }
 

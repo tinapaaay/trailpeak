@@ -52,7 +52,7 @@
 /* Status pills: availability uses lake blue, cancelled uses the error color, never blaze colors */
 .pill { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-sm); border-radius: var(--rounded-sm); font: 700 13px/1.2 var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; }
 .pill.open { background: var(--color-tertiary-tint); color: var(--color-tertiary); }
-.pill.full { background: var(--color-neutral); color: var(--color-on-surface); }
+.pill.full, .pill.done { background: var(--color-neutral); color: var(--color-on-surface); }
 .pill.closed { background: var(--color-border); color: var(--color-on-surface); }
 .pill.cancelled { background: var(--color-surface); color: var(--color-error); box-shadow: inset 0 0 0 1px var(--color-error); }
 
@@ -285,18 +285,20 @@ async function start() {
     state[t.id + "|" + date] = { trip: t, date, cap: t.group, status: left === 0 ? "full" : "open", bookings, note: "" };
   }));
   const keys = () => Object.keys(state).sort((a, b) => state[a].date.localeCompare(state[b].date));
-  let selected = keys().find(k => state[k].bookings.length) || keys()[0];
+  // Upcoming dates with bookings come first; a past date is "done" and can't be changed.
+  let selected = keys().find(k => state[k].bookings.length && !isPastDate(state[k].date)) || keys().find(k => !isPastDate(state[k].date)) || keys()[0];
 
   const bookedOf = s => s.bookings.reduce((a, b) => a + b.size, 0);
-  const statusOf = s => s.status === "cancelled" || s.status === "closed" ? s.status : (bookedOf(s) >= s.cap ? "full" : "open");
-  const statusLabel = { open: "Open", full: "Full", closed: "Closed", cancelled: "Cancelled" };
+  const statusOf = s => s.status === "cancelled" ? "cancelled" : isPastDate(s.date) ? "done" : s.status === "closed" ? "closed" : (bookedOf(s) >= s.cap ? "full" : "open");
+  const statusLabel = { open: "Open", full: "Full", closed: "Closed", cancelled: "Cancelled", done: "Done" };
 
   $("org-line").innerHTML = `<span class="org-avatar label-caps" aria-hidden="true">${esc(initialsOf(me.org))}</span>${esc(me.org)}${me.idVerified ? `<span class="verified" title="ID verified"><svg width="16" height="16" aria-hidden="true"><use href="#i-check"/></svg><span class="sr">Verified organizer</span></span>` : ""}`;
 
   function renderTiles() {
-    const live = keys().map(k => state[k]).filter(s => s.status !== "cancelled");
+    const kept = keys().map(k => state[k]).filter(s => s.status !== "cancelled");
+    const live = kept.filter(s => !isPastDate(s.date));
     const joiners = live.reduce((a, s) => a + bookedOf(s), 0);
-    const dp = live.reduce((a, s) => a + bookedOf(s) * s.trip.dp, 0);
+    const dp = kept.reduce((a, s) => a + bookedOf(s) * s.trip.dp, 0);
     const balance = live.reduce((a, s) => a + bookedOf(s) * (s.trip.fee - s.trip.dp), 0);
     const nextOpen = live.filter(s => statusOf(s) === "open").length;
     $("tiles").innerHTML = `
@@ -306,11 +308,15 @@ async function start() {
       <div class="tile"><span class="label-caps">To collect on meetup day</span><span class="value">${pesos(balance)}</span><span class="note">Balances joiners pay you in person</span></div>`;
   }
 
+  // Online: trips this account published. Offline: trips published from this browser.
+  const canEdit = t => TP.online ? t.organizerId === me.id : (() => { try { return (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).some(x => x.id === t.id); } catch { return false; } })();
+
   function renderTrips() {
     $("trips").innerHTML = mine.map(t => {
       const rows = keys().filter(k => state[k].trip.id === t.id).map(k => {
         const s = state[k], booked = bookedOf(s), st = statusOf(s), pct = Math.round(booked / s.cap * 100);
-        const actions = s.status === "cancelled" ? "" :
+        const actions = s.status === "cancelled" ? "" : st === "done"
+          ? `<button type="button" class="btn btn-secondary label-caps" data-view="${k}" aria-label="View joiners for ${nice(s.date)}">Joiners</button>` :
           `<button type="button" class="btn btn-secondary label-caps" data-view="${k}" aria-label="View joiners for ${nice(s.date)}">Joiners</button>
            <button type="button" class="link-btn" data-close="${k}">${s.status === "closed" ? "Reopen" : "Close"}<span class="sr"> ${nice(s.date)}</span></button>
            <button type="button" class="link-btn danger" data-cancel="${k}">Cancel for weather<span class="sr"> on ${nice(s.date)}</span></button>`;
@@ -330,11 +336,11 @@ async function start() {
         <div class="trip-top">
           <img src="${img(t.photo)}" alt="">
           <div><h3>${esc(t.title)}</h3><p class="meta">${esc(t.place)} · ${pesos(t.fee)} event fee · ${pesos(t.dp)} DP${t.sample ? " · sample trip" : ""}</p></div>
-          <div class="actions"><a class="btn btn-secondary label-caps" href="trip.html#${t.id}">View trip page</a><button type="button" class="btn btn-secondary label-caps" data-fb="${t.id}">Copy Facebook text</button></div>
+          <div class="actions">${canEdit(t) ? `<a class="btn btn-secondary label-caps" href="organize.html?edit=${encodeURIComponent(t.id)}">Edit trip<span class="sr"> ${esc(t.title)}</span></a>` : ""}<a class="btn btn-secondary label-caps" href="trip.html#${t.id}">View trip page</a><button type="button" class="btn btn-secondary label-caps" data-fb="${t.id}">Copy Facebook text</button></div>
         </div>
         <div class="dates">${rows}</div>
         <form class="add-date" data-add="${t.id}" novalidate>
-          <div class="field2"><label class="label-caps" for="nd-${t.id}">New date</label><input class="input data" type="date" id="nd-${t.id}" min="2026-11-05"></div>
+          <div class="field2"><label class="label-caps" for="nd-${t.id}">New date</label><input class="input data" type="date" id="nd-${t.id}" min="${todayIso()}"></div>
           <div class="field2"><label class="label-caps" for="ns-${t.id}">Open slots</label><input class="input data" type="number" id="ns-${t.id}" min="1" max="${t.group}" value="${t.group}" style="width:120px"></div>
           <button type="submit" class="btn btn-secondary label-caps">+ Add date</button>
           <p class="error" id="ne-${t.id}" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
@@ -426,6 +432,7 @@ async function start() {
     const date = $("nd-" + id).value, slots = Number($("ns-" + id).value), err = $("ne-" + id);
     let msg = "";
     if (!date) msg = "Pick a date.";
+    else if (isPastDate(date)) msg = "Pick today or a later date.";
     else if (state[id + "|" + date]) msg = "That date is already on this trip.";
     else if (!(slots >= 1 && slots <= trip.group)) msg = `Open slots must be between 1 and ${trip.group}.`;
     err.hidden = !msg; err.querySelector("span").textContent = msg;

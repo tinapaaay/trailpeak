@@ -377,11 +377,12 @@ const FEE = T.fee, DP = T.dp, GROUP = T.group, MEET = T.meet;
 // Slots after this browser's own bookings.
 T.baseDepartures = { ...T.departures }; // before this browser's bookings, for the joiner list
 Object.keys(T.departures).forEach(d => { T.departures[d] = slotsLeft(T, d); });
-const dates = Object.keys(T.departures).sort();
+// Only today and later can be booked; past dates show as plain days.
+const dates = Object.keys(T.departures).filter(d => !isPastDate(d)).sort();
 let picked = dates.find(d => T.departures[d] > 0) || dates[0];
 let size = 1;
 const months = [...new Set(dates.map(d => d.slice(0, 7)))];
-let month = picked.slice(0, 7);
+let month = (picked || todayIso()).slice(0, 7);
 
 const peso = n => "₱" + n.toLocaleString();
 const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
@@ -459,7 +460,7 @@ function buildCalendar() {
   let html = ["S", "M", "T", "W", "T", "F", "S"].map(d => `<span class="dow label-caps" aria-hidden="true">${d}</span>`).join("");
   html += "<span></span>".repeat(first.getDay());
   for (let d = 1; d <= days; d++) {
-    const iso = `${month}-${String(d).padStart(2, "0")}`, left = T.departures[iso];
+    const iso = `${month}-${String(d).padStart(2, "0")}`, left = isPastDate(iso) ? undefined : T.departures[iso];
     if (left === undefined) html += `<span class="day" aria-hidden="true">${d}</span>`;
     else if (left === 0) html += `<button type="button" class="day full" disabled aria-label="${nice(iso)}, full">${d}</button>`;
     else html += `<button type="button" class="day open" data-date="${iso}" aria-pressed="${iso === picked}" aria-label="${nice(iso)}, ${left} ${left === 1 ? "slot" : "slots"} left">${d}</button>`;
@@ -498,6 +499,16 @@ async function renderGoing() {
     `<li${j.you ? ' class="you"' : ""}><span class="org-avatar label-caps" aria-hidden="true">${esc(j.name.split(" ").map(w => w[0]).join("").slice(0, 2))}</span><span>${esc(j.name)}${j.you ? " (you)" : ""}<span class="meta"> · ${j.size === 1 ? "solo" : `group of ${j.size}`}</span></span></li>`).join("")}</ul>`
     + (hidden ? `<p class="meta">and ${hidden} ${hidden === 1 ? "booking" : "bookings"} not listed</p>` : "")
     + `<p class="meta">Only first names and last initials of joiners who chose to be listed. Mobile numbers go to the organizer only.</p>`;
+}
+
+// No date today or later: say so instead of showing an empty booking box.
+function noDates() {
+  $("dates").querySelector(".cal-wrap").innerHTML = `<p class="meta">No upcoming dates yet. Ask ${esc(T.org)} when they plan to go next.</p>`;
+  $("head-slots").textContent = "No upcoming dates";
+  $("going").innerHTML = `<p class="meta">Shows once there's an upcoming date.</p>`;
+  $("book").querySelectorAll(".book-row, .breakdown, #reserve, #dp-note").forEach(el => { el.hidden = true; });
+  $("reserve-note").textContent = "No upcoming dates to reserve. Tap Ask the organizer on this page to ask about the next one.";
+  document.querySelector(".mobile-bar").hidden = true;
 }
 
 function update() {
@@ -562,8 +573,7 @@ document.addEventListener("click", e => {
 window.addEventListener("hashchange", () => location.reload());
 
 renderStatic();
-buildCalendar();
-update();
+if (picked) { buildCalendar(); update(); } else noDates();
 </script>
 </body>
 </html>

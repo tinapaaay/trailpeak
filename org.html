@@ -98,7 +98,6 @@
 <script>
 const slugOf = name => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const today = new Date().toISOString().slice(0, 10);
 const slug = location.hash.slice(1);
 const trips = TRIPS.filter(t => slugOf(t.org) === slug);
 const root = document.getElementById("profile");
@@ -119,7 +118,7 @@ if (!trips.length) {
 
   // Cards: next open date per trip, with this browser's bookings taken off.
   const cards = trips.map(t => {
-    const deps = Object.keys(t.departures).sort().filter(d => d >= today).map(d => [d, slotsLeft(t, d)]).filter(([, l]) => l > 0);
+    const deps = Object.keys(t.departures).sort().filter(d => !isPastDate(d)).map(d => [d, slotsLeft(t, d)]).filter(([, l]) => l > 0);
     if (!deps.length) return "";
     const tour = { ...t, length: `${t.typeLabel} · ${t.hours}`, page: `trip.html#${t.id}`, pickups: t.pickups.map(p => p.place) };
     return card(tour, deps[0]);
