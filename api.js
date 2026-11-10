@@ -43,7 +43,8 @@ TP.applyTo = function (trips) {
 function tpBooking(b) {
   return { ref: b.ref, tripId: b.trip_id, date: b.date, size: b.size, pickup: b.pickup, pickupTime: b.pickup_time,
     dp: b.dp, balance: b.balance, wallet: b.wallet, walletNumber: b.wallet_number, names: b.names || "",
-    listed: b.listed, displayName: b.display_name, status: b.status, moved: b.moved, note: b.note, bookedAt: b.created_at };
+    listed: b.listed, displayName: b.display_name, status: b.status, moved: b.moved, note: b.note, bookedAt: b.created_at,
+    companions: b.companions || [], emergency: b.emergency || null };
 }
 function tpUser(p, email) {
   return { id: p.id, name: p.name, phone: p.phone || "", email: email || "", role: p.role, org: p.org || "",
@@ -131,12 +132,22 @@ TP.saveProfile = async fields => {
 // ---- Bookings -------------------------------------------------------------------------
 const tpErr = e => new Error((e && e.message) || "Something went wrong. Try again.");
 TP.book = async p => {
-  const { data, error } = await TP.db.rpc("book_trip", {
-    p_trip: p.tripId, p_date: p.date, p_size: p.size, p_pickup: p.pickup, p_pickup_time: p.pickupTime,
-    p_wallet: p.wallet, p_wallet_number: p.walletNumber, p_names: p.names || "", p_listed: !!p.listed });
+  const base = { p_trip: p.tripId, p_date: p.date, p_size: p.size, p_pickup: p.pickup, p_pickup_time: p.pickupTime,
+    p_wallet: p.wallet, p_wallet_number: p.walletNumber, p_listed: !!p.listed };
+  let { data, error } = await TP.db.rpc("book_trip", { ...base, p_names: "", p_companions: p.companions || [], p_emergency: p.emergency || null });
+  // Database not updated yet (schema.sql not re-run): book the old way, with names as plain text.
+  if (error && error.code === "PGRST202") {
+    ({ data, error } = await TP.db.rpc("book_trip", { ...base, p_names: (p.companions || []).map(c => c.name).join(", ") }));
+  }
   if (error) throw tpErr(error);
   await TP.sync({ reload: false });
   return tpBooking(data);
+};
+// Add or change joiner names and the emergency contact (any time before the trip date).
+TP.updateDetails = async (ref, companions, emergency) => {
+  const { error } = await TP.db.rpc("update_booking_details", { p_ref: ref, p_companions: companions, p_emergency: emergency });
+  if (error) throw tpErr(error);
+  await TP.sync({ reload: false });
 };
 TP.move = async (ref, date) => {
   const { error } = await TP.db.rpc("move_booking", { p_ref: ref, p_new_date: date });

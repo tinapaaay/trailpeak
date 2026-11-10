@@ -73,7 +73,7 @@ Google's screen will say "continue to fjssjgefufwuadrltvjf.supabase.co". Showing
 
 ## After an update
 
-When `schema.sql` changes (for example, the November 2026 update added reviews and Manila-time date rules), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Until you do, the site still works, but reviews can't be posted.
+When `schema.sql` changes (for example, the November 2026 updates added reviews, Manila-time date rules, and joiner names with an emergency contact), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Run it right after pulling the update: the website and the database functions change together, so until you do, new features (and after the joiner-details update, new bookings) won't work.
 
 ## What's real and what's still simulated
 

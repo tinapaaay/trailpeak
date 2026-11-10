@@ -54,6 +54,10 @@
 .my-review .stars .off { color: var(--color-secondary); } /* outline stars, dark enough to see */
 textarea.input { width: 100%; resize: vertical; }
 
+.due { display: flex; gap: var(--space-xs); align-items: flex-start; font-size: 15px; line-height: 1.5; background: var(--color-neutral); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); }
+.due svg { flex: none; margin-top: 2px; color: var(--color-primary); }
+.facts .group { font-family: var(--font-body); font-size: 15px; color: var(--color-secondary); }
+
 .empty { display: grid; gap: var(--space-sm); justify-items: start; background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-xl); }
 
 @media (max-width: 767px) {
@@ -177,6 +181,21 @@ function card(b) {
       ${canMove ? `<button type="button" class="btn btn-secondary label-caps" data-move="${b.ref}">Move date instead</button>` : ""}
       <button type="button" class="link-btn" data-close="${b.ref}">Keep my booking</button></div></div>`;
   }
+  // Joiner details: names for registration and an emergency contact, editable until the trip.
+  const missing = !cancelled && !isPast ? missingJoiners(b) : 0, dp = "d" + b.ref.replace(/\W/g, "");
+  const group = ["You", ...(b.companions || []).map(c => c.name + (c.age === "minor" ? " (under 18)" : ""))].join(", ");
+  const detailsLine = !cancelled && !isPast
+    ? (missing
+      ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Add ${missing === 1 ? "1 joiner's" : `${missing} joiners'`} details by ${nice(dueDate(b.date))}.</strong> The organizer needs every name to register your group.</span></p>`
+      : (!b.emergency ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Add an emergency contact.</strong> Someone who isn't on this hike.</span></p>` : ""))
+    : "";
+  if (open[b.ref] === "details") {
+    panel = `<form class="inline" data-details-form="${b.ref}" novalidate>
+      ${joinerFieldsHtml(dp, b.size, b.companions || [], b.emergency, { you: user.name })}
+      <div class="row"><button type="submit" class="btn btn-primary label-caps">Save details</button><button type="button" class="link-btn" data-close="${b.ref}">Cancel</button></div>
+    </form>`;
+  }
+
   // Done (the date has passed, not cancelled): one review per booking.
   const reviewed = isPast && getMyReviews().find(r => r.ref === b.ref);
   const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"☆".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
@@ -203,13 +222,15 @@ function card(b) {
       <dl class="facts">
         <div><dt>Date</dt><dd>${nice(b.date)}</dd></div>
         <div><dt>Meetup</dt><dd>${b.pickupTime} · ${esc(b.pickup)}</dd></div>
-        <div><dt>Joiners</dt><dd>${b.size}</dd></div>
+        <div><dt>Joiners</dt><dd>${b.size}${b.size > 1 && !cancelled ? `<span class="group"> · ${esc(group)}</span>` : ""}</dd></div>
         <div><dt>DP paid</dt><dd>${peso(b.dp)} · ${b.wallet}</dd></div>
         ${cancelled || isPast ? "" : `<div><dt>Bring for balance</dt><dd>${peso(b.balance)}</dd></div>`}
       </dl>
       ${b.note ? `<p class="note">${esc(b.note)}</p>` : ""}
+      ${detailsLine}
       ${!cancelled && !isPast ? `<div class="actions">
         <a class="btn btn-secondary label-caps" href="trip.html#${T.id}">Trip details</a>
+        <button type="button" class="${missing ? "btn btn-primary label-caps" : "link-btn"}" data-details="${b.ref}">${missing ? "Add details" : "Joiner details"}<span class="sr"> for ${esc(T.title)}</span></button>
         ${canMove ? `<button type="button" class="link-btn" data-move="${b.ref}">Move date<span class="sr"> for ${esc(T.title)}</span></button>` : `<span class="note">${b.moved ? "Already moved once." : d < 7 ? "Less than 7 days to go: dates can't be moved." : ""}</span>`}
         <button type="button" class="link-btn danger" data-cancel="${b.ref}">Cancel<span class="sr"> ${esc(T.title)} booking</span></button>
       </div>` : ""}
@@ -237,6 +258,7 @@ document.addEventListener("click", e => {
   if (d.move) { open[d.move] = "move"; render(); document.getElementById("mv-" + d.move)?.focus(); }
   if (d.cancel) { open[d.cancel] = "cancel"; render(); document.querySelector(`[data-cancel-yes="${d.cancel}"]`).focus(); }
   if (d.close) { delete open[d.close]; render(); }
+  if (d.details) { open[d.details] = "details"; render(); document.querySelector(`[data-details-form="${d.details}"] input`)?.focus(); }
   if (d.review) { open[d.review] = "review"; render(); document.getElementById(`rate-${d.review}-1`)?.focus(); }
   if (d.cancelYes) {
     if (TP.online) {
@@ -248,6 +270,22 @@ document.addEventListener("click", e => {
     update(d.cancelYes, b => { b.status = "cancelled"; b.note = "You cancelled this booking. The organizer was told and your slot was released."; });
     $("live").textContent = "Booking cancelled.";
   }
+});
+// Save joiner details (names, ages, emergency contact).
+document.addEventListener("submit", e => {
+  const f = e.target.closest("[data-details-form]"); if (!f) return;
+  e.preventDefault();
+  const ref = f.dataset.detailsForm, b = getBookings().find(x => x.ref === ref), dp = "d" + ref.replace(/\W/g, "");
+  const jd = readJoinerFields(dp, b.size);
+  if (jd.error) { alertPanel(jd.error, f); jd.field.focus(); return; }
+  const done = () => { delete open[ref]; render(); $("live").textContent = "Joiner details saved. The organizer can see them now."; };
+  if (TP.online) {
+    const btn = f.querySelector('button[type="submit"]'); btn.disabled = true;
+    TP.updateDetails(ref, jd.companions, jd.emergency).then(done).catch(err => { btn.disabled = false; alertPanel(err.message, f); });
+    return;
+  }
+  update(ref, x => { x.companions = jd.companions; x.emergency = jd.emergency; x.names = jd.companions.map(c => c.name).join(", "); });
+  $("live").textContent = "Joiner details saved.";
 });
 // Stars: light up every star up to the one picked (the radios themselves stay the source of truth).
 document.addEventListener("change", e => {

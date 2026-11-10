@@ -78,6 +78,10 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .joiners th { color: var(--color-secondary); font: 700 13px/1.2 var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; background: var(--color-neutral); }
 .joiners td.num, .joiners th.num { text-align: right; font-family: var(--font-label); font-feature-settings: "tnum" 1; }
 .joiners tr:last-child td { border-bottom: 0; }
+.joiners td { vertical-align: top; }
+.joiners .em { display: grid; gap: 2px; }
+.joiners .group { list-style: none; padding: 0; margin: var(--space-xs) 0 0; display: grid; gap: 2px; font-size: 15px; }
+.joiners .minor { font: 700 13px/1.2 var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-on-surface); }
 .joiners tfoot td { font-weight: 700; background: var(--color-neutral); }
 .joiners input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--color-primary); }
 .checkin { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
@@ -265,7 +269,8 @@ async function start() {
     if (real) {
       const bookings = real.filter(b => b.trip_id === t.id && b.date === date).map(b => ({
         name: b.joiner_name || "Joiner", size: b.size, pickup: `${b.pickup} · ${b.pickup_time}`,
-        phone: b.joiner_phone || "No number yet", wallet: b.wallet, checked: false }));
+        phone: b.joiner_phone || "No number yet", wallet: b.wallet, checked: false,
+        companions: b.companions || [], emergency: b.emergency || null }));
       const taken = bookings.reduce((a, b) => a + b.size, 0) + (t.sampleBooked?.[date] || 0);
       const status = t.dateStatus?.[date] === "open" ? "open" : (t.dateStatus?.[date] || "open");
       state[t.id + "|" + date] = { trip: t, date, cap: t.capacity?.[date] || t.group, status, bookings, note: "" };
@@ -278,7 +283,10 @@ async function start() {
       const p = t.pickups[(seq + i) % t.pickups.length];
       bookings.push({ name: `${first[(seq + i) % first.length]} ${last[(seq + i * 3) % last.length]}`, size,
         pickup: `${p.place} · ${p.time}`, phone: `+63 917 000 ${String(1100 + seq * 10 + i).slice(-4)}`,
-        wallet: (seq + i) % 3 ? "GCash" : "Maya", checked: false });
+        wallet: (seq + i) % 3 ? "GCash" : "Maya", checked: false,
+        // Sample group members and emergency contact; the last group still owes one name.
+        companions: Array.from({ length: Math.max(0, size - 1 - (size > 1 && !bookings.some(x => x.size > 1) ? 1 : 0)) }, (_, k) => ({ name: `${first[(seq + i + k + 5) % first.length]} ${["Cruz", "Santos", "Reyes", "Garcia"][k % 4]}`, age: k === 2 ? "minor" : "adult" })),
+        emergency: { name: `${first[(seq + i + 9) % first.length]} ${last[(seq + i) % last.length].replace(".", "")}ayco`, relation: ["Mother", "Partner", "Brother", "Friend"][(seq + i) % 4], phone: `+63 918 000 ${String(2100 + seq * 10 + i).slice(-4)}` } });
       n += size; i++;
     }
     seq++;
@@ -354,7 +362,8 @@ async function start() {
     if (!s) return;
     const booked = bookedOf(s), checked = s.bookings.filter(b => b.checked).reduce((a, b) => a + b.size, 0);
     $("joiners-h").textContent = `Joiners · ${nice(s.date)}`;
-    $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${booked} joiners · ${checked} checked in`;
+    const toCome = s.bookings.reduce((a, b) => a + missingOf(b), 0);
+    $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${booked} joiners · ${checked} checked in${toCome ? ` · ${toCome} ${toCome === 1 ? "name" : "names"} still to come` : ""}`;
     if (!s.bookings.length) {
       $("joiners-wrap").innerHTML = `<p class="empty-list">No bookings yet for this date. Copy the Facebook text above and post it in your groups.</p>`;
       return;
@@ -362,13 +371,24 @@ async function start() {
     const balance = s.trip.fee - s.trip.dp;
     $("joiners-wrap").innerHTML = `<table class="joiners">
       <caption class="sr">Joiners for ${nice(s.date)}</caption>
-      <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">DP paid</th><th scope="col" class="num">Collect</th></tr></thead>
+      <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">Emergency contact</th><th scope="col">DP paid</th><th scope="col" class="num">Collect</th></tr></thead>
       <tbody>${s.bookings.map((b, i) => `<tr>
         <td><label class="checkin"><input type="checkbox" data-check="${i}" ${b.checked ? "checked" : ""}><span class="sr">${esc(b.name)} checked in</span></label></td>
-        <td>${esc(b.name)}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${b.phone}</td>
+        <td><strong>${esc(b.name)}</strong>${groupList(b)}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${b.phone}</td>
+        <td>${b.emergency ? `<div class="em"><span>${esc(b.emergency.name)}${b.emergency.relation ? ` (${esc(b.emergency.relation)})` : ""}</span><span class="data">${esc(b.emergency.phone)}</span></div>` : "Not added yet"}</td>
         <td>${pesos(s.trip.dp * b.size)} · ${b.wallet}</td><td class="num">${pesos(balance * b.size)}</td></tr>`).join("")}</tbody>
-      <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td>${pesos(s.trip.dp * booked)}</td><td class="num">${pesos(balance * booked)}</td></tr></tfoot>
+      <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td></td><td>${pesos(s.trip.dp * booked)}</td><td class="num">${pesos(balance * booked)}</td></tr></tfoot>
     </table>`;
+  }
+
+  // Everyone in a booking after the booker: name, under-18 flag, mobile; and names still to come.
+  const missingOf = b => Math.max(0, b.size - 1 - (b.companions || []).length);
+  function groupList(b) {
+    if (b.size < 2) return "";
+    const items = (b.companions || []).map(c => `<li>${esc(c.name)}${c.age === "minor" ? ' <span class="minor">under 18</span>' : ""}${c.phone ? ` <span class="data meta">${esc(c.phone)}</span>` : ""}</li>`);
+    const miss = missingOf(b);
+    if (miss) items.push(`<li class="meta">${miss === 1 ? "1 name" : `${miss} names`} still to come</li>`);
+    return `<ul class="group">${items.join("")}</ul>`;
   }
 
   function renderPayouts() {
@@ -415,7 +435,13 @@ async function start() {
     }
     if (t.id === "copy-list") {
       const s = state[selected];
-      const text = `${s.trip.title} · ${nice(s.date)} · meetup ${s.trip.meet}\n` + s.bookings.map((b, i) => `${i + 1}. ${b.name} (${b.size}) · ${b.pickup} · ${b.phone} · collect ${pesos((s.trip.fee - s.trip.dp) * b.size)}`).join("\n");
+      // One line per hiker for registration at the jump-off, grouped by booking.
+      const text = `${s.trip.title} · ${nice(s.date)} · meetup ${s.trip.meet}\n` + s.bookings.map((b, i) => [
+        `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} ${b.size === 1 ? "joiner" : "joiners"} · collect ${pesos((s.trip.fee - s.trip.dp) * b.size)}`,
+        ...(b.companions || []).map(c => `   - ${c.name}${c.age === "minor" ? " (under 18)" : ""}${c.phone ? ` · ${c.phone}` : ""}`),
+        ...Array.from({ length: missingOf(b) }, () => "   - (name to follow)"),
+        b.emergency ? `   Emergency: ${b.emergency.name}${b.emergency.relation ? ` (${b.emergency.relation})` : ""} · ${b.emergency.phone}` : "   Emergency: not added yet",
+      ].join("\n")).join("\n");
       await copy(text, t, "Copy joiner list");
     }
   });

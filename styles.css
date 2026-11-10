@@ -306,3 +306,20 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 /* Field labels: sentence case, 15px bold, ink. Caps (label-caps) stay for badges, eyebrows and buttons,
    so they still stand out. */
 .field-label { font: 700 15px/1.3 var(--font-body); color: var(--color-on-surface); }
+
+/* Joiner details (reserve and My trips): names for registration and an emergency contact. */
+.jd { border: 0; padding: 0; margin: 0; display: grid; gap: var(--space-md); min-width: 0; }
+.jd legend { padding: 0; margin-bottom: var(--space-xs); font: 700 20px/1.25 var(--font-display); color: var(--color-on-surface); }
+.jd-hint { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
+.jd-h { font-weight: 700; }
+.jd-you { padding: var(--space-sm) var(--space-md); background: var(--color-neutral); border-radius: var(--rounded-md); }
+.jd-rows { display: grid; gap: var(--space-lg); }
+.jd-joiner { display: grid; gap: var(--space-sm); }
+.jd-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px 200px; gap: var(--space-md); align-items: end; }
+.jd-field { display: grid; gap: var(--space-sm); min-width: 0; }
+.jd-opt { font-weight: 400; color: var(--color-secondary); }
+.jd-prefix { display: grid; grid-template-columns: auto 1fr; gap: var(--space-sm); align-items: center; }
+.jd-prefix span { font-family: var(--font-label); color: var(--color-secondary); }
+@media (max-width: 767px) { .jd-row { grid-template-columns: 1fr; } }
+.jd .check { display: flex; gap: var(--space-sm); align-items: flex-start; font-size: 15px; line-height: 1.5; }
+.jd .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--color-primary); flex: none; }
