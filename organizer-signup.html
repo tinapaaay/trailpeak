@@ -15,12 +15,6 @@
 .page-head h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
 .page-head p { color: var(--color-secondary); }
 
-.steps { list-style: none; padding: 0; margin: 0 0 var(--space-lg); display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-xs); }
-.steps li { display: grid; gap: var(--space-xs); font-size: 15px; color: var(--color-secondary); }
-.steps li::before { content: ""; height: 4px; border-radius: var(--rounded-full); corner-shape: round; background: var(--color-border); }
-.steps li.done::before, .steps li[aria-current="step"]::before { background: var(--color-primary); }
-.steps li[aria-current="step"] { color: var(--color-on-surface); font-weight: 700; }
-
 .panel { display: grid; gap: var(--space-md); }
 .panel h2 { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
 .panel .lead { color: var(--color-secondary); }
@@ -79,7 +73,6 @@
 @media (max-width: 767px) {
   .page-head h1 { font-size: 24px; }
   .grid2, .choices { grid-template-columns: 1fr; }
-  .steps li { font-size: 13px; }
 }
 </style>
 </head>
@@ -231,7 +224,8 @@
 const existing = getUser();
 const alreadyOrganizer = !!(existing && existing.role === "organizer");
 // Online, an organizer account starts from a signed-in account (email code).
-if (TP.online && !existing) { rememberNext("organizer-signup.html"); location.replace("signin.html"); }
+// The sign-in page shows it is step 1 of organizer sign-up and comes back here afterwards.
+if (TP.online && !existing) { rememberNext("organizer-signup.html"); location.replace("signin.html?as=organizer"); }
 if (!TP.online) {
   $("acct-note").textContent = "Prototype: no real account is created, and photos stay on this device.";
   $("foot-note").textContent = "TrailPeak prototype · mock sign-up: no ID is checked and nothing is sent or saved outside this browser";

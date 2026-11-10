@@ -91,8 +91,9 @@ TP.sync = async function ({ reload = true } = {}) {
 
 // ---- Accounts -------------------------------------------------------------------------
 TP.sendCode = async email => {
-  // The email's link comes back to this site's sign-in page (it must be in Supabase's Redirect URLs).
-  const back = new URL("signin.html", location.href).href;
+  // The email's link comes back to this site's sign-in page (it must be in Supabase's Redirect URLs),
+  // keeping "?as=organizer" so organizer sign-up continues even if the link opens in a new tab.
+  const back = new URL("signin.html" + (/[?&]as=organizer\b/.test(location.search) ? "?as=organizer" : ""), location.href).href;
   const { error } = await TP.db.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: back } });
   if (error) throw new Error(error.message);
 };

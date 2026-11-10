@@ -293,3 +293,12 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 /* Prototype notice on account pages */
 .proto-note { display: flex; gap: var(--space-xs); align-items: flex-start; font-size: 15px; line-height: 1.5; color: var(--color-secondary); background: var(--color-neutral); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); }
+
+/* Organizer sign-up progress: four 4px segments, done and current in primary. Shared by
+   organizer-signup.html and the organizer version of signin.html. */
+.steps { list-style: none; padding: 0; margin: 0 0 var(--space-lg); display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-xs); }
+.steps li { display: grid; gap: var(--space-xs); font-size: 15px; color: var(--color-secondary); }
+.steps li::before { content: ""; height: 4px; border-radius: var(--rounded-full); corner-shape: round; background: var(--color-border); }
+.steps li.done::before, .steps li[aria-current="step"]::before { background: var(--color-primary); }
+.steps li[aria-current="step"] { color: var(--color-on-surface); font-weight: 700; }
+@media (max-width: 767px) { .steps li { font-size: 13px; } }

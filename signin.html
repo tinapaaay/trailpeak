@@ -45,6 +45,7 @@
 .error svg { flex: none; margin-top: 2px; }
 .back { justify-self: start; background: none; border: 0; padding: 0; min-height: 44px; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; }
 .organizer-cta a { display: inline-flex; align-items: center; min-height: 44px; }
+.eyebrow { display: block; color: var(--color-secondary); margin-bottom: var(--space-sm); }
 .organizer-cta { border-top: 1px solid var(--color-border); padding-top: var(--space-md); color: var(--color-secondary); font-size: 15px; }
 
 @media (max-width: 1024px) {
@@ -98,6 +99,12 @@
     <div>
       <!-- 1. Choose a way to sign in -->
       <section class="panel" id="step-choose" aria-labelledby="h-choose">
+        <div id="org-mode" hidden>
+          <span class="label-caps eyebrow">Organizer sign-up</span>
+          <ol class="steps" aria-label="Organizer sign-up steps">
+            <li aria-current="step">1 Account</li><li>2 Verify ID</li><li>3 Business</li><li>4 Payout</li>
+          </ol>
+        </div>
         <h1 id="h-choose">Sign in or create an account</h1>
         <p class="lead" id="choose-lead">New or returning, it's the same step: enter your email and we'll send you a sign-in link. New emails get a TrailPeak account automatically. No password needed.</p>
         <div class="stack">
@@ -217,9 +224,21 @@ $("go-facebook").onclick = () => {
   $("profile-lead").textContent = "In the real app your name comes from Facebook. Add your mobile number so organizers can reach you on meetup day.";
   show("step-profile");
 };
+// Organizer sign-up starts here (signin.html?as=organizer): say so, so it doesn't look like joiner sign-in.
+// The flag also rides along in the email link, so a link opened in a new tab still continues the organizer steps.
+const asOrganizer = new URLSearchParams(location.search).get("as") === "organizer";
+if (asOrganizer) {
+  rememberNext("organizer-signup.html");
+  document.title = "Organizer sign-up · TrailPeak";
+  $("org-mode").hidden = false;
+  $("h-choose").textContent = "Become an organizer";
+  $("choose-lead").textContent = "First, sign in with your email. Use the one you'll run trips with. New emails get an account automatically. Next you'll add your organizer name, verify your ID and set up payouts.";
+  document.querySelector(".organizer-cta").innerHTML = 'Just joining hikes? <a href="signin.html">Sign in as a joiner</a>';
+  $("profile-lead").textContent = "Your name as it appears on your ID, and the mobile number joiners can reach you on. Your organizer name comes next.";
+}
 // Offline demo (no config.js): mock wording.
 if (!TP.online) {
-  $("choose-lead").textContent = "New or returning, it's the same step: we'll send a code. New accounts are created automatically. No password needed.";
+  if (!asOrganizer) $("choose-lead").textContent = "New or returning, it's the same step: we'll send a code. New accounts are created automatically. No password needed.";
   $("choose-note").textContent = "Prototype: no real account is created. What you enter stays in this browser.";
   $("foot-note").textContent = "TrailPeak prototype · mock sign-in: nothing is sent or saved outside this browser";
 }
