@@ -139,7 +139,7 @@
         </div>
         <p class="error" id="e1" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
         <div class="actions"><button type="submit" class="btn btn-primary label-caps">Continue</button></div>
-        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><span id="acct-note">Your details save to your TrailPeak account. Photos stay on this device: the ID check is simulated.</span></span></p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><span id="acct-note">Your details save to your TrailPeak account. Photos stay on this device. TrailPeak reviews every organizer by hand before you can post trips.</span></span></p>
       </form>
 
       <!-- Step 2: ID check -->
@@ -163,7 +163,7 @@
       <!-- Step 3: business (optional) -->
       <form class="panel" id="s3" hidden novalidate aria-labelledby="h3">
         <h2 id="h3">Business documents <span class="meta" style="font:inherit;font-size:15px;font-weight:400">optional</span></h2>
-        <p class="lead">Add these for the <strong>Business verified</strong> badge. Our team reviews them in 1–2 working days. You can post trips while you wait.</p>
+        <p class="lead" id="biz-lead">Add these for the <strong>Business verified</strong> badge. Our team reviews them with your application.</p>
         <div class="choices" role="radiogroup" aria-label="Business type">
           <label class="choice"><input type="radio" name="btype" value="DTI" checked><strong>Sole proprietor</strong><span>DTI business name registration</span></label>
           <label class="choice"><input type="radio" name="btype" value="SEC"><strong>Corporation or partnership</strong><span>SEC registration</span></label>
@@ -194,8 +194,9 @@
       <!-- Done -->
       <section class="panel" id="s5" hidden aria-labelledby="h5">
         <h2 id="h5">You're set up</h2>
+        <p class="lead" id="lead5" hidden></p>
         <ul class="status" id="status"></ul>
-        <div class="actions"><a class="btn btn-primary label-caps" href="organize.html">Post your first trip</a><a class="btn btn-secondary label-caps" href="dashboard.html">Go to your dashboard</a></div>
+        <div class="actions" id="actions5"><a class="btn btn-primary label-caps" href="organize.html">Post your first trip</a><a class="btn btn-secondary label-caps" href="dashboard.html">Go to your dashboard</a></div>
       </section>
     </div>
 
@@ -212,7 +213,7 @@
 </main>
 
 <footer class="footer">
-  <div class="wrap" id="foot-note">TrailPeak prototype · your organizer profile is saved to your account; ID and business checks are simulated</div>
+  <div class="wrap" id="foot-note">TrailPeak pilot · your application is saved to your account; TrailPeak approves each organizer by hand</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -229,6 +230,19 @@ if (TP.online && !existing) { rememberNext("organizer-signup.html"); location.re
 if (!TP.online) {
   $("acct-note").textContent = "Prototype: no real account is created, and photos stay on this device.";
   $("foot-note").textContent = "TrailPeak prototype · mock sign-up: no ID is checked and nothing is sent or saved outside this browser";
+  $("biz-lead").innerHTML = "Add these for the <strong>Business verified</strong> badge. Our team reviews them in 1–2 working days. You can post trips while you wait.";
+}
+// Online, sign-up ends in an application: the owner approves organizers by hand (TP-001).
+const applied = TP.online && existing && existing.organizerStatus === "pending";
+const revoked = TP.online && existing && existing.organizerStatus === "revoked";
+if (!alreadyOrganizer && (applied || revoked)) {
+  document.querySelector(".page > div").innerHTML = applied
+    ? `<div class="page-head"><h1>Application received</h1>
+      <p>We're reviewing ${escapeHtml(existing.org || "your organizer account")}. During the pilot, TrailPeak approves every organizer by hand, usually within 1–2 working days. We'll text you${existing.phone ? " at " + escapeHtml(existing.phone) : ""} when you can post trips.</p></div>
+      <div class="actions"><a class="btn btn-primary label-caps" href="index.html">Browse trips</a></div>`
+    : `<div class="page-head"><h1>Organizer access is off</h1>
+      <p>TrailPeak turned off organizer access for this account. To apply again, contact the TrailPeak team.</p></div>
+      <div class="actions"><a class="btn btn-primary label-caps" href="index.html">Browse trips</a></div>`;
 }
 
 if (alreadyOrganizer) {
@@ -236,7 +250,7 @@ if (alreadyOrganizer) {
     <p>${escapeHtml(existing.org)} is set up${existing.idVerified ? " and ID verified" : ""}. Go to your dashboard to see bookings, or post a new trip.</p></div>
     <div class="actions"><a class="btn btn-primary label-caps" href="dashboard.html">Go to dashboard</a><a class="btn btn-secondary label-caps" href="organize.html">Post a trip</a></div>`;
 }
-if (!alreadyOrganizer) {
+if (!alreadyOrganizer && !applied && !revoked) {
 const data = { idVerified: false, business: "none" };
 const digits = v => v.replace(/\D/g, "");
 const validPhone = v => /^9\d{9}$/.test(digits(v));
@@ -295,7 +309,9 @@ $("s2").addEventListener("submit", e => {
     && fail(2, !$("idfront").files.length ? "Add a photo of the front of your ID." : "")
     && fail(2, !$("selfie").files.length ? "Add a selfie holding your ID." : "");
   if (!ok) return;
-  // Simulated check. A real app sends the photos to an ID-checking service and waits for its answer.
+  // Online, the ID is reviewed with the application; nothing is marked verified here.
+  if (TP.online) { data.idType = $("idtype").value; go(3); return; }
+  // Offline demo: a simulated check. A real app sends the photos to an ID-checking service.
   $("checking").hidden = false;
   setTimeout(() => { $("checking").hidden = true; data.idVerified = true; data.idType = $("idtype").value; go(3); }, 1200);
 });
@@ -317,16 +333,33 @@ $("s4").addEventListener("submit", e => {
   if (!ok) return;
   data.payout = { wallet: document.querySelector('input[name="wallet"]:checked').value, number: pretty($("wnum").value) };
   if (TP.online) {
-    // Saved to the account. The ID and business checks are still simulated (see supabase/SETUP.md).
-    TP.saveProfile({ name: data.name, phone: data.phone, role: "organizer", org: data.org, id_verified: data.idVerified,
-      business: data.business, payout: data.payout })
-      .then(() => showFinished())
+    // Sends an application. The database never lets an account make itself an organizer or
+    // verified; the owner approves it (see supabase/SETUP.md).
+    TP.applyAsOrganizer({ name: data.name, phone: data.phone, org: data.org, payout: data.payout,
+      application: { idType: data.idType, businessDocs: data.business === "review", dot: data.dot || "" } })
+      .then(() => showApplied())
       .catch(err => fail(4, err.message));
     return;
   }
   setUser({ ...existing, ...data, role: "organizer", method: existing?.method || "organizer-signup" });
   showFinished();
 });
+
+function showApplied() {
+  const row = (cls, icon, title, note) => `<li><svg class="${cls}" width="20" height="20" aria-hidden="true"><use href="#i-${icon}"/></svg><div><strong>${title}</strong><p class="meta">${note}</p></div></li>`;
+  $("h5").textContent = "Application received";
+  $("lead5").hidden = false;
+  $("lead5").textContent = `During the pilot, TrailPeak approves every organizer by hand, usually within 1–2 working days. We'll text you at ${data.phone} when you can post trips.`;
+  $("status").innerHTML =
+    row("wait", "clock", "Waiting for approval", "You can post trips once TrailPeak approves your account.") +
+    row("wait", "clock", "ID in review", `${escapeHtml(data.idType)}. The ID verified badge shows on your trips once it's checked.`) +
+    (data.business === "review"
+      ? row("wait", "clock", "Business documents in review", "Checked together with your application.")
+      : row("off", "x", "Business documents not added", "Add them anytime for the Business verified badge.")) +
+    row("ok", "tick", `${data.payout.wallet} payout saved`, `DPs will go to ${data.payout.number}, minus TrailPeak's commission.`);
+  $("actions5").innerHTML = '<a class="btn btn-primary label-caps" href="index.html">Browse trips</a>';
+  go(5);
+}
 
 function showFinished() {
 

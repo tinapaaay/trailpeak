@@ -47,14 +47,14 @@ function renderAccount() {
   }
   const role = user.role === "organizer"
     ? `Organizer · ${escapeHtml(user.org || "")}${user.idVerified ? " · ID verified" : ""}`
-    : "Joiner";
+    : user.organizerStatus === "pending" ? "Joiner · organizer application in review" : "Joiner";
   slot.outerHTML = `<details class="acct">
     <summary class="avatar label-caps" aria-label="Account: ${escapeHtml(user.name)}">${escapeHtml(initialsOf(user.name))}</summary>
     <div class="acct-menu">
       <p class="acct-name">${escapeHtml(user.name)}</p>
       <p class="meta">${role}</p>
       <a class="btn btn-${user.role === "organizer" ? "secondary" : "primary"} label-caps" href="mytrips.html">My trips</a>
-      ${user.role === "organizer" ? '<a class="btn btn-primary label-caps" href="dashboard.html">Dashboard</a><a class="btn btn-secondary label-caps" href="organize.html">Post a trip</a>' : '<a class="btn btn-secondary label-caps" href="organizer-signup.html">Become an organizer</a>'}
+      ${user.role === "organizer" ? '<a class="btn btn-primary label-caps" href="dashboard.html">Dashboard</a><a class="btn btn-secondary label-caps" href="organize.html">Post a trip</a>' : `<a class="btn btn-secondary label-caps" href="organizer-signup.html">${user.organizerStatus === "pending" ? "Application status" : "Become an organizer"}</a>`}
       <button type="button" class="btn btn-secondary label-caps" id="signout">Sign out</button>
     </div>
   </details>`;

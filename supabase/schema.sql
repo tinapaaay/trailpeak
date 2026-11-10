@@ -1,10 +1,11 @@
 -- TrailPeak light backend: accounts, trips, dates and bookings.
--- Payments and ID checks are still simulated; see supabase/SETUP.md.
+-- Payments are still simulated. Organizers and ID checks are approved by hand; see supabase/SETUP.md.
 -- Run this in the Supabase SQL editor, then run seed.sql. Safe to run again after changes.
 --
 -- Privacy model (Row Level Security):
 --   * Everyone can read published trips and their dates.
---   * You can read and change only your own profile.
+--   * You can read and change only your own profile, and never your own organizer or
+--     verification status (only the owner can approve those).
 --   * Joiners see only their own bookings; organizers see bookings on their own trips.
 --   * Bookings are created, moved and cancelled only through the functions below,
 --     which check slots and the cancellation policy on the server.
@@ -16,18 +17,46 @@
 -- ---------------------------------------------------------------------------
 -- Profiles: one per account
 -- ---------------------------------------------------------------------------
+-- Who may change what (TP-001):
+--   * You can edit your own name, phone, organizer name and payout.
+--   * role, id_verified, business and organizer_status are status fields. Nobody can set
+--     them on their own profile: not the website, not a direct API call. Organizer sign-up
+--     calls apply_as_organizer(), which only marks the application "pending".
+--   * The owner approves or revokes organizers in the Supabase SQL editor with
+--     approve_organizer() and revoke_organizer() (see supabase/SETUP.md).
 create table if not exists public.profiles (
   id           uuid primary key references auth.users (id) on delete cascade,
   name         text not null default '',
   phone        text,
   role         text not null default 'joiner' check (role in ('joiner', 'organizer')),
   org          text,
-  id_verified  boolean not null default false,   -- simulated ID check for now
+  id_verified  boolean not null default false,   -- set only by the owner after checking an ID
   business     text not null default 'none' check (business in ('none', 'review', 'verified')),
   payout       jsonb,                              -- { wallet, number }
   created_at   timestamptz not null default now()
 );
 alter table public.profiles enable row level security;
+
+-- Organizer applications (added Nov 2026, TP-001). none -> pending (applied) -> approved,
+-- or revoked. `application` keeps what the applicant told us: { idType, businessDocs, dot }.
+-- The first time this runs on an older database it also undoes the old shortcut, where
+-- sign-up made people organizers and "ID verified" on the spot: those organizers go back
+-- to pending, and every simulated ID or business check is cleared. Later runs skip this.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'profiles' and column_name = 'organizer_status') then
+    alter table public.profiles
+      add column organizer_status text not null default 'none'
+        check (organizer_status in ('none', 'pending', 'approved', 'revoked')),
+      add column application jsonb,
+      add column applied_at timestamptz;
+    update public.profiles
+       set organizer_status = case when role = 'organizer' then 'pending' else 'none' end,
+           applied_at       = case when role = 'organizer' then created_at end,
+           role = 'joiner', id_verified = false, business = 'none';
+  end if;
+end $$;
 
 drop policy if exists "Read own profile" on public.profiles;
 create policy "Read own profile" on public.profiles
@@ -38,6 +67,33 @@ create policy "Create own profile" on public.profiles
 drop policy if exists "Update own profile" on public.profiles;
 create policy "Update own profile" on public.profiles
   for update using (auth.uid() = id) with check (auth.uid() = id);
+
+-- Second lock on the status fields. The column grants at the end of this file already stop
+-- the website's roles from writing them; this trigger also stops them if a grant is ever
+-- widened by mistake. The owner's SQL editor, the service role and the functions below
+-- (which run as the table owner) are not the website's roles, so they pass.
+create or replace function public.protect_profile_status()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user not in ('anon', 'authenticated') then return new; end if;
+  if tg_op = 'INSERT' then
+    if new.role <> 'joiner' or new.id_verified or new.business <> 'none'
+       or new.organizer_status <> 'none' or new.application is not null or new.applied_at is not null then
+      raise exception 'Organizer and verification status can only be set by TrailPeak.' using errcode = '42501';
+    end if;
+  elsif new.role is distinct from old.role or new.id_verified is distinct from old.id_verified
+        or new.business is distinct from old.business or new.organizer_status is distinct from old.organizer_status
+        or new.application is distinct from old.application or new.applied_at is distinct from old.applied_at
+        or new.id is distinct from old.id or new.created_at is distinct from old.created_at then
+    raise exception 'Organizer and verification status can only be set by TrailPeak.' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists protect_profile_status on public.profiles;
+create trigger protect_profile_status
+  before insert or update on public.profiles
+  for each row execute function public.protect_profile_status();
 
 -- Make a profile automatically when someone signs up.
 create or replace function public.handle_new_user()
@@ -53,6 +109,77 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Is the signed-in person an approved organizer? Used by the trip and date rules below.
+create or replace function public.is_organizer()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'organizer');
+$$;
+
+-- Organizer sign-up: saves the applicant's details and marks them "pending". It never makes
+-- anyone an organizer or verified; the owner does that with approve_organizer().
+create or replace function public.apply_as_organizer(
+  p_name text, p_phone text, p_org text, p_payout jsonb, p_application jsonb default null)
+returns public.profiles language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); p public.profiles;
+begin
+  if me is null then raise exception 'Please sign in again.'; end if;
+  select * into p from public.profiles where id = me for update;
+  if not found then raise exception 'Please sign in again.'; end if;
+  if p.role = 'organizer' then raise exception 'You''re already an organizer.'; end if;
+  if p.organizer_status = 'revoked' then
+    raise exception 'Your organizer access was turned off. Contact TrailPeak to apply again.';
+  end if;
+  if coalesce(trim(p_name), '') = '' or coalesce(trim(p_org), '') = '' or coalesce(trim(p_phone), '') = '' then
+    raise exception 'Enter your name, organizer name and mobile number.';
+  end if;
+  if p_payout is null or coalesce(trim(p_payout ->> 'number'), '') = '' or coalesce(p_payout ->> 'wallet', '') not in ('GCash', 'Maya') then
+    raise exception 'Add a GCash or Maya payout number.';
+  end if;
+  update public.profiles
+     set name = left(trim(p_name), 100), phone = left(trim(p_phone), 20), org = left(trim(p_org), 100),
+         payout = jsonb_build_object('wallet', p_payout ->> 'wallet', 'number', left(trim(p_payout ->> 'number'), 20)),
+         organizer_status = 'pending', applied_at = coalesce(applied_at, now()),
+         application = jsonb_build_object(
+           'idType', left(coalesce(p_application ->> 'idType', ''), 40),
+           'businessDocs', coalesce((p_application ->> 'businessDocs')::boolean, false),
+           'dot', left(coalesce(p_application ->> 'dot', ''), 40))
+   where id = me returning * into p;
+  return p;
+end $$;
+
+-- Owner only (SQL editor or service role). Approve an organizer, optionally recording an ID
+-- you checked yourself and the business check result. Safe to run again to change them.
+--   select approve_organizer('<user id>');                          -- organizer, not ID verified
+--   select approve_organizer('<user id>', true);                    -- organizer, ID verified
+--   select approve_organizer('<user id>', true, 'verified');        -- plus Business verified
+create or replace function public.approve_organizer(
+  p_user uuid, p_id_verified boolean default false, p_business text default 'none')
+returns public.profiles language plpgsql security definer set search_path = public as $$
+declare p public.profiles;
+begin
+  if p_business not in ('none', 'review', 'verified') then raise exception 'business must be none, review or verified'; end if;
+  update public.profiles
+     set role = 'organizer', organizer_status = 'approved', id_verified = coalesce(p_id_verified, false), business = p_business
+   where id = p_user returning * into p;
+  if not found then raise exception 'No profile with id %', p_user; end if;
+  update public.trips set details = details where organizer_id = p_user;   -- refresh the trips' verified seal
+  return p;
+end $$;
+
+-- Owner only. Turn organizer access off: they can no longer post, edit trips or change dates.
+-- Their published trips stay up; unpublish them with: update trips set published = false where organizer_id = '<user id>';
+create or replace function public.revoke_organizer(p_user uuid)
+returns public.profiles language plpgsql security definer set search_path = public as $$
+declare p public.profiles;
+begin
+  update public.profiles
+     set role = 'joiner', organizer_status = 'revoked', id_verified = false, business = 'none'
+   where id = p_user returning * into p;
+  if not found then raise exception 'No profile with id %', p_user; end if;
+  update public.trips set details = details where organizer_id = p_user;
+  return p;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- Trips and their dates
@@ -74,12 +201,31 @@ create policy "Anyone reads published trips" on public.trips
   for select using (published or organizer_id = auth.uid());
 drop policy if exists "Organizers add their own trips" on public.trips;
 create policy "Organizers add their own trips" on public.trips
-  for insert with check (
-    organizer_id = auth.uid()
-    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'organizer'));
+  for insert with check (organizer_id = auth.uid() and public.is_organizer());
 drop policy if exists "Organizers edit their own trips" on public.trips;
 create policy "Organizers edit their own trips" on public.trips
-  for update using (organizer_id = auth.uid()) with check (organizer_id = auth.uid());
+  for update using (organizer_id = auth.uid() and public.is_organizer())
+  with check (organizer_id = auth.uid() and public.is_organizer());
+
+-- The verified seal on a trip comes from its organizer's profile, never from what the
+-- organizer typed into the trip. Sample trips (no organizer) keep their seed value.
+create or replace function public.trip_verified_from_profile()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.organizer_id is not null then
+    new.details := jsonb_set(new.details, '{verified}',
+      to_jsonb(coalesce((select id_verified from public.profiles where id = new.organizer_id), false)));
+  end if;
+  return new;
+end $$;
+drop trigger if exists trip_verified_from_profile on public.trips;
+create trigger trip_verified_from_profile
+  before insert or update on public.trips
+  for each row execute function public.trip_verified_from_profile();
+-- Bring existing organizer trips in line (cheap, and safe to repeat).
+update public.trips set details = details
+ where organizer_id is not null
+   and details -> 'verified' is distinct from to_jsonb(coalesce((select p.id_verified from public.profiles p where p.id = organizer_id), false));
 
 create table if not exists public.departures (
   trip_id        text not null references public.trips (id) on delete cascade,
@@ -95,8 +241,8 @@ drop policy if exists "Anyone reads dates" on public.departures;
 create policy "Anyone reads dates" on public.departures for select using (true);
 drop policy if exists "Organizers manage their dates" on public.departures;
 create policy "Organizers manage their dates" on public.departures
-  for all using (exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()))
-  with check (exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()));
+  for all using (public.is_organizer() and exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()))
+  with check (public.is_organizer() and exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()));
 
 -- ---------------------------------------------------------------------------
 -- Bookings
@@ -361,6 +507,12 @@ revoke all on function public.book_trip, public.move_booking, public.cancel_book
 grant execute on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings, public.add_review, public.update_booking_details to authenticated;
 grant execute on function public.slots_left, public.all_slots, public.whos_going, public.all_reviews, public.ph_today to anon, authenticated;
 
+-- Organizer status: anyone signed in can apply; only the owner (SQL editor / service role) approves or revokes.
+revoke all on function public.apply_as_organizer, public.approve_organizer, public.revoke_organizer,
+  public.protect_profile_status, public.trip_verified_from_profile from public, anon, authenticated;
+grant execute on function public.apply_as_organizer, public.is_organizer to authenticated;
+grant execute on function public.approve_organizer, public.revoke_organizer to service_role;
+
 -- ---------------------------------------------------------------------------
 -- Table access for the website's API roles (the project has "automatically expose
 -- new tables" turned off, so each table is opened on purpose here). Row Level
@@ -368,7 +520,13 @@ grant execute on function public.slots_left, public.all_slots, public.whos_going
 -- ---------------------------------------------------------------------------
 grant usage on schema public to anon, authenticated;
 grant select on public.trips, public.departures to anon, authenticated;
-grant select, insert, update on public.profiles to authenticated;
+-- Profiles: column by column, so the status fields (role, id_verified, business,
+-- organizer_status, application, applied_at) can't be written by the website at all.
+revoke all on public.profiles from anon;
+revoke insert, update on public.profiles from authenticated;
+grant select on public.profiles to authenticated;
+grant insert (id, name, phone, org, payout) on public.profiles to authenticated;
+grant update (name, phone, org, payout) on public.profiles to authenticated;
 grant insert, update on public.trips to authenticated;
 grant insert, update, delete on public.departures to authenticated;
 grant select on public.bookings to authenticated;   -- changes go through the functions only
