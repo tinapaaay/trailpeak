@@ -64,4 +64,4 @@ Target: 0 errors, 0 warnings.
 - Mountain heights, difficulty (Pinoy Mountaineer 1–9 scale) and trail classes come from published trail guides such as [Pinoy Mountaineer](https://www.pinoymountaineer.com/) and [Lakbay Pinas](https://lakbaypinas.com/).
 - Organizers, dates, fees, reviews, guides and itineraries are sample data.
 - Photos are placeholders from [Unsplash](https://unsplash.com/) and don't show the exact mountains.
-- Fonts: Bricolage Grotesque, Archivo Narrow and Source Sans 3 from Google Fonts.
+- Fonts: Bricolage Grotesque and Source Sans 3 from Google Fonts.

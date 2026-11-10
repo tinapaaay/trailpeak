@@ -6,7 +6,7 @@
 <title>Post a trip · TrailPeak</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <style>
 /* Organizer form only. Shared tokens and components live in styles.css. */
@@ -584,7 +584,7 @@ async function makeShareImage(t) {
   const W = 1200, H = 630, c = document.createElement("canvas"); c.width = W; c.height = H;
   const g = c.getContext("2d"), css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const deep = css("--color-primary-deep"), paper = css("--color-surface"), line = css("--color-border");
-  try { await Promise.all(["700 64px 'Bricolage Grotesque'", "700 28px 'Archivo Narrow'", "400 28px 'Source Sans 3'"].map(f => document.fonts.load(f))); } catch { /* fallback fonts */ }
+  try { await Promise.all(["700 64px 'Bricolage Grotesque'", "400 28px 'Source Sans 3'"].map(f => document.fonts.load(f))); } catch { /* fallback fonts */ }
   g.fillStyle = deep; g.fillRect(0, 0, W, H);
   try {
     const photo = new Image(); photo.crossOrigin = "anonymous";
@@ -598,11 +598,11 @@ async function makeShareImage(t) {
   fade.addColorStop(0, "rgba(20,41,30,0.94)"); fade.addColorStop(0.65, "rgba(20,41,30,0.75)"); fade.addColorStop(1, "rgba(20,41,30,0)");
   g.fillStyle = fade; g.fillRect(0, 0, W, H);
   const dates = t.departures.filter(([d, n]) => d && n > 0).sort((a, b) => a[0].localeCompare(b[0])).slice(0, 3).map(([d]) => niceDate(d)).join(" · ");
-  g.fillStyle = line; g.font = "700 24px 'Archivo Narrow', sans-serif"; g.fillText("LOOKING FOR JOINERS", 64, 96);
+  g.fillStyle = line; g.font = "700 24px 'Source Sans 3', sans-serif"; g.fillText("LOOKING FOR JOINERS", 64, 96);
   g.fillStyle = paper; g.font = "700 76px 'Bricolage Grotesque', sans-serif"; g.fillText(t.title, 64, 190, 760);
   g.font = "400 30px 'Source Sans 3', sans-serif"; g.fillText(`${t.place} · ${t.masl.toLocaleString()} MASL · Difficulty ${t.score}/9`, 64, 250, 760);
-  g.font = "700 30px 'Archivo Narrow', sans-serif"; g.fillText(dates || "Dates coming soon", 64, 330, 760);
-  g.font = "700 64px 'Archivo Narrow', sans-serif"; g.fillText(peso(t.fee), 64, 450);
+  g.font = "700 30px 'Source Sans 3', sans-serif"; g.fillText(dates || "Dates coming soon", 64, 330, 760);
+  g.font = "700 64px 'Source Sans 3', sans-serif"; g.fillText(peso(t.fee), 64, 450);
   g.font = "400 30px 'Source Sans 3', sans-serif"; g.fillText(`event fee · ${peso(t.dp)} to reserve`, 64, 495);
   g.fillStyle = line; g.font = "400 26px 'Source Sans 3', sans-serif"; g.fillText(`by ${t.org} · reserve on TrailPeak`, 64, 570, 760);
   try {

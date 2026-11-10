@@ -16,7 +16,9 @@
   --color-error: #93361F;
 
   --font-display: "Bricolage Grotesque", "Archivo", Arial, sans-serif;
-  --font-label: "Archivo Narrow", "Arial Narrow", sans-serif;
+  /* Small labels and numbers use the body font (tabular figures for numbers); Archivo Narrow was dropped
+     after the card critique because condensed text at reading size felt cramped. */
+  --font-label: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
   --font-body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
 
   --rounded-sm: 12px;
@@ -62,10 +64,10 @@ main:focus { outline: none; } /* the skip link's target, not a control */
 /* Shared type levels */
 .label-caps {
   font: 700 13px/1.2 var(--font-label);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.data { font-family: var(--font-label); font-feature-settings: "tnum" 1; }
+.data { font-family: var(--font-label); font-feature-settings: "tnum" 1; font-variant-numeric: tabular-nums; }
 .wrap { max-width: 1280px; margin: 0 auto; padding: 0 var(--margin); }
 
 /* Header: solid, not glass */
@@ -109,7 +111,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 }
 .hero .wrap { position: relative; width: 100%; padding-top: var(--space-xxl); padding-bottom: var(--space-xxl); }
 .hero h1 {
-  font: 700 64px/1.02 var(--font-display); letter-spacing: -0.03em;
+  font: 700 64px/1.05 var(--font-display); letter-spacing: -0.02em;
   max-width: 14ch; margin-bottom: var(--space-md);
 }
 .hero p { font-size: 20px; line-height: 1.5; max-width: 46ch; margin-bottom: var(--space-xl); }
@@ -183,11 +185,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .tag-elevation {
   position: absolute; top: var(--space-md); right: var(--space-md);
   background: var(--color-primary-deep); color: var(--color-surface);
-  font-size: 16px; line-height: 1.3;
+  font: 700 15px/1.3 var(--font-body); font-variant-numeric: tabular-nums;
   padding: var(--space-xs) var(--space-sm); border-radius: var(--rounded-sm);
 }
 .card-body { padding: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); flex: 1; }
-.card-title { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.card-title { font: 700 26px/1.15 var(--font-display); letter-spacing: -0.015em; }
 .specs { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-md); font-size: 16px; line-height: 1.3; }
 .specs span { display: inline-flex; align-items: center; gap: var(--space-xs); }
 .specs svg { color: var(--color-secondary); }
@@ -198,7 +200,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   padding: var(--space-md) var(--space-lg);
   border-top: 1px solid var(--color-border);
 }
-.price { font: 700 28px/1.1 var(--font-label); font-feature-settings: "tnum" 1; }
+/* Prices in the logo font: the number joiners compare first after the photo. */
+.price { font: 700 30px/1.05 var(--font-display); letter-spacing: -0.01em; }
 /* Meetup + pick-up rows, organizer line, empty state */
 .facts { display: grid; gap: var(--space-xs); margin: 0; }
 .facts div { display: flex; align-items: flex-start; gap: var(--space-xs); color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
@@ -233,7 +236,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .blaze-diamond i { transform: rotate(45deg) scale(0.85); }
 
 /* Availability: lake blue only */
+/* Slots: sentence case ("9 of 14 slots left"), calm, never shouted. */
 .chip-spots {
+  font: 700 14px/1.2 var(--font-body); letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums;
   align-self: flex-start;
   background: var(--color-tertiary-tint); color: var(--color-tertiary);
   padding: var(--space-xs) var(--space-sm); border-radius: var(--rounded-sm);
@@ -324,3 +329,5 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .jd .check { display: flex; gap: var(--space-sm); align-items: flex-start; font-size: 15px; line-height: 1.5; }
 .jd .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--color-primary); flex: none; }
 .on-dark .field-label { color: var(--color-surface); }
+/* The card's own button reads as a sentence ("View & join"), matching the calmer card. */
+.card-foot .btn { font: 700 16px/1 var(--font-body); letter-spacing: 0; text-transform: none; }

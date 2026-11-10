@@ -75,19 +75,31 @@ typography:
     fontWeight: 700
     lineHeight: 1.3
   label-caps:
-    fontFamily: Archivo Narrow
+    fontFamily: Source Sans 3
     fontSize: 13px
     fontWeight: 700
     lineHeight: 1.2
-    letterSpacing: 0.08em
+    letterSpacing: 0.06em
+  label-chip:
+    fontFamily: Source Sans 3
+    fontSize: 14px
+    fontWeight: 700
+    lineHeight: 1.2
+    fontFeature: "'tnum' 1"
+  price:
+    fontFamily: Bricolage Grotesque
+    fontSize: 30px
+    fontWeight: 700
+    lineHeight: 1.05
+    letterSpacing: -0.01em
   data-lg:
-    fontFamily: Archivo Narrow
+    fontFamily: Source Sans 3
     fontSize: 28px
     fontWeight: 700
     lineHeight: 1.1
     fontFeature: "'tnum' 1"
   data-md:
-    fontFamily: Archivo Narrow
+    fontFamily: Source Sans 3
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.3
@@ -235,7 +247,7 @@ components:
   chip-spots:
     backgroundColor: "{colors.tertiary-tint}"
     textColor: "{colors.tertiary}"
-    typography: "{typography.label-caps}"
+    typography: "{typography.label-chip}"
     rounded: "{rounded.sm}"
     padding: "{spacing.xs}"
   calendar-day:
@@ -365,15 +377,15 @@ Every text/background pair in the components passes WCAG AA (4.5:1). Moderate oc
 
 ## Typography
 
-Three families, each with one job, mirroring how a trail map is lettered.
+Two families. Bricolage Grotesque carries the brand; Source Sans 3 does everything else. (A third, condensed font, Archivo Narrow, was dropped in November 2026: condensed text at reading size made the cards feel cramped.)
 
-**Bricolage Grotesque** is the voice: hero, section and card headings. A grotesque with slightly irregular, hand-cut curves and an optical-size axis, so it stays sturdy at 64px without looking corporate. It gives TrailPeak character without needing decoration. Fallback: `"Bricolage Grotesque", "Archivo", Arial, sans-serif`.
+**Bricolage Grotesque** is the voice: hero, section and card headings, and prices (`price`, 30px), the number joiners compare first after the photo. A grotesque with slightly irregular, hand-cut curves and an optical-size axis, so it stays sturdy at 64px without looking corporate. It gives TrailPeak character without needing decoration. Fallback: `"Bricolage Grotesque", "Archivo", Arial, sans-serif`.
 
-**Archivo Narrow** is the map lettering: badges, buttons, nav, and every number a hiker compares (km, hours, elevation, dates, prices). Condensed type fits more on small cards and reads like the labels on a topo map. Tabular figures (`'tnum' 1`) are on for all numbers so "12.4 km" and "5.5 hrs" line up across cards. Fallback: `"Archivo Narrow", "Arial Narrow", sans-serif`.
+**Numbers and labels** (MASL, hours, x/9, dates, times, slots, badges, buttons) use Source Sans 3 with tabular figures (`'tnum' 1`), so "12.4 km" and "5:30 AM" line up across cards without a condensed font. Caps labels (`label-caps`) are Source Sans bold with 0.06em tracking.
 
 **Source Sans 3** is the reading text: descriptions, itineraries, reviews. A humanist sans with open letterforms that stay clear in sunlight. Body is **17px**, larger than the usual 15–16px, because people read this on phones outdoors.
 
-The scale runs 13 → 64px: display 64, headline-xl 40 (titles of tool pages like the organizer form, 32 on phones), headline-lg 32, headline-md 24, headline-sm 20, body-lg 20 (hero lead only), body 17, body-sm 15, label 13. On phones each heading drops one step (display 40, headline-lg 24). The display size is pushed up by hand so the hero feels like a summit, not a step. The one size outside the scale is the 22px wordmark in the header logo, which is a brand mark, not text. Tracking tightens on large headings (−0.03em) and opens on small uppercase labels (+0.08em). **Caps are rationed:** `label-caps` is for badges, eyebrows, nav and buttons only. Form field labels use `label-field` (15px bold, sentence case, ink): when every label is in caps, nothing reads as important and the page looks templated. This applies to every form (sign-in, organizer sign-up, post a trip, reserve, the review and move-date panels, add date, ask the organizer), each with 8px between a label and its input. The header nav, the search bar labels, the difficulty filters and the dark booking panel's labels (Date, Joiners, Pick-up; paper-colored on dark) use sentence case too. Caps stay on buttons and on data labels that work like badges: difficulty badges, slots chips, dashboard tiles, the trip stats ribbon and My trips facts. Page titles on these tool pages use `headline-xl` (40px, 32 on phones). Only two weights exist: **400 and 700**. Hierarchy comes from family and size, not from a ladder of 500/600 weights.
+The scale runs 13 → 64px: display 64, headline-xl 40 (titles of tool pages like the organizer form, 32 on phones), headline-lg 32, headline-md 24, headline-sm 20, body-lg 20 (hero lead only), body 17, body-sm 15, label 13. On phones each heading drops one step (display 40, headline-lg 24). The display size is pushed up by hand so the hero feels like a summit, not a step. The one size outside the scale is the 22px wordmark in the header logo, which is a brand mark, not text. Tracking tightens on large headings (−0.02em, the hero at line height 1.05 so the words breathe) and opens on small uppercase labels (+0.06em). **Caps are rationed:** `label-caps` is for badges, eyebrows, nav and buttons only. Form field labels use `label-field` (15px bold, sentence case, ink): when every label is in caps, nothing reads as important and the page looks templated. This applies to every form (sign-in, organizer sign-up, post a trip, reserve, the review and move-date panels, add date, ask the organizer), each with 8px between a label and its input. The header nav, the search bar labels, the difficulty filters and the dark booking panel's labels (Date, Joiners, Pick-up; paper-colored on dark) use sentence case too. Caps stay on buttons and on data labels that work like badges: difficulty badges, slots chips, dashboard tiles, the trip stats ribbon and My trips facts. Page titles on these tool pages use `headline-xl` (40px, 32 on phones). Only two weights exist: **400 and 700**. Hierarchy comes from family and size, not from a ladder of 500/600 weights.
 
 All three are open-source Google Fonts and should be self-hosted.
 
@@ -430,13 +442,13 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 
 **Search omnibar.** One `surface` bar with a 1px `border`, 28px squircle corners, four segments split by vertical hairlines: *Where* (mountain or province), *When* (a choice: Any date, This weekend, Next weekend, Next 30 days, or Pick a date…, which reveals a date box; weekends run Friday to Sunday because many vans leave on Friday night, and each weekend option shows its dates, e.g. "This weekend · Nov 6–8"; past dates never show), *Joiners* (group size, 1–10), *Pick-up* (Cubao, Greenfield, MOA, Alabang…). A trip shows only if one departure matches the date, has at least that many slots left, and stops at that pick-up. Difficulty lives in the filter chips below, not in the bar. The **Find trips** button is `button-primary` at the right end. On phones the bar uses two columns to save height: *Where* and *Pick-up* full width, *When* and *Joiners* side by side, then a full-width button. The first trip card must start within about one screen of the top.
 
-**Filter chips.** 15px bold sentence case, with the score range in Archivo Narrow. One row of toggle buttons above results (on phones it scrolls sideways rather than wrapping) (All, Easy, Moderate, Hard, Expert). `filter-chip` at rest has a 1px `border`; `filter-chip-selected` switches to `neutral` fill with a 1px `primary` border. Difficulty chips show the small blaze shape in its blaze color before the word. Use `aria-pressed` for the selected state.
+**Filter chips.** 15px bold sentence case, with the score range in tabular figures. One row of toggle buttons above results (on phones it scrolls sideways rather than wrapping) (All, Easy, Moderate, Hard, Expert). `filter-chip` at rest has a 1px `border`; `filter-chip-selected` switches to `neutral` fill with a 1px `primary` border. Difficulty chips show the small blaze shape in its blaze color before the word. Use `aria-pressed` for the selected state.
 
 **Tour card.** `neutral` fill, 28px squircle corners, no shadow. The photo is clipped by the card, so its top corners match.
 - *Photo:* 3:2, difficulty badge top-left, `tag-elevation` (e.g. `811 MASL`) top-right.
-- *Body:* `chip-spots` with the slots for the next date ("3 of 14 slots left"; the date itself is in the meetup line, never twice), mountain name in `headline-md` with the town and province under it in `text-meta` ("Nasugbu, Batangas"), then a specs row in `trail-spec` with icons: `4/9` · `Day hike · 5–6 hrs` · `★ 4.8 (212)`. Under it, two `text-meta` rows with icons: meetup (`Sat, Nov 7 · 2:00 AM`) and pick-up points (`Cubao · Greenfield · Alabang`).
+- *Body:* `chip-spots` in sentence case (`label-chip`) with the slots for the next date ("3 of 14 slots left"; the date itself is in the meetup line, never twice), mountain name in Bricolage at 26px with the town and province under it in `text-meta` ("Nasugbu, Batangas"), then a specs row in `trail-spec` with icons: `4/9` · `Day hike · 5–6 hrs` · `★ 4.8 (212)`. Under it, two `text-meta` rows with icons: meetup (`Sat, Nov 7 · 2:00 AM`) and pick-up points (`Cubao · Greenfield · Alabang`).
 - *Organizer line:* a 28px round initials avatar (`avatar-guide` colors on a `surface` fill), "by" + the organizer's name in `body-sm`, and a verified seal icon in `primary` when they are verified (with screen-reader text "Verified organizer"). Unverified organizers show no seal; never a warning color.
-- *Footer:* hairline above; price in `data-lg` (`₱1,499`) with two `text-meta` lines under it: "event fee" and the down payment ("₱500 to reserve"), and a `button-primary` "View & join". Never write "all-in": most trips have exclusions.
+- *Footer:* hairline above; price in `price` (Bricolage, `₱1,499`) with one `text-meta` line under it ("event fee · ₱500 to reserve"), and a `button-primary` "View & join" in 16px bold sentence case, the one button that isn't in caps, to keep the card calm. Never write "all-in": most trips have exclusions.
 
 **Organizer form** (`organize.html`, and `organize.html?edit=<trip id>` to edit a trip you published). Form on the left, a sticky live preview on the right (400px; below the form on tablets and phones). The preview uses the exact search-page card, so organizers see what joiners will see.
 - *Page title* in `headline-xl` (40px, 32 on phones), clearly above the section titles. A `label-caps` eyebrow ("Posting as Batangas Trail Co.") shows only for signed-in organizers.
@@ -530,7 +542,7 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - **Don't** use the blaze colors (moss, ochre, clay) for anything except difficulty. Not for success messages, highlights or decoration.
 - **Do** use lake blue (`tertiary`) only for availability and schedule. If it appears anywhere else, it stops meaning "you can book this".
 - **Don't** use red or flashing elements to push people to book ("Only 2 left!!"). State the number calmly in `chip-spots`.
-- **Do** set every number (MASL, hrs, ₱, x/9 scores, dates, times) in Archivo Narrow with tabular figures.
+- **Do** set every number (MASL, hrs, x/9 scores, dates, times) with tabular figures, and prices in Bricolage Grotesque. Never a condensed font at reading size.
 - **Don't** add a frosted-glass header or card shadows. Depth comes from paper tones, hairlines and photos.
 - **Do** use squircle corners from the radius scale on every rounded element, and nest them concentrically (inner = outer − gap). Don't mix sharp and rounded corners in the same view.
 - **Do** keep every interactive element at 44 × 44px or larger, and test new pages with the keyboard alone.
