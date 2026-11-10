@@ -10,13 +10,13 @@ colors:
   secondary: "#4E5A50"
   tertiary: "#2C5D73"
   tertiary-tint: "#DCE9EE"
-  neutral: "#F1EBDD"
-  surface: "#FAF7F0"
+  neutral: "#ECEAE3"
+  surface: "#FDFCF9"
   canvas: "#F4F2EC"
   card: "#FDFCF9"
   hairline: "#ECE7DC"
   on-surface: "#1C2A21"
-  border: "#E2D9C4"
+  border: "#E3E0D8"
   blaze-easy: "#2F6B47"
   blaze-moderate: "#D9A441"
   blaze-hard: "#A6432A"
@@ -127,7 +127,7 @@ spacing:
 
 components:
   page:
-    backgroundColor: "{colors.surface}"
+    backgroundColor: "{colors.canvas}"
     textColor: "{colors.on-surface}"
     typography: "{typography.body-md}"
   divider:
@@ -376,9 +376,9 @@ Every color comes from the trail: the forest, map paper, and painted trail blaze
 - **Primary-deep (#14291E):** *Forest at dusk.* Dark surfaces: hero overlays, the stats ribbon, the sticky booking bar, the elevation tag on photos. Never used for buttons.
 - **Secondary (#4E5A50):** *Lichen grey.* Metadata: duration, distance, review counts, captions. A green-tinted grey so it sits with the palette instead of looking like stock grey.
 - **Tertiary (#2C5D73) and Tertiary-tint (#DCE9EE):** *Alpine lake.* The only cool color in the system, with exactly one job: **availability and schedule**. "3 spots left", the selected departure date, open slots in the calendar. Spots left is information, not a warning, so it uses calm lake blue rather than alarm red. Urgency comes from the number itself. Using red to pressure people into booking is a dark pattern this system refuses.
-- **Surface (#FAF7F0) and Neutral (#F1EBDD):** *Map paper and trail-guide card stock.* Page background and card background, a half-step apart. Most of the interface is built from the gap between them.
-- **Canvas (#F4F2EC), Card (#FDFCF9) and Hairline (#ECE7DC):** *Clean trail cards.* For card-heavy pages (home, organizer profiles): a soft warm-gray page, near-white cards with no border or shadow, and a faint divider inside the card. The Apple-style idea: neutral, quiet surfaces so the trail photos are the color. Neutral beige stays for panels and chips, not trip cards.
-- **Border (#E2D9C4):** *Contour line.* Hairline rules and the disabled-button fill.
+- **Canvas (#F4F2EC), Surface (#FDFCF9) and Neutral (#ECEAE3):** *Clean, Apple-style surfaces.* Every page sits on the soft warm-gray canvas; cards, panels, inputs, menus and the header are near-white surface (never pure #FFFFFF); neutral is only a light tint for selected states, secondary buttons and steppers. No beige: the November 2026 clean-up replaced the map-paper and card-stock beiges so the trail photos carry the color.
+- **Card (#FDFCF9) and Hairline (#ECE7DC):** trip cards use the same near-white as surface, with no border or shadow, and a faint hairline divider inside.
+- **Border (#E3E0D8):** *Contour line,* now a neutral warm gray. Hairline rules and the disabled-button fill.
 - **On-surface (#1C2A21):** *Map ink.* Body text and the Expert badge. A green-black, not #000.
 - **Blaze colors:** the paint on trail markers. **Easy (#2F6B47)** moss green, **Moderate (#D9A441)** ochre, **Hard (#A6432A)** clay red, and **Expert** uses map ink (`on-surface`). The four levels group the 1–9 score: **Easy 1–3, Moderate 4–5, Hard 6–7, Expert 8–9**. These four colors are reserved for difficulty. Nothing else may use them, so a hiker learns the code once and can trust it everywhere.
 - **Error (#93361F):** *Oxidised iron.* A darker step of the clay family, so form errors look like they belong to the same world. Distinct from Hard (#A6432A) in value, and always paired with an icon and a message.

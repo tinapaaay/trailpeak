@@ -20,7 +20,7 @@
 
 /* Money summary: the four numbers an organizer checks first */
 .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-md); }
-.tile { background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-xs); align-content: start; }
+.tile { background: var(--color-card); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-xs); align-content: start; }
 .tile .label-caps { color: var(--color-secondary); }
 .tile .value { font: 700 28px/1.1 var(--font-label); font-feature-settings: "tnum" 1; }
 .tile .note { color: var(--color-secondary); font-size: 15px; line-height: 1.4; }
@@ -29,10 +29,10 @@
 
 /* Trip block with its dates */
 .trip { border: 1px solid var(--color-border); border-radius: var(--rounded-lg); overflow: hidden; background: var(--color-surface); }
-.trip-top { display: grid; grid-template-columns: 120px 1fr auto; gap: var(--space-md); align-items: center; padding: var(--space-md); background: var(--color-neutral); }
+.trip-top { display: grid; grid-template-columns: 120px 1fr auto; gap: var(--space-md); align-items: center; padding: var(--space-md); background: var(--color-card); }
 .trip-top img { width: 120px; height: 80px; object-fit: cover; border-radius: var(--rounded-sm); }
 .trip-top h3 { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
-.trip-top .btn-secondary { background: var(--color-surface); }
+.trip-top .btn-secondary { background: var(--color-neutral); }
 .trip-top .actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; justify-content: flex-end; }
 
 .dates { display: grid; }
@@ -252,7 +252,7 @@ async function start() {
     try { real = (await TP.organizerBookings()).filter(b => b.status === "confirmed"); }
     catch (e) { real = []; console.warn(e); }
     if (!mine.length) {
-      $("trips").innerHTML = `<div class="empty-list" style="background:var(--color-neutral);border-radius:var(--rounded-lg)"><p style="font:700 24px/1.2 var(--font-display);color:var(--color-on-surface)">No trips yet</p><p>Post your first trip and its bookings will show up here.</p><p style="margin-top:var(--space-md)"><a class="btn btn-primary label-caps" href="organize.html">Post a trip</a></p></div>`;
+      $("trips").innerHTML = `<div class="empty-list" style="background:var(--color-card);border-radius:var(--rounded-lg)"><p style="font:700 24px/1.2 var(--font-display);color:var(--color-on-surface)">No trips yet</p><p>Post your first trip and its bookings will show up here.</p><p style="margin-top:var(--space-md)"><a class="btn btn-primary label-caps" href="organize.html">Post a trip</a></p></div>`;
     }
   } else {
     mine = TRIPS.filter(t => t.org === me.org);
