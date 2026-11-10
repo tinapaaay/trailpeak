@@ -51,7 +51,7 @@
 .rate input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .rate input:focus-visible + label { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .my-review .stars { color: var(--color-primary); letter-spacing: 2px; }
-.my-review .stars .off { color: var(--color-border); }
+.my-review .stars .off { color: var(--color-secondary); } /* outline stars, dark enough to see */
 textarea.input { width: 100%; resize: vertical; }
 
 .empty { display: grid; gap: var(--space-sm); justify-items: start; background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-xl); }
@@ -106,7 +106,8 @@ textarea.input { width: 100%; resize: vertical; }
       <p class="lead" id="lead"></p>
     </div>
     <div id="upcoming"></div>
-    <section id="past-sec" hidden aria-labelledby="past-h"><h2 id="past-h" style="margin-bottom:var(--space-md)">Past and cancelled</h2><div id="past" style="display:grid;gap:var(--space-md)"></div></section>
+    <section id="past-sec" hidden aria-labelledby="past-h"><h2 id="past-h" style="margin-bottom:var(--space-md)">Past trips</h2><div id="past" style="display:grid;gap:var(--space-md)"></div></section>
+    <section id="cx-sec" hidden aria-labelledby="cx-h"><h2 id="cx-h" style="margin-bottom:var(--space-md)">Cancelled</h2><div id="cancelled" style="display:grid;gap:var(--space-md)"></div></section>
     <p class="sr" id="live" aria-live="polite"></p>
     <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><span id="mt-note">Your bookings are saved to your account. Moving or cancelling updates the organizer's list; payments are still simulated.</span></span></p>
   </div>
@@ -138,7 +139,9 @@ else { if (!TP.online) $("mt-note").textContent = "Prototype: bookings are kept 
 function render() {
   const all = getBookings();
   const upcoming = all.filter(b => b.status === "confirmed" && daysUntil(b.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
-  const past = all.filter(b => !upcoming.includes(b));
+  // Done trips (newest first) and cancelled bookings get their own sections, so a finished hike never looks cancelled.
+  const past = all.filter(b => b.status === "confirmed" && daysUntil(b.date) < 0).sort((a, b) => b.date.localeCompare(a.date));
+  const cancelled = all.filter(b => b.status === "cancelled").sort((a, b) => b.date.localeCompare(a.date));
   $("lead").textContent = upcoming.length
     ? `${upcoming.length} upcoming ${upcoming.length === 1 ? "trip" : "trips"} for ${user.name}.`
     : `No upcoming trips yet, ${user.name.split(" ")[0]}.`;
@@ -147,6 +150,8 @@ function render() {
     : `<div class="empty"><p style="font:700 24px/1.2 var(--font-display)">Your next hike starts here</p><p class="lead">Find a trip, pick a date and reserve with a DP. It shows up here with your meetup details.</p><a class="btn btn-primary label-caps" href="index.html">Find trips</a></div>`;
   $("past-sec").hidden = !past.length;
   $("past").innerHTML = past.map(card).join("");
+  $("cx-sec").hidden = !cancelled.length;
+  $("cancelled").innerHTML = cancelled.map(card).join("");
 }
 
 function card(b) {
@@ -174,7 +179,7 @@ function card(b) {
   }
   // Done (the date has passed, not cancelled): one review per booking.
   const reviewed = isPast && getMyReviews().find(r => r.ref === b.ref);
-  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
+  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"☆".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
   let review = "";
   if (reviewed) review = `<div class="my-review"><p class="note">Your review ${stars(reviewed.stars)}</p><p>${esc(reviewed.text)}</p></div>`;
   else if (isPast && open[b.ref] === "review") {
@@ -200,7 +205,7 @@ function card(b) {
         <div><dt>Meetup</dt><dd>${b.pickupTime} · ${esc(b.pickup)}</dd></div>
         <div><dt>Joiners</dt><dd>${b.size}</dd></div>
         <div><dt>DP paid</dt><dd>${peso(b.dp)} · ${b.wallet}</dd></div>
-        <div><dt>Bring for balance</dt><dd>${cancelled ? "—" : peso(b.balance)}</dd></div>
+        ${cancelled || isPast ? "" : `<div><dt>Bring for balance</dt><dd>${peso(b.balance)}</dd></div>`}
       </dl>
       ${b.note ? `<p class="note">${esc(b.note)}</p>` : ""}
       ${!cancelled && !isPast ? `<div class="actions">

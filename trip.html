@@ -112,7 +112,7 @@
 .review-sum { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
 .review-sum .data { font: 700 28px/1 var(--font-label); }
 .stars { color: var(--color-primary); letter-spacing: 2px; }
-.stars .off { color: var(--color-border); }
+.stars .off { color: var(--color-secondary); } /* outline stars, dark enough to see */
 .reviews { list-style: none; padding: 0; margin: 0; display: grid; }
 .reviews li { padding: var(--space-md) 0; border-top: 1px solid var(--color-border); display: grid; gap: var(--space-xs); max-width: 68ch; }
 .review-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
@@ -430,7 +430,7 @@ function renderStatic() {
   $("pickup").innerHTML = T.pickups.map(p => `<option>${esc(p.place)} · ${p.time}</option>`).join("");
   if (T.notice) { $("notice").hidden = false; $("notice").innerHTML = `<svg width="20" height="20" aria-hidden="true"><use href="#i-${T.notice[0]}"/></svg><span>${esc(T.notice[1])}</span>`; }
   const list = T.reviewList || [];
-  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
+  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"☆".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
   $("reviews").innerHTML = list.length
     ? `<p class="review-sum"><span class="data">${T.rating.toFixed(1)}</span> ${stars(Math.round(T.rating))} <span class="meta">from ${T.reviews} reviews · only joiners who went can review</span></p>
        <ul class="reviews">${list.map(([name, date, n, text]) => `<li><div class="review-top"><strong>${esc(name)}</strong>${stars(n)}<span class="meta">${nice(date)}</span></div><p>${esc(text)}</p></li>`).join("")}</ul>`

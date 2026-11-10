@@ -33,7 +33,7 @@
 .reviews li { padding: var(--space-md) 0; border-top: 1px solid var(--color-border); display: grid; gap: var(--space-xs); max-width: 68ch; }
 .review-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
 .stars { color: var(--color-primary); letter-spacing: 2px; }
-.stars .off { color: var(--color-border); }
+.stars .off { color: var(--color-secondary); } /* outline stars, dark enough to see */
 .missing { display: grid; gap: var(--space-sm); justify-items: start; padding: var(--space-xl) 0; }
 
 @media (max-width: 1024px) { .checks { grid-template-columns: 1fr; } }
@@ -113,7 +113,7 @@ if (!trips.length) {
   const count = rated.reduce((a, t) => a + t.reviews, 0);
   const pickups = [...new Set(trips.flatMap(t => t.pickups.map(p => p.place)))];
   const mountains = [...new Set(trips.map(t => t.title))];
-  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"★".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
+  const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"☆".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
   document.title = `${org} · TrailPeak`;
 
   // Cards: next open date per trip, with this browser's bookings taken off.
