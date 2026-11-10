@@ -10,20 +10,23 @@
 <link rel="stylesheet" href="styles.css">
 <style>
 /* Organizer form only. Shared tokens and components live in styles.css. */
+/* Type scale: page title 40 (32 on phones) > section titles 20 > labels 15 bold > hints 15. */
 .page-head { padding: var(--space-xl) 0 var(--space-lg); display: grid; gap: var(--space-sm); }
-.page-head h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.page-head h1 { font: 700 40px/1.1 var(--font-display); letter-spacing: -0.02em; }
 .page-head p { color: var(--color-secondary); max-width: 60ch; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: var(--space-xl); align-items: start; padding-bottom: var(--space-xxl); }
 
-.fs { padding: var(--space-lg) 0; border-top: 1px solid var(--color-border); display: grid; gap: var(--space-md); min-width: 0; }
-.fs:first-of-type { border-top: 0; padding-top: 0; }
-.legend { margin-bottom: var(--space-xs); display: flex; align-items: baseline; gap: var(--space-sm); font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; }
-.legend .step { font: 700 16px/1 var(--font-label); color: var(--color-primary); }
+/* Spacing rhythm (law of proximity): label to its input 8, field to field 16,
+   group to group 24, and 40 above and below each section's hairline. */
+.fs { padding: var(--space-xl) 0; border-top: 1px solid var(--color-border); display: grid; gap: var(--space-md); min-width: 0; }
+.fs:first-of-type { border-top: 0; padding-top: var(--space-sm); }
+.legend { margin-bottom: var(--space-sm); display: flex; align-items: baseline; gap: var(--space-sm); font: 700 20px/1.25 var(--font-display); letter-spacing: -0.01em; }
+.legend .step { font: inherit; color: var(--color-secondary); min-width: 1ch; }
+.fs > .grid2 + .row-head, .fs > .facts-strip + .field2, .fs > .field2 + .field2, .fs > .summary + .hint { margin-top: var(--space-sm); }
 .hint { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
 
-.field2 { display: grid; gap: var(--space-xs); }
-.field2 > label, .field2 > .label-caps { color: var(--color-secondary); }
+.field2 { display: grid; gap: var(--space-sm); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
 .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--space-md); }
 
@@ -36,6 +39,11 @@
 .money { position: relative; }
 .money span { position: absolute; left: var(--space-md); top: 50%; transform: translateY(-50%); font-family: var(--font-label); color: var(--color-secondary); }
 .money .input { padding-left: 32px; font-family: var(--font-label); font-feature-settings: "tnum" 1; }
+/* Field width hints at answer length: short answers get short boxes. */
+#f-mountain .grid2 { grid-template-columns: minmax(0, 1fr) 200px; }
+#f-dates .grid2 { grid-template-columns: 160px 180px; justify-content: start; }
+#f-price .grid2 { grid-template-columns: 220px 220px; justify-content: start; }
+#f-dates .row-head, #dates .row { grid-template-columns: 200px 112px 44px; justify-content: start; }
 
 /* Facts filled in from the mountain list */
 .facts-strip { display: flex; flex-wrap: wrap; gap: var(--space-xs) var(--space-md); align-items: center; background: var(--color-neutral); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); font-size: 15px; }
@@ -48,7 +56,7 @@
 .row .remove { width: 44px; height: 44px; border: 0; border-radius: var(--rounded-md); background: transparent; color: var(--color-secondary); cursor: pointer; display: grid; place-items: center; }
 .row .remove:hover { background: var(--color-neutral); }
 .add { justify-self: start; }
-.row-head { display: grid; grid-template-columns: 1fr 140px 44px; gap: var(--space-sm); color: var(--color-secondary); }
+.row-head { display: grid; grid-template-columns: 1fr 140px 44px; gap: var(--space-sm); margin-bottom: calc(var(--space-sm) - var(--space-md)); }
 
 /* Toggle chips for inclusions, exclusions, who can join */
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
@@ -95,6 +103,7 @@
 /* Preview column */
 .preview { position: sticky; top: 88px; display: grid; gap: var(--space-md); }
 .preview > .label-caps { color: var(--color-secondary); }
+.done .field-label { margin-bottom: calc(var(--space-sm) - var(--space-md)); }
 .preview .card { pointer-events: none; }
 .publish { display: grid; gap: var(--space-sm); }
 .publish .btn { width: 100%; }
@@ -113,9 +122,11 @@
   .preview { position: static; max-width: 420px; }
 }
 @media (max-width: 767px) {
-  .page-head h1 { font-size: 24px; }
-  .grid2, .grid3, .choices, .choices.two { grid-template-columns: 1fr; }
-  .row, .row-head { grid-template-columns: 1fr 112px 44px; }
+  .page-head h1 { font-size: 32px; }
+  .grid2, .grid3, .choices, .choices.two, #f-mountain .grid2, #f-price .grid2 { grid-template-columns: 1fr; }
+  #f-dates .grid2 { grid-template-columns: 1fr 1fr; }
+  .row, .row-head { grid-template-columns: 1fr 136px 44px; }
+  #f-dates .row-head, #dates .row { grid-template-columns: 1fr 96px 44px; }
 }
 </style>
 </head>
@@ -154,7 +165,7 @@
 
 <main id="main" class="wrap" tabindex="-1">
   <div class="page-head">
-    <span class="label-caps" style="color:var(--color-secondary)" id="org-label">Organizer</span>
+    <span class="label-caps" style="color:var(--color-secondary)" id="org-label" hidden></span>
     <h1>Post a trip</h1>
     <p>Fill this in once and reuse it for every date. The preview shows exactly what joiners will see.</p>
   </div>
@@ -165,17 +176,17 @@
         <h2 class="legend" id="f-mountain-h"><span class="step">1</span>Mountain</h2>
         <div class="grid2">
           <div class="field2">
-            <label class="label-caps" for="mountain">Mountain</label>
+            <label class="field-label" for="mountain">Mountain</label>
             <select class="input" id="mountain"></select>
           </div>
           <div class="field2">
-            <label class="label-caps" for="hours">Hike time</label>
+            <label class="field-label" for="hours">Hike time</label>
             <input class="input" id="hours" value="5–6 hrs" placeholder="e.g. 5–6 hrs">
           </div>
         </div>
         <div class="facts-strip" id="facts" aria-live="polite"></div>
         <div class="field2">
-          <span class="label-caps">Trip type</span>
+          <span class="field-label">Trip type</span>
           <div class="choices" role="radiogroup" aria-label="Trip type">
             <label class="choice"><input type="radio" name="type" value="Day hike" checked><strong>Day hike</strong><span>Back the same day</span></label>
             <label class="choice"><input type="radio" name="type" value="Overnight"><strong>Overnight</strong><span>Camp or homestay</span></label>
@@ -188,15 +199,15 @@
         <h2 class="legend" id="f-dates-h"><span class="step">2</span>Dates and slots</h2>
         <div class="grid2">
           <div class="field2">
-            <label class="label-caps" for="group">Max joiners per date</label>
+            <label class="field-label" for="group">Max joiners per date</label>
             <input class="input data" id="group" type="number" min="1" max="60" value="14">
           </div>
           <div class="field2">
-            <label class="label-caps" for="meet">Meetup time</label>
+            <label class="field-label" for="meet">Meetup time</label>
             <input class="input data" id="meet" type="time" value="02:00">
           </div>
         </div>
-        <div class="row-head label-caps" aria-hidden="true"><span>Date</span><span>Open slots</span><span></span></div>
+        <div class="row-head field-label" aria-hidden="true"><span>Date</span><span>Open slots</span><span></span></div>
         <div class="rows" id="dates"></div>
         <button type="button" class="btn btn-secondary label-caps add" id="add-date">+ Add date</button>
         <p class="error" id="f-dates-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Add at least one date from today on. Open slots must be between 1 and your max per date.</span></p>
@@ -204,7 +215,7 @@
 
       <section class="fs" role="group" id="f-pickups" aria-labelledby="f-pickups-h">
         <h2 class="legend" id="f-pickups-h"><span class="step">3</span>Pick-up points</h2>
-        <div class="row-head label-caps" aria-hidden="true"><span>Place</span><span>Time</span><span></span></div>
+        <div class="row-head field-label" aria-hidden="true"><span>Place</span><span>Time</span><span></span></div>
         <div class="rows" id="pickups"></div>
         <button type="button" class="btn btn-secondary label-caps add" id="add-pickup">+ Add pick-up</button>
         <p class="error" id="f-pickups-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Add at least one pick-up point with a time.</span></p>
@@ -214,11 +225,11 @@
         <h2 class="legend" id="f-price-h"><span class="step">4</span>Price</h2>
         <div class="grid2">
           <div class="field2">
-            <label class="label-caps" for="fee">Event fee per joiner</label>
+            <label class="field-label" for="fee">Event fee per joiner</label>
             <div class="money"><span>₱</span><input class="input" id="fee" type="number" min="1" step="1" value="1499"></div>
           </div>
           <div class="field2">
-            <label class="label-caps" for="dp">Down payment to reserve</label>
+            <label class="field-label" for="dp">Down payment to reserve</label>
             <div class="money"><span>₱</span><input class="input" id="dp" type="number" min="1" step="1" value="500"></div>
           </div>
         </div>
@@ -230,12 +241,12 @@
       <section class="fs" role="group" id="f-incl" aria-labelledby="f-incl-h">
         <h2 class="legend" id="f-incl-h"><span class="step">5</span>What the fee covers</h2>
         <div class="field2">
-          <span class="label-caps" id="incl-l">Included</span>
+          <span class="field-label" id="incl-l">Included</span>
           <div class="chips" id="incl" role="group" aria-labelledby="incl-l"></div>
           <div class="custom"><input class="input" id="incl-new" aria-label="Add something that is included" placeholder="Add your own, e.g. Free coffee"><button type="button" class="btn btn-secondary label-caps" data-add="incl">Add</button></div>
         </div>
         <div class="field2">
-          <span class="label-caps" id="excl-l">Not included</span>
+          <span class="field-label" id="excl-l">Not included</span>
           <p class="hint">Required. Joiners trust trips that say up front what they'll pay for themselves.</p>
           <div class="chips" id="excl" role="group" aria-labelledby="excl-l"></div>
           <div class="custom"><input class="input" id="excl-new" aria-label="Add something that is not included" placeholder="Add your own, e.g. Side trip fees"><button type="button" class="btn btn-secondary label-caps" data-add="excl">Add</button></div>
@@ -282,9 +293,9 @@
       <section class="done" id="done" aria-live="polite">
         <h2>Your trip is live</h2>
         <p>Post it in your Facebook groups. Joiners who tap the link can reserve a slot right away.</p>
-        <label class="label-caps" for="fb" style="color:var(--color-secondary)">Ready-to-post text</label>
+        <label class="field-label" for="fb">Ready-to-post text</label>
         <textarea class="input" id="fb" readonly></textarea>
-        <span class="label-caps" style="color:var(--color-secondary)">Share image (1200 × 630)</span>
+        <span class="field-label">Share image (1200 × 630)</span>
         <img class="share-img" id="share-img" alt="Share image for this trip: photo, name, height, difficulty, dates and fee">
         <a class="btn btn-secondary label-caps" id="share-dl" download="trailpeak-trip.png" hidden>Download image</a>
         <p class="hint" id="share-note"></p>
@@ -326,7 +337,9 @@ const E = editId ? tripById(editId) : null;
 const ownTrip = !!(E && isOrganizer && (TP.online ? E.organizerId === me.id
   : (() => { try { return (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).some(x => x.id === E.id); } catch { return false; } })()));
 const ORG = isOrganizer ? me.org : "Your organizer name";
-document.getElementById("org-label").textContent = isOrganizer ? `Organizer · ${me.org}` : "Organizer";
+// The eyebrow only shows who's posting; signed out, the title says enough.
+document.getElementById("org-label").textContent = isOrganizer ? `Posting as ${me.org}` : "";
+document.getElementById("org-label").hidden = !isOrganizer;
 
 const lists = {
   incl: { items: ["Round-trip van", "Guide fee", "Registration fee", "Environmental fee", "Coordinator fee", "Bag tag", "Drone shots", "Meals"], on: ["Round-trip van", "Guide fee", "Registration fee", "Environmental fee", "Coordinator fee"] },

@@ -26,6 +26,12 @@ typography:
     fontWeight: 700
     lineHeight: 1.02
     letterSpacing: -0.03em
+  headline-xl:
+    fontFamily: Bricolage Grotesque
+    fontSize: 40px
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: -0.02em
   headline-lg:
     fontFamily: Bricolage Grotesque
     fontSize: 32px
@@ -63,6 +69,11 @@ typography:
     fontSize: 15px
     fontWeight: 400
     lineHeight: 1.5
+  label-field:
+    fontFamily: Source Sans 3
+    fontSize: 15px
+    fontWeight: 700
+    lineHeight: 1.3
   label-caps:
     fontFamily: Archivo Narrow
     fontSize: 13px
@@ -362,7 +373,7 @@ Three families, each with one job, mirroring how a trail map is lettered.
 
 **Source Sans 3** is the reading text: descriptions, itineraries, reviews. A humanist sans with open letterforms that stay clear in sunlight. Body is **17px**, larger than the usual 15–16px, because people read this on phones outdoors.
 
-The scale runs 13 → 64px: display 64, headline-lg 32, headline-md 24, headline-sm 20, body-lg 20 (hero lead only), body 17, body-sm 15, label 13. On phones each heading drops one step (display 40, headline-lg 24). The display size is pushed up by hand so the hero feels like a summit, not a step. The one size outside the scale is the 22px wordmark in the header logo, which is a brand mark, not text. Tracking tightens on large headings (−0.03em) and opens on small uppercase labels (+0.08em). Only two weights exist: **400 and 700**. Hierarchy comes from family and size, not from a ladder of 500/600 weights.
+The scale runs 13 → 64px: display 64, headline-xl 40 (titles of tool pages like the organizer form, 32 on phones), headline-lg 32, headline-md 24, headline-sm 20, body-lg 20 (hero lead only), body 17, body-sm 15, label 13. On phones each heading drops one step (display 40, headline-lg 24). The display size is pushed up by hand so the hero feels like a summit, not a step. The one size outside the scale is the 22px wordmark in the header logo, which is a brand mark, not text. Tracking tightens on large headings (−0.03em) and opens on small uppercase labels (+0.08em). **Caps are rationed:** `label-caps` is for badges, eyebrows, nav and buttons only. Form field labels use `label-field` (15px bold, sentence case, ink): when every label is in caps, nothing reads as important and the page looks templated. Only two weights exist: **400 and 700**. Hierarchy comes from family and size, not from a ladder of 500/600 weights.
 
 All three are open-source Google Fonts and should be self-hosted.
 
@@ -428,7 +439,10 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - *Footer:* hairline above; price in `data-lg` (`₱1,499`) with two `text-meta` lines under it: "event fee" and the down payment ("₱500 to reserve"), and a `button-primary` "View & join". Never write "all-in": most trips have exclusions.
 
 **Organizer form** (`organize.html`, and `organize.html?edit=<trip id>` to edit a trip you published). Form on the left, a sticky live preview on the right (400px; below the form on tablets and phones). The preview uses the exact search-page card, so organizers see what joiners will see.
-- *Sections* are numbered groups (1 Mountain … 8 Cancellation policy), each a `headline-md` title with a `data-md` step number in `primary`, separated by hairlines. Labels above fields are `label-caps` in `secondary`; help text is `text-meta`.
+- *Page title* in `headline-xl` (40px, 32 on phones), clearly above the section titles. A `label-caps` eyebrow ("Posting as Batangas Trail Co.") shows only for signed-in organizers.
+- *Sections* are numbered groups (1 Mountain … 8 Cancellation policy), each a `headline-sm` (20px) title with its step number at the same size in `secondary`, separated by hairlines. Labels above fields are `label-field`; help text is `text-meta`.
+- *Spacing rhythm* (law of proximity: related things sit closer): label to its input 8px (`sm`), field to field 16px (`md`), group to group 24px (`lg`), and 40px (`xl`) above and below each section's hairline. Never one gap for everything.
+- *Field widths match the answer:* a date box is about 200px, slots 96–112px, max joiners 160px, a time 136–180px, money 220px. Only free text (mountain, pick-up place) runs full width.
 - *Facts from the mountain list:* choosing a mountain fills a `neutral` strip with MASL, x/9 + level, and place, labelled "From TrailPeak's mountain list". Organizers never type heights or scores.
 - *Inputs* follow `input`: 44px minimum height, 20px corners, a 2px `primary` focus ring. Money fields show a ₱ prefix inside the field and use tabular figures.
 - *Choice cards* (`choice-card` / `choice-card-selected`) for single choices like trip type and policy: a bold name and one `text-meta` line; selected = `neutral` fill + `primary` border.
