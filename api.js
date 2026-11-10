@@ -97,6 +97,20 @@ TP.sendCode = async email => {
   const { error } = await TP.db.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: back } });
   if (error) throw new Error(error.message);
 };
+// Which sign-in methods are turned on in Supabase (Authentication → Sign In / Providers).
+TP.providers = async () => {
+  try {
+    const c = window.TRAILPEAK_SUPABASE;
+    const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.anonKey } });
+    return (await r.json()).external || {};
+  } catch { return {}; }
+};
+// Google: leaves for Google's account picker and comes back to the sign-in page signed in.
+TP.signInWithGoogle = async () => {
+  const back = new URL("signin.html" + (/[?&]as=organizer\b/.test(location.search) ? "?as=organizer" : ""), location.href).href;
+  const { error } = await TP.db.auth.signInWithOAuth({ provider: "google", options: { redirectTo: back } });
+  if (error) throw new Error(error.message);
+};
 TP.verifyCode = async (email, token) => {
   // New accounts get the "Confirm signup" email, returning ones the "Magic Link" email; try both kinds.
   let { error } = await TP.db.auth.verifyOtp({ email, token, type: "email" });

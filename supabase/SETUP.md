@@ -45,6 +45,32 @@ These two are meant to be public: they go in the website's code, and the privacy
 
 **Never share** the `service_role` / secret key or the database password. Those can bypass every rule.
 
+## Sign in with Google (optional, about 15 minutes)
+
+One tap, no email to wait for. The **Continue with Google** button appears on the sign-in page by itself once this is on.
+
+**In Google Cloud** ([console.cloud.google.com](https://console.cloud.google.com)), signed in with your Google account:
+
+1. Top bar → project picker → **New project** → name it `TrailPeak` → **Create**, then select it.
+2. Search for **Google Auth Platform** (it used to be "OAuth consent screen") → **Get started**:
+   - **App name:** `TrailPeak` · **User support email:** your email
+   - **Audience:** External
+   - **Contact email:** your email → agree → **Create**
+3. **Clients → Create client:**
+   - **Application type:** Web application · **Name:** `TrailPeak website`
+   - **Authorized JavaScript origins:** `https://tinapaaay.github.io` and `http://localhost:5391`
+   - **Authorized redirect URIs:** `https://fjssjgefufwuadrltvjf.supabase.co/auth/v1/callback`
+   - **Create.** Keep the window with the **Client ID** and **Client secret** open.
+4. **Audience → Publish app → Confirm.** Until you do, only Google accounts you add as test users can sign in. TrailPeak asks only for name and email, so Google doesn't need to review it.
+
+**In Supabase:**
+
+5. **Authentication → Sign In / Providers → Google** → turn it on, paste the **Client ID** and **Client secret** → **Save**.
+
+Don't send the client secret to anyone, including Claude. It goes only into Supabase.
+
+Google's screen will say "continue to fjssjgefufwuadrltvjf.supabase.co". Showing "TrailPeak" there needs a custom domain (a paid Supabase add-on), which can wait until launch.
+
 ## After an update
 
 When `schema.sql` changes (for example, the November 2026 update added reviews and Manila-time date rules), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Until you do, the site still works, but reviews can't be posted.
@@ -53,7 +79,7 @@ When `schema.sql` changes (for example, the November 2026 update added reviews a
 
 | Real now | Still simulated |
 | --- | --- |
-| Accounts (email code) | Facebook and mobile-text sign-in |
+| Accounts (email link, or Google once it's set up) | Facebook and mobile-text sign-in |
 | Trips, dates and slots shared by everyone | GCash / Maya payment |
 | Bookings, move and cancel, checked on the server | ID and business checks |
 | Organizers see joiners' bookings | Texts to joiners |
