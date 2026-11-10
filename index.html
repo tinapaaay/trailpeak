@@ -31,9 +31,9 @@
 <header class="header">
   <div class="wrap">
     <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
-    <nav class="nav label-caps" aria-label="Main">
-      <a href="index.html#day" data-kind="day">Day Hikes</a>
-      <a href="index.html#major" data-kind="major">Major Climbs</a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day hikes</a>
+      <a href="index.html#major" data-kind="major">Major climbs</a>
       <a href="organize.html">Post a trip</a>
     </nav>
     <div class="header-actions">
@@ -51,24 +51,24 @@
 
       <form class="omnibar" role="search" id="search">
         <div class="field">
-          <label class="label-caps" for="where">Where</label>
+          <label class="field-label" for="where">Where</label>
           <input id="where" type="text" placeholder="Mountain or province">
         </div>
         <div class="field">
-          <label class="label-caps" for="when">When</label>
+          <label class="field-label" for="when">When</label>
           <select id="when">
             <option value="">Any date</option><option value="this-weekend">This weekend</option><option value="next-weekend">Next weekend</option><option value="30-days">Next 30 days</option><option value="pick">Pick a date…</option>
           </select>
           <input id="when-date" type="date" aria-label="Date" hidden>
         </div>
         <div class="field">
-          <label class="label-caps" for="size">Joiners</label>
+          <label class="field-label" for="size">Joiners</label>
           <select id="size">
             <option value="1">1 joiner</option><option value="2">2 joiners</option><option value="3">3 joiners</option><option value="4">4 joiners</option><option value="5">5 joiners</option><option value="6">6 joiners</option><option value="7">7 joiners</option><option value="8">8 joiners</option><option value="10">10 joiners</option>
           </select>
         </div>
         <div class="field">
-          <label class="label-caps" for="pickup">Pick-up</label>
+          <label class="field-label" for="pickup">Pick-up</label>
           <select id="pickup">
             <option value="">Any pick-up</option><option>Cubao</option><option>Greenfield</option><option>MOA</option><option>Alabang</option><option>Ortigas</option><option>Centris</option><option>Balintawak</option><option>Marikina</option><option>Batangas Port</option>
           </select>
@@ -87,11 +87,11 @@
       </div>
 
       <div class="filters" role="group" aria-label="Filter by difficulty">
-        <button class="filter label-caps" aria-pressed="true" data-level="all">All</button>
-        <button class="filter label-caps" aria-pressed="false" data-level="easy" aria-label="Easy, difficulty 1 to 3 out of 9"><span class="blaze blaze-circle" style="color:var(--color-blaze-easy)"><i></i></span>Easy <span class="data">1–3</span></button>
-        <button class="filter label-caps" aria-pressed="false" data-level="moderate" aria-label="Moderate, difficulty 4 to 5 out of 9"><span class="blaze" style="color:var(--color-blaze-moderate)"><i></i></span>Moderate <span class="data">4–5</span></button>
-        <button class="filter label-caps" aria-pressed="false" data-level="hard" aria-label="Hard, difficulty 6 to 7 out of 9"><span class="blaze blaze-diamond" style="color:var(--color-blaze-hard)"><i></i></span>Hard <span class="data">6–7</span></button>
-        <button class="filter label-caps" aria-pressed="false" data-level="expert" aria-label="Expert, difficulty 8 to 9 out of 9"><span class="blaze blaze-diamond"><i></i><i></i></span>Expert <span class="data">8–9</span></button>
+        <button class="filter" aria-pressed="true" data-level="all">All</button>
+        <button class="filter" aria-pressed="false" data-level="easy" aria-label="Easy, difficulty 1 to 3 out of 9"><span class="blaze blaze-circle" style="color:var(--color-blaze-easy)"><i></i></span>Easy <span class="data">1–3</span></button>
+        <button class="filter" aria-pressed="false" data-level="moderate" aria-label="Moderate, difficulty 4 to 5 out of 9"><span class="blaze" style="color:var(--color-blaze-moderate)"><i></i></span>Moderate <span class="data">4–5</span></button>
+        <button class="filter" aria-pressed="false" data-level="hard" aria-label="Hard, difficulty 6 to 7 out of 9"><span class="blaze blaze-diamond" style="color:var(--color-blaze-hard)"><i></i></span>Hard <span class="data">6–7</span></button>
+        <button class="filter" aria-pressed="false" data-level="expert" aria-label="Expert, difficulty 8 to 9 out of 9"><span class="blaze blaze-diamond"><i></i><i></i></span>Expert <span class="data">8–9</span></button>
       </div>
 
       <div class="grid" id="grid"></div>

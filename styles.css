@@ -85,7 +85,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   color: var(--color-primary); text-decoration: none;
 }
 .nav { display: flex; gap: var(--space-lg); }
-.nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-on-surface); text-decoration: none; padding: 0; border-bottom: 2px solid transparent; transition: border-color var(--ease); }
+.nav a { display: inline-flex; align-items: center; min-height: 44px; font: 700 16px/1.2 var(--font-body); color: var(--color-on-surface); text-decoration: none; padding: 0; border-bottom: 2px solid transparent; transition: border-color var(--ease); }
 .nav a:hover, .nav a[aria-current] { border-color: var(--color-primary); }
 .header-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-md); }
 .icon-btn { background: none; border: 0; padding: 10px; min-width: 44px; min-height: 44px; color: var(--color-on-surface); cursor: pointer; border-radius: var(--rounded-md); }
@@ -161,7 +161,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .filter { white-space: nowrap; flex: none; }
 .post-link { display: none; padding: var(--space-sm) var(--space-md); min-height: 44px; }
 .filter {
-  font: inherit; background: var(--color-surface); color: var(--color-on-surface);
+  font: 700 15px/1.2 var(--font-body); background: var(--color-surface); color: var(--color-on-surface);
   border: 1px solid var(--color-border); border-radius: var(--rounded-md);
   padding: var(--space-sm) var(--space-md); cursor: pointer;
   display: inline-flex; align-items: center; gap: var(--space-sm);
@@ -323,3 +323,4 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 @media (max-width: 767px) { .jd-row { grid-template-columns: 1fr; } }
 .jd .check { display: flex; gap: var(--space-sm); align-items: flex-start; font-size: 15px; line-height: 1.5; }
 .jd .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--color-primary); flex: none; }
+.on-dark .field-label { color: var(--color-surface); }
