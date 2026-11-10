@@ -160,9 +160,10 @@
       <section class="panel" id="step-sent" hidden aria-labelledby="h-sent">
         <h1 id="h-sent">Check your email</h1>
         <p class="lead" id="sent-lead">We sent a sign-in link.</p>
-        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: no email is sent. Tap below to act as if you opened the link.</span></p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="sent-note">Prototype: no email is sent. Tap below to act as if you opened the link.</span></p>
         <button type="button" class="btn btn-primary label-caps" id="open-link">Open the sign-in link</button>
-        <button type="button" class="back" data-back>Use another way</button>
+        <p class="error" id="sent-err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        <button type="button" class="back" id="sent-back" data-back>Use another way</button>
       </section>
 
       <!-- 3. Profile (new accounts) -->
@@ -300,12 +301,9 @@ $("step-email").addEventListener("submit", e => {
   if (TP.online) {
     const btn = e.submitter; btn.disabled = true;
     TP.sendCode(contact).then(() => {
-      // The email may hold only a link (Confirm signup) or a link and a code, depending on its template.
-      $("h-code").textContent = "Check your email";
-      $("code-lead").textContent = `We sent a sign-in email to ${contact}. Tap the link in it to finish on this device. It can take a minute; check spam too.`;
-      $("code-hint").hidden = true;
-      $("code-label").textContent = "Or type the code from the email, if it has one";
-      show("step-code");
+      // Supabase's emails hold only a link, so there's no code to type: just wait for the link.
+      $("sent-lead").textContent = `We sent a sign-in link to ${contact}. Open it on this device to finish. It can take a minute; check spam too.`;
+      show("step-sent"); startResendTimer();
     }).catch(err => {
       $("email-err").querySelector("span").textContent = /rate|limit|seconds/i.test(err.message)
         ? "Too many codes sent just now. Wait a minute, then try again." : err.message;
@@ -316,7 +314,39 @@ $("step-email").addEventListener("submit", e => {
   $("sent-lead").textContent = `We sent a sign-in link to ${contact}. It works for 1 hour.`;
   show("step-sent");
 });
-$("open-link").onclick = () => { $("profile-phone-row").hidden = false; show("step-profile"); };
+$("open-link").onclick = () => {
+  if (TP.online) { resendLink(); return; }
+  $("profile-phone-row").hidden = false; show("step-profile");
+};
+// Online "Check your email": resend the link (after a wait, because of the email limit) or change the address.
+if (TP.online) {
+  $("sent-note").textContent = "No email? Check spam or promotions. You can ask for a new link in a minute.";
+  $("open-link").classList.replace("btn-primary", "btn-secondary");
+  $("sent-back").textContent = "Use a different email";
+  $("sent-back").onclick = () => show("step-email");
+  // If the link is opened in another tab of this browser, finish here too.
+  TP.db.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_IN" && !$("step-sent").hidden) location.reload();
+  });
+}
+let resendTimer = null;
+function startResendTimer() {
+  let wait = 60;
+  const btn = $("open-link"); btn.disabled = true;
+  clearInterval(resendTimer);
+  const tick = () => { btn.textContent = wait > 0 ? `Resend link in ${wait}s` : "Resend link"; if (wait-- <= 0) { clearInterval(resendTimer); btn.disabled = false; } };
+  tick(); resendTimer = setInterval(tick, 1000);
+}
+function resendLink() {
+  const btn = $("open-link"), err = $("sent-err"); btn.disabled = true; err.hidden = true;
+  TP.sendCode(contact).then(() => {
+    $("sent-lead").textContent = `We sent a new sign-in link to ${contact}. Use the newest email; older links stop working.`;
+    startResendTimer();
+  }).catch(e => {
+    err.querySelector("span").textContent = /rate|limit|seconds/i.test(e.message) ? "Too many emails sent just now. Wait a few minutes, then try again." : e.message;
+    err.hidden = false; btn.disabled = false;
+  });
+}
 
 $("step-profile").addEventListener("submit", e => {
   e.preventDefault();
