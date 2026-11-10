@@ -26,6 +26,7 @@ Joiner hikes in the Philippines are organized in Facebook groups: long hand-type
 - `organizer-signup.html`: mock organizer sign-up (account, ID check, business, payout)
 - `organize.html`: organizer form to post a trip, with live preview, Facebook text and a share image; `organize.html?edit=<trip id>` edits a trip you published
 - `dashboard.html`: organizer dashboard with bookings, joiner list, payouts, and add/close/cancel dates (past dates show as Done)
+- `privacy.html`, `terms.html`: privacy policy and terms of service (needed for Google sign-in)
 - `styles.css`: shared tokens and components used by every page
 - `trips.js`: details for every trip (shared by search and trip pages)
 - `cards.js`: shared trip card code
