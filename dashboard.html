@@ -430,7 +430,7 @@ async function start() {
       const trip = mine.find(x => x.id === d.fb);
       const open = keys().filter(k => state[k].trip.id === trip.id && statusOf(state[k]) === "open")
         .map(k => `- ${nice(state[k].date)}: ${state[k].cap - bookedOf(state[k])} slots`).join("\n");
-      const text = `LOOKING FOR JOINERS: ${trip.title.toUpperCase()}\n${trip.place} · ${trip.masl.toLocaleString()} MASL · Difficulty ${trip.score}/9\n\nDates:\n${open || "- No open dates right now"}\n\nEvent fee: ${pesos(trip.fee)} per joiner\nReserve with ${pesos(trip.dp)} DP via GCash or Maya\n\nReserve here: ${window.TRAILPEAK_URL || new URL("trip.html#" + trip.id, location.href).href}\nOrganized by ${me.org} (verified on TrailPeak)`;
+      const text = `LOOKING FOR JOINERS: ${trip.title.toUpperCase()}\n${trip.place} · ${trip.masl.toLocaleString()} MASL · Difficulty ${trip.score}/9\n\nDates:\n${open || "- No open dates right now"}\n\nEvent fee: ${pesos(trip.fee)} per joiner\nReserve with ${pesos(trip.dp)} DP via GCash or Maya\n\nReserve here: ${new URL("trip.html#" + trip.id, location.href).href}\nOrganized by ${me.org}`;
       await copy(text, t, "Copy Facebook text");
     }
     if (t.id === "copy-list") {

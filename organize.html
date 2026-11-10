@@ -508,7 +508,7 @@ document.getElementById("form").addEventListener("submit", e => {
   const pub = toPublishedTrip(t);
   const finish = () => {
     $("publish-note").textContent = "Your trip is live. You can edit or close dates anytime.";
-    $("fb").value = facebookText(t);
+    $("fb").value = facebookText(t, pub.id);
     makeShareImage(t);
     $("view-trip").href = `trip.html#${pub.id}`;
     $("done").classList.add("show");
@@ -616,7 +616,8 @@ async function makeShareImage(t) {
 }
 
 // Plain text on purpose: Unicode bold and emoji break screen readers and search.
-function facebookText(t) {
+// tripId: the published trip, so the link opens that exact trip page (not the first trip).
+function facebookText(t, tripId) {
   const dates = t.departures.filter(([d, s]) => d && s > 0).sort((a, b) => a[0].localeCompare(b[0]))
     .map(([d, s]) => `- ${niceDate(d)}: ${s} ${s === 1 ? "slot" : "slots"}`).join("\n");
   const pick = t.pickupTimes.filter(([p, tm]) => p && tm).map(([p, tm]) => `- ${p}, ${to12(tm)}`).join("\n");
@@ -637,8 +638,8 @@ ${pick}
 
 Open for: ${t.who.join(", ").toLowerCase()}
 
-Reserve here: ${window.TRAILPEAK_URL || new URL("trip.html", location.href).href}
-Organized by ${t.org} (verified on TrailPeak)`;
+Reserve here: ${new URL("trip.html#" + tripId, location.href).href}
+Organized by ${t.org}`;
 }
 $("copy").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText($("fb").value); $("copy").textContent = "Copied"; }
