@@ -7,6 +7,9 @@
   --color-tertiary: #2C5D73;
   --color-tertiary-tint: #DCE9EE;
   --color-neutral: #F1EBDD;
+  --color-canvas: #F4F2EC;    /* soft warm gray behind trip cards (home, organizer profiles) */
+  --color-card: #FDFCF9;      /* near-white trip cards: clean, the photo carries the color */
+  --color-hairline: #ECE7DC;  /* faint divider inside a card */
   --color-surface: #FAF7F0;
   --color-on-surface: #1C2A21;
   --color-border: #E2D9C4;
@@ -173,8 +176,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gutter); }
 
 /* Tour card */
+/* Trip cards, Apple-clean: near-white, no border, no shadow, on the canvas page color. */
 .card {
-  background: var(--color-neutral);
+  background: var(--color-card);
   border-radius: var(--rounded-lg);
   overflow: hidden;
   display: flex; flex-direction: column;
@@ -198,7 +202,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   margin-top: auto;
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-md);
   padding: var(--space-md) var(--space-lg);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-hairline);
 }
 /* Prices in the logo font: the number joiners compare first after the photo. */
 .price { font: 700 30px/1.05 var(--font-display); letter-spacing: -0.01em; }
@@ -331,3 +335,5 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .on-dark .field-label { color: var(--color-surface); }
 /* The card's own button reads as a sentence ("View & join"), matching the calmer card. */
 .card-foot .btn { font: 700 16px/1 var(--font-body); letter-spacing: 0; text-transform: none; }
+/* Pages built around trip cards use the canvas color so the white cards stand out without borders. */
+body.canvas { background: var(--color-canvas); }

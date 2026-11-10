@@ -12,6 +12,9 @@ colors:
   tertiary-tint: "#DCE9EE"
   neutral: "#F1EBDD"
   surface: "#FAF7F0"
+  canvas: "#F4F2EC"
+  card: "#FDFCF9"
+  hairline: "#ECE7DC"
   on-surface: "#1C2A21"
   border: "#E2D9C4"
   blaze-easy: "#2F6B47"
@@ -196,8 +199,14 @@ components:
     typography: "{typography.body-strong}"
     rounded: "{rounded.md}"
     padding: "{spacing.sm}"
+  page-canvas:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.on-surface}"
+  card-divider:
+    backgroundColor: "{colors.hairline}"
+    textColor: "{colors.on-surface}"
   tour-card:
-    backgroundColor: "{colors.neutral}"
+    backgroundColor: "{colors.card}"
     textColor: "{colors.on-surface}"
     typography: "{typography.body-md}"
     rounded: "{rounded.lg}"
@@ -368,6 +377,7 @@ Every color comes from the trail: the forest, map paper, and painted trail blaze
 - **Secondary (#4E5A50):** *Lichen grey.* Metadata: duration, distance, review counts, captions. A green-tinted grey so it sits with the palette instead of looking like stock grey.
 - **Tertiary (#2C5D73) and Tertiary-tint (#DCE9EE):** *Alpine lake.* The only cool color in the system, with exactly one job: **availability and schedule**. "3 spots left", the selected departure date, open slots in the calendar. Spots left is information, not a warning, so it uses calm lake blue rather than alarm red. Urgency comes from the number itself. Using red to pressure people into booking is a dark pattern this system refuses.
 - **Surface (#FAF7F0) and Neutral (#F1EBDD):** *Map paper and trail-guide card stock.* Page background and card background, a half-step apart. Most of the interface is built from the gap between them.
+- **Canvas (#F4F2EC), Card (#FDFCF9) and Hairline (#ECE7DC):** *Clean trail cards.* For card-heavy pages (home, organizer profiles): a soft warm-gray page, near-white cards with no border or shadow, and a faint divider inside the card. The Apple-style idea: neutral, quiet surfaces so the trail photos are the color. Neutral beige stays for panels and chips, not trip cards.
 - **Border (#E2D9C4):** *Contour line.* Hairline rules and the disabled-button fill.
 - **On-surface (#1C2A21):** *Map ink.* Body text and the Expert badge. A green-black, not #000.
 - **Blaze colors:** the paint on trail markers. **Easy (#2F6B47)** moss green, **Moderate (#D9A441)** ochre, **Hard (#A6432A)** clay red, and **Expert** uses map ink (`on-surface`). The four levels group the 1–9 score: **Easy 1–3, Moderate 4–5, Hard 6–7, Expert 8–9**. These four colors are reserved for difficulty. Nothing else may use them, so a hiker learns the code once and can trust it everywhere.
@@ -444,7 +454,7 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 
 **Filter chips.** 15px bold sentence case, with the score range in tabular figures. One row of toggle buttons above results (on phones it scrolls sideways rather than wrapping) (All, Easy, Moderate, Hard, Expert). `filter-chip` at rest has a 1px `border`; `filter-chip-selected` switches to `neutral` fill with a 1px `primary` border. Difficulty chips show the small blaze shape in its blaze color before the word. Use `aria-pressed` for the selected state.
 
-**Tour card.** `neutral` fill, 28px squircle corners, no shadow. The photo is clipped by the card, so its top corners match.
+**Tour card.** Apple-clean: a near-white `card` fill on the `canvas` page (home, organizer profiles), 28px squircle corners, no border, no shadow; the photo carries the color. The divider above the price is a `hairline`. Where a card sits on plain `surface` (the post-a-trip preview), it gets a 1px `hairline` ring so its edge shows. (Until November 2026 cards were `neutral` beige, which read as yellow and dull next to the photos.) The photo is clipped by the card, so its top corners match.
 - *Photo:* 3:2, difficulty badge top-left, `tag-elevation` (e.g. `811 MASL`) top-right.
 - *Body:* `chip-spots` in sentence case (`label-chip`) with the slots for the next date ("3 of 14 slots left"; the date itself is in the meetup line, never twice), mountain name in Bricolage at 26px with the town and province under it in `text-meta` ("Nasugbu, Batangas"), then a specs row in `trail-spec` with icons: `4/9` · `Day hike · 5–6 hrs` · `★ 4.8 (212)`. Under it, two `text-meta` rows with icons: meetup (`Sat, Nov 7 · 2:00 AM`) and pick-up points (`Cubao · Greenfield · Alabang`).
 - *Organizer line:* a 28px round initials avatar (`avatar-guide` colors on a `surface` fill), "by" + the organizer's name in `body-sm`, and a verified seal icon in `primary` when they are verified (with screen-reader text "Verified organizer"). Unverified organizers show no seal; never a warning color.
