@@ -130,7 +130,14 @@ TP.saveProfile = async fields => {
 };
 
 // ---- Bookings -------------------------------------------------------------------------
-const tpErr = e => new Error((e && e.message) || "Something went wrong. Try again.");
+// Server errors in plain words. An expired or missing sign-in ("permission denied", JWT errors)
+// becomes a sign-in prompt, never the database's wording.
+const tpErr = e => {
+  const m = (e && e.message) || "";
+  if ((e && e.code === "42501") || /permission denied|jwt|not authenticated|sign in to reserve/i.test(m))
+    return new Error("Please sign in to book a trip. If you were signed in, your session expired: sign in again and you'll come back here.");
+  return new Error(m || "Something went wrong. Try again.");
+};
 TP.book = async p => {
   const base = { p_trip: p.tripId, p_date: p.date, p_size: p.size, p_pickup: p.pickup, p_pickup_time: p.pickupTime,
     p_wallet: p.wallet, p_wallet_number: p.walletNumber, p_listed: !!p.listed };
