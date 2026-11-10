@@ -62,7 +62,7 @@
 .note-line { grid-column: 1 / -1; color: var(--color-secondary); font-size: 15px; }
 
 .add-date { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: end; padding: var(--space-md); border-top: 1px solid var(--color-border); }
-.add-date .field2 { display: grid; gap: var(--space-xs); }
+.add-date .field2 { display: grid; gap: var(--space-sm); }
 .add-date label { color: var(--color-secondary); }
 .input { font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); min-height: 44px; }
 .input:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; border-color: var(--color-primary); }
@@ -340,8 +340,8 @@ async function start() {
         </div>
         <div class="dates">${rows}</div>
         <form class="add-date" data-add="${t.id}" novalidate>
-          <div class="field2"><label class="label-caps" for="nd-${t.id}">New date</label><input class="input data" type="date" id="nd-${t.id}" min="${todayIso()}"></div>
-          <div class="field2"><label class="label-caps" for="ns-${t.id}">Open slots</label><input class="input data" type="number" id="ns-${t.id}" min="1" max="${t.group}" value="${t.group}" style="width:120px"></div>
+          <div class="field2"><label class="field-label" for="nd-${t.id}">New date</label><input class="input data" type="date" id="nd-${t.id}" min="${todayIso()}"></div>
+          <div class="field2"><label class="field-label" for="ns-${t.id}">Open slots</label><input class="input data" type="number" id="ns-${t.id}" min="1" max="${t.group}" value="${t.group}" style="width:120px"></div>
           <button type="submit" class="btn btn-secondary label-caps">+ Add date</button>
           <p class="error" id="ne-${t.id}" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
         </form>

@@ -45,7 +45,7 @@
 
 /* Star rating: five radio buttons, 44px each. Outline stars until chosen; chosen ones fill in primary. */
 .rate { border: 0; padding: 0; margin: 0; display: flex; gap: 0; }
-.rate legend { padding: 0; margin-bottom: var(--space-xs); color: var(--color-secondary); }
+.rate legend { padding: 0; margin-bottom: var(--space-xs); }
 .rate label { width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--rounded-sm); cursor: pointer; color: var(--color-secondary); font-size: 28px; line-height: 1; }
 .rate label.on { color: var(--color-primary); }
 .rate input { position: absolute; opacity: 0; width: 1px; height: 1px; }
@@ -164,7 +164,7 @@ function card(b) {
   if (open[b.ref] === "move") {
     const options = Object.keys(T.departures).sort().filter(x => x !== b.date && daysUntil(x) >= 7 && slotsLeft(T, x) >= b.size);
     panel = options.length
-      ? `<form class="inline" data-move-form="${b.ref}"><label class="label-caps" for="mv-${b.ref}" style="color:var(--color-secondary)">Move to</label>
+      ? `<form class="inline" data-move-form="${b.ref}"><label class="field-label" for="mv-${b.ref}">Move to</label>
           <div class="row"><select class="input" id="mv-${b.ref}">${options.map(x => `<option value="${x}">${nice(x)} · ${slotsLeft(T, x)} slots left</option>`).join("")}</select>
           <button type="submit" class="btn btn-primary label-caps">Move my booking</button><button type="button" class="link-btn" data-close="${b.ref}">Keep this date</button></div>
           <p class="note">Free, once. Your DP moves with you.</p></form>`
@@ -185,10 +185,10 @@ function card(b) {
   else if (isPast && open[b.ref] === "review") {
     const v = draft[b.ref] || 0;
     review = `<form class="inline" data-review-form="${b.ref}" novalidate>
-      <fieldset class="rate"><legend class="label-caps">How was ${esc(T.title)}?</legend>
+      <fieldset class="rate"><legend class="field-label">How was ${esc(T.title)}?</legend>
         ${[1, 2, 3, 4, 5].map(n => `<input type="radio" name="rate-${b.ref}" id="rate-${b.ref}-${n}" value="${n}"${n === v ? " checked" : ""}><label for="rate-${b.ref}-${n}" class="${n <= v ? "on" : ""}"><span aria-hidden="true">${n <= v ? "★" : "☆"}</span><span class="sr">${n} ${n === 1 ? "star" : "stars"}</span></label>`).join("")}
       </fieldset>
-      <label class="label-caps" for="rv-${b.ref}" style="color:var(--color-secondary)">Your review</label>
+      <label class="field-label" for="rv-${b.ref}">Your review</label>
       <textarea class="input" id="rv-${b.ref}" rows="4" maxlength="1000" placeholder="The trail, the guides, the van, the pick-up: what should other joiners know?"></textarea>
       <p class="note">Shown on the trip page as ${esc(b.displayName || "your first name and last initial")}.</p>
       <div class="row"><button type="submit" class="btn btn-primary label-caps">Post review</button><button type="button" class="link-btn" data-close="${b.ref}">Not now</button></div>

@@ -12,11 +12,10 @@
 /* Reserve: pay on the left, the order summary on the right (on top on phones). */
 .reserve { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-xxl); align-items: start; padding: var(--space-xl) 0 var(--space-xxl); }
 .panel { display: grid; gap: var(--space-md); }
-.panel h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.panel h1 { font: 700 40px/1.1 var(--font-display); letter-spacing: -0.02em; }
 .panel h2 { font: 700 20px/1.3 var(--font-display); }
 .lead { color: var(--color-secondary); }
-.field2 { display: grid; gap: var(--space-xs); }
-.field2 > label, .field2 > .label-caps { color: var(--color-secondary); }
+.field2 { display: grid; gap: var(--space-sm); }
 .input { font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); width: 100%; min-height: 44px; }
 .input:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; border-color: var(--color-primary); }
 .input[aria-invalid="true"] { border-color: var(--color-error); }
@@ -62,7 +61,7 @@
   .summary img { aspect-ratio: 3 / 1; }
 }
 @media (max-width: 767px) {
-  .panel h1 { font-size: 24px; }
+  .panel h1 { font-size: 32px; }
   .choices { grid-template-columns: 1fr; }
 }
 </style>
@@ -117,18 +116,18 @@
         <p class="lead" id="pay-lead"></p>
 
         <div class="field2">
-          <span class="label-caps" id="wallet-l">Pay the DP with</span>
+          <span class="field-label" id="wallet-l">Pay the DP with</span>
           <div class="choices" role="radiogroup" aria-labelledby="wallet-l">
             <label class="choice"><input type="radio" name="wallet" value="GCash" checked><strong>GCash</strong><span>Approve in the GCash app</span></label>
             <label class="choice"><input type="radio" name="wallet" value="Maya"><strong>Maya</strong><span>Approve in the Maya app</span></label>
           </div>
         </div>
         <div class="field2">
-          <label class="label-caps" for="wnum">Wallet mobile number</label>
+          <label class="field-label" for="wnum">Wallet mobile number</label>
           <div class="prefix"><span aria-hidden="true">+63</span><input class="input data" id="wnum" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="917 123 4567"></div>
         </div>
         <div class="field2">
-          <label class="label-caps" for="names">Names of everyone joining (optional)</label>
+          <label class="field-label" for="names">Names of everyone joining (optional)</label>
           <input class="input" id="names" placeholder="So the organizer can register your group">
         </div>
         <label class="check"><input type="checkbox" id="listme"><span>Show <strong id="listname">my first name</strong> on this date's joiner list. Only joiners on the same date can see it, and never your number.</span></label>
