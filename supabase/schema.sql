@@ -435,6 +435,7 @@ begin
   if p_date < public.ph_today() then raise exception 'This date has passed.'; end if;
   if public.slots_left(p_trip, p_date) < p_size then raise exception 'Not enough slots left on this date.'; end if;
   select * into t from public.trips where id = p_trip;
+  if t.organizer_id is null then raise exception 'This is a demo trip. Try the separate demo; no live reservation or payment is created.'; end if;
   select * into who from public.profiles where id = me;
   insert into public.bookings (ref, trip_id, date, user_id, size, pickup, pickup_time, dp, balance,
                                wallet, wallet_number, names, listed, display_name, companions, emergency)
@@ -521,6 +522,9 @@ declare b public.bookings;
 begin
   select * into b from public.bookings where ref = p_ref and user_id = auth.uid() for update;
   if not found or b.status <> 'confirmed' then raise exception 'Booking not found.'; end if;
+  if not exists (select 1 from public.trips where id = b.trip_id and organizer_id is not null) then
+    raise exception 'Demo bookings cannot be moved into live inventory. Use the separate demo.';
+  end if;
   if b.moved then raise exception 'This booking was already moved once.'; end if;
   if b.date - public.ph_today() < 7 then raise exception 'Dates can only be moved 7 or more days before.'; end if;
   if p_new_date - public.ph_today() < 7 then raise exception 'Pick a date at least 7 days away.'; end if;

@@ -346,12 +346,15 @@ async function start() {
     const kept = keys().map(k => state[k]).filter(s => s.status !== "cancelled");
     const live = kept.filter(s => !isPastDate(s.date));
     const joiners = live.reduce((a, s) => a + bookedOf(s), 0);
-    const received = kept.reduce((a, s) => a + s.bookings.reduce((n, b) => n + receivedOf(b, s), 0), 0);
+    const latestReceipts = new Map();
+    for (const row of (receipts || [])) { const id = row.booking_ref || row.outside_id; if (!latestReceipts.has(id)) latestReceipts.set(id, row); }
+    const received = TP.online ? [...latestReceipts.values()].reduce((n,r) => n + r.amount,0)
+      : kept.reduce((a,s) => a + s.bookings.reduce((n,b) => n + receivedOf(b,s),0),0);
     const balance = live.reduce((a, s) => a + s.bookings.reduce((n, b) => n + balanceOf(b, s), 0), 0);
     const ready = !TP.online || receipts !== null;
     $("tiles").innerHTML = `
       <div class="tile"><span class="label-caps">Joiners booked</span><span class="value">${joiners}</span><span class="note">Across ${live.length} upcoming dates</span></div>
-      <div class="tile"><span class="label-caps">DPs recorded</span><span class="value">${ready ? pesos(received) : "Unavailable"}</span><span class="note">${TP.online ? "Direct payments recorded by you" : "Demo amounts only"}</span></div>
+      <div class="tile"><span class="label-caps">DPs recorded</span><span class="value">${ready ? pesos(received) : "Unavailable"}</span><span class="note">${TP.online ? "Includes cancelled bookings; no refunds deducted" : "Demo amounts only"}</span></div>
       <div class="tile"><span class="label-caps">Remaining balance</span><span class="value">${ready ? pesos(balance) : "Unavailable"}</span><span class="note">Upcoming active bookings, including outside bookings</span></div>
       <div class="tile"><span class="label-caps">Payment handling</span><span class="note">Joiners pay you directly. TrailPeak does not verify transfers or send payouts.</span></div>`;
   }

@@ -6,7 +6,7 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 const dir=mkdtempSync(path.join(tmpdir(),'trailpeak-syntax-'));
 try{
- for(const file of ['api.js','dashboard.html','mytrips.html','reserve.html']){
+ for(const file of ['api.js','cards.js','dashboard.html','mytrips.html','reserve.html','demo.html','trip.html','signin.html']){
   const text=readFileSync(new URL('../'+file,import.meta.url),'utf8');
   const scripts=file.endsWith('.js')?[text]:Array.from(text.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g),m=>m[1]).filter(s=>s.trim());
   scripts.forEach((script,i)=>{const p=path.join(dir,file+'-'+i+'.js');writeFileSync(p,script);execFileSync(process.execPath,['--check',p]);});

@@ -160,10 +160,11 @@ function render() {
 
 function card(b) {
   const T = tripById(b.tripId); if (!T) return "";
+  const isDemo = TP.online && b.bookingMode === "demo";
   const d = daysUntil(b.date), cancelled = b.status === "cancelled", isPast = !cancelled && d < 0;
   const status = cancelled ? ["cancelled", "Cancelled"] : isPast ? ["past", "Done"] : ["confirmed", "Confirmed"];
   const when = d === 0 ? "Today" : d === 1 ? "Tomorrow" : `In ${d} days`;
-  const canMove = !cancelled && !isPast && d >= 7 && !b.moved;
+  const canMove = !isDemo && !cancelled && !isPast && d >= 7 && !b.moved;
   let panel = "";
   if (open[b.ref] === "move") {
     const options = Object.keys(T.departures).sort().filter(x => x !== b.date && daysUntil(x) >= 7 && slotsLeft(T, x) >= b.size);
@@ -176,7 +177,7 @@ function card(b) {
   }
   if (open[b.ref] === "cancel") {
     panel = `<div class="inline warn" role="group" aria-labelledby="cx-${b.ref}">
-      <p id="cx-${b.ref}"><strong>Cancel your booking for ${nice(b.date)}?</strong> Under this trip's policy ${TP.online ? "any DP recorded by your organizer" : `your ${peso(b.dp)} DP`} won't be refunded. Contact the organizer about payment corrections.${canMove ? " Moving to another date is free instead." : ""}</p>
+      <p id="cx-${b.ref}"><strong>Cancel your booking for ${nice(b.date)}?</strong> ${isDemo ? "This only cancels the old sample reservation. No real DP was recorded." : `Under this trip's policy ${TP.online ? "any DP recorded by your organizer" : `your ${peso(b.dp)} DP`} won't be refunded. Contact the organizer about payment corrections.`}${canMove ? " Moving to another date is free instead." : ""}</p>
       <div class="row"><button type="button" class="btn btn-danger label-caps" data-cancel-yes="${b.ref}">Cancel booking</button>
       ${canMove ? `<button type="button" class="btn btn-secondary label-caps" data-move="${b.ref}">Move date instead</button>` : ""}
       <button type="button" class="link-btn" data-close="${b.ref}">Keep my booking</button></div></div>`;
@@ -196,6 +197,7 @@ function card(b) {
     </form>`;
   }
 
+  // Legacy sample rows remain identifiable and never imply money is owed.
   // Done (the date has passed, not cancelled): one review per booking.
   const reviewed = isPast && getMyReviews().find(r => r.ref === b.ref);
   const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"☆".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;
@@ -223,16 +225,16 @@ function card(b) {
         <div><dt>Date</dt><dd>${nice(b.date)}</dd></div>
         <div><dt>Meetup</dt><dd>${b.pickupTime} · ${esc(b.pickup)}</dd></div>
         <div><dt>Joiners</dt><dd>${b.size}${b.size > 1 && !cancelled ? `<span class="group"> · ${esc(group)}</span>` : ""}</dd></div>
-        <div><dt>${TP.online ? "DP record" : "Demo DP"}</dt><dd>${TP.online ? (b.paymentsReady ? `${peso(b.receivedDp)} / ${peso(b.expectedDp)} · ${b.receivedDp >= b.expectedDp ? "DP received" : b.receivedDp ? "Partial DP" : "DP pending"}` : "Unavailable: refresh after the database update") : `${peso(b.dp)} · ${b.wallet}`}</dd></div>
-        ${cancelled || isPast ? "" : `<div><dt>Bring for balance</dt><dd>${b.balance === null ? "Unavailable" : peso(b.balance)}</dd></div>`}
+        <div><dt>${isDemo ? "Demo booking" : TP.online ? "DP record" : "Demo DP"}</dt><dd>${isDemo ? "Sample only · no DP due" : TP.online ? (b.paymentsReady ? `${peso(b.receivedDp)} / ${peso(b.expectedDp)} · ${b.receivedDp >= b.expectedDp ? "DP received" : b.receivedDp ? "Partial DP" : "DP pending"}` : "Unavailable: refresh after the database update") : `${peso(b.dp)} · ${b.wallet}`}</dd></div>
+        ${cancelled || isPast ? "" : `<div><dt>Bring for balance</dt><dd>${isDemo ? "Sample amount only" : b.balance === null ? "Unavailable" : peso(b.balance)}</dd></div>`}
       </dl>
-      ${TP.online && b.paymentsReady ? `<p class="note">${b.receipt?.amount ? `Recorded by the organizer · ${esc(b.receipt.method)} · received ${new Date(b.receipt.received_at).toLocaleString("en-PH", {timeZone:"Asia/Manila"})} PHT.` : `Pay the ${peso(b.expectedDp)} DP directly to ${esc(T.org)} and ask them to record receipt.`} TrailPeak does not verify wallet transfers or send payouts.</p>` : ""}
+      ${isDemo ? `<p class="note">This is a legacy demo booking. No payment was recorded. <a href="demo.html">Try the isolated demo</a>.</p>` : TP.online && b.paymentsReady ? `<p class="note">${b.receipt?.amount ? `Recorded by the organizer · ${esc(b.receipt.method)} · received ${new Date(b.receipt.received_at).toLocaleString("en-PH", {timeZone:"Asia/Manila"})} PHT.` : `Pay the ${peso(b.expectedDp)} DP directly to ${esc(T.org)} and ask them to record receipt.`} TrailPeak does not verify wallet transfers or send payouts.</p>` : ""}
       ${b.note ? `<p class="note">${esc(b.note)}</p>` : ""}
       ${detailsLine}
       ${!cancelled && !isPast ? `<div class="actions">
         <a class="btn btn-secondary label-caps" href="trip.html#${T.id}">Trip details</a>
         <button type="button" class="${missing ? "btn btn-primary label-caps" : "link-btn"}" data-details="${b.ref}">${missing ? "Add details" : "Joiner details"}<span class="sr"> for ${esc(T.title)}</span></button>
-        ${canMove ? `<button type="button" class="link-btn" data-move="${b.ref}">Move date<span class="sr"> for ${esc(T.title)}</span></button>` : `<span class="note">${b.moved ? "Already moved once." : d < 7 ? "Less than 7 days to go: dates can't be moved." : ""}</span>`}
+        ${canMove && !isDemo ? `<button type="button" class="link-btn" data-move="${b.ref}">Move date<span class="sr"> for ${esc(T.title)}</span></button>` : `<span class="note">${b.moved ? "Already moved once." : d < 7 ? "Less than 7 days to go: dates can't be moved." : ""}</span>`}
         <button type="button" class="link-btn danger" data-cancel="${b.ref}">Cancel<span class="sr"> ${esc(T.title)} booking</span></button>
       </div>` : ""}
       ${isPast && !reviewed && open[b.ref] !== "review" ? `<div class="actions"><button type="button" class="btn btn-secondary label-caps" data-review="${b.ref}">Write a review<span class="sr"> of ${esc(T.title)}</span></button><a class="link-btn" href="trip.html#${T.id}">Trip page</a></div>` : ""}

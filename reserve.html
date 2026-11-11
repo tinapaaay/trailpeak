@@ -180,7 +180,14 @@ const shortName = n => { const [f, ...r] = n.trim().split(/\s+/); return r.lengt
 const user = getUser();
 const p = getPending();
 const T = p && tripById(p.tripId);
-if (!user) { rememberNext("reserve.html"); location.replace("signin.html"); }
+if (TP.online && T && !T.organizerId) {
+  $("missing").hidden = false;
+  $("missing").querySelector("h1").textContent = "This is a sample trip";
+  $("missing").querySelector(".lead").textContent = "Try the separate demo. It uses sample slots only and never records a real payment or booking.";
+  $("missing").querySelector("a").href = "demo.html";
+  $("missing").querySelector("a").textContent = "Try the demo";
+}
+else if (!user) { rememberNext("reserve.html"); location.replace("signin.html"); }
 else if (!T || !(p.date in T.departures) || isPastDate(p.date) || ["closed", "cancelled"].includes(T.dateStatus?.[p.date])) {
   $("missing").hidden = false;
   if (T && !isPastDate(p.date) && ["closed", "cancelled"].includes(T.dateStatus?.[p.date])) { $("missing").querySelector("h1").textContent = T.dateStatus[p.date] === "closed" ? "That date is closed for booking" : "That date was cancelled"; $("missing").querySelector(".lead").textContent = "Choose another date for this trip, then tap Reserve."; $("missing").querySelector("a").href = `trip.html#${T.id}`; $("missing").querySelector("a").textContent = "Choose a date"; }

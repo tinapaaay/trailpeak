@@ -61,6 +61,17 @@ await test('new online reservation creates no receipt, even with legacy wallet f
  const b=(await db.query("select * from book_trip('test','2099-01-01',1,'Cubao','2 AM','GCash','synthetic','',false,'[]','{\"name\":\"Emergency Tester\",\"phone\":\"synthetic\"}')")).rows[0];
  assert.equal(b.dp,600);assert.equal((await one('select count(*)::int n from dp_receipts where booking_ref=$1',[b.ref])).n,0);
 }));
+await db.exec(`insert into trips(id,org_name,details) values ('demo','Sample Organizer','{"fee":1499,"dp":500}');
+ insert into departures(trip_id,date,capacity) values ('demo','2099-02-01',8),('demo','2099-02-08',8);
+ insert into bookings(ref,trip_id,date,user_id,size,pickup,pickup_time,dp,balance,wallet,wallet_number)
+ values ('TP-DEMO','demo','2099-02-01','${joiner}',1,'Sample','2 AM',500,999,'GCash','synthetic');`);
+const pilotSeats=await one("select seats_taken('test','2099-01-01') taken");
+await test('direct demo-trip booking RPC is denied',()=>as(joiner,()=>assert.rejects(db.query("select * from book_trip('demo','2099-02-01',1,'Sample','2 AM','GCash','synthetic','',false,'[]','{\"name\":\"Emergency Tester\",\"phone\":\"synthetic\"}')"))));
+await test('legacy demo booking cannot be moved via RPC',()=>as(joiner,()=>assert.rejects(db.query("select * from move_booking('TP-DEMO','2099-02-08')"))));
+await test('organizer cannot record receipt on sample trip',()=>as(org,()=>assert.rejects(call({booking:'TP-DEMO',amount:500}))));
+await test('outside booking cannot target sample trip',()=>as(org,()=>assert.rejects(db.query("select * from add_outside_booking($1,'demo','2099-02-01','Sample',1,'Sample','2 AM','other',null)",[uuid()]))));
+await test('client cannot flip demo ownership into pilot mode',async()=>as(org,async()=>{await db.query("update trips set organizer_id=$1 where id='demo'",[org]);assert.equal((await one("select organizer_id from trips where id='demo'")).organizer_id,null);}));
+await test('denied demo actions leave pilot capacity and receipts unchanged',async()=>{assert.deepEqual(await one("select seats_taken('test','2099-01-01') taken"),pilotSeats);assert.equal((await one("select count(*)::int n from dp_receipts where booking_ref='TP-DEMO'")).n,0);});
 await test('revoked organizer cannot record a DP',async()=>{await db.query("update profiles set role='joiner',organizer_status='revoked' where id=$1",[org]);await as(org,()=>assert.rejects(call({previous:zero.id})));});
 await test('schema rerun preserves receipt history',async()=>{await db.exec(schema);assert.equal((await one('select count(*)::int n from dp_receipts')).n,4);});
 // Fresh install path also parses, independent of the upgrade fixture.

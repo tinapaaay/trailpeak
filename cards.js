@@ -43,6 +43,7 @@ function card(t, dep) {
         <div><dt>${icon("van", 16)}</dt><dd>Pick-up ${t.pickups.join(" · ")}</dd></div>
       </dl>
       <p class="organizer"><span class="org-avatar label-caps" aria-hidden="true">${initials(t.org)}</span>by ${t.org}</p>
+      ${TP.online && t.bookingMode === "demo" ? `<p class="meta">Demo sample · try without a real booking</p>` : ""}
       ${t.verified ? `<p class="org-claim">${claimBadge("ID verified")}</p>` : ""}
     </div>
     <div class="card-foot">

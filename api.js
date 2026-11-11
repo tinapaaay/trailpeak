@@ -27,7 +27,7 @@ TP.applyTo = function (trips) {
   trips.length = 0;
   for (const row of c.trips) {
     // `saved` keeps the stored details as they are, so editing a trip never saves page-only fields back.
-    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
+    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, bookingMode: row.organizer_id ? "pilot" : "demo", saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
     for (const s of (c.slots || []).filter(s => s.trip_id === row.id)) {
       t.departures[s.date] = s.status === "open" ? s.left_count : 0;
       t.sampleBooked[s.date] = s.sample_booked || 0;
@@ -40,9 +40,9 @@ TP.applyTo = function (trips) {
 };
 
 // Server booking row -> the shape the pages already use.
-function tpBooking(b, receipts = null) {
+function tpBooking(b, receipts = null, mode = "pilot") {
   const receipt = receipts?.find(r => r.booking_ref === b.ref);
-  return { ref: b.ref, tripId: b.trip_id, date: b.date, size: b.size, pickup: b.pickup, pickupTime: b.pickup_time,
+  return { bookingMode: mode, ref: b.ref, tripId: b.trip_id, date: b.date, size: b.size, pickup: b.pickup, pickupTime: b.pickup_time,
     dp: b.dp, expectedDp: b.dp, receivedDp: receipts === null ? null : (receipt?.amount || 0),
     receipt, paymentsReady: receipts !== null, totalFee: b.dp + b.balance,
     balance: receipts === null ? null : b.dp + b.balance - (receipt?.amount || 0), wallet: b.wallet, walletNumber: b.wallet_number, names: b.names || "",
@@ -84,7 +84,7 @@ TP.sync = async function ({ reload = true } = {}) {
     ]);
     let receipts = null;
     try { receipts = await TP.receiptHistory(); } catch (e) { console.warn(e.message); }
-    saveBookings((mine || []).map(b => tpBooking(b, receipts)));
+    saveBookings((mine || []).map(b => tpBooking(b, receipts, trips.find(t => t.id === b.trip_id)?.organizer_id ? "pilot" : "demo")));
     saveMyReviews((myReviews || []).map(r => ({ ref: r.booking_ref, tripId: r.trip_id, stars: r.stars, text: r.body, date: r.created_at.slice(0, 10) })));
   } else {
     try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); localStorage.removeItem(TP_REVIEWS_KEY); } catch { /* ignore */ }
