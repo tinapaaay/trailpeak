@@ -195,3 +195,7 @@ Demo/pilot separation (TP-004 / issue #10): `demo.html` contains only in-memory 
 Regression tests: `npm ci --prefix tests` then `npm test --prefix tests`. They upgrade from the PR #9 main schema and verify RLS, RPC permissions, replay, stale corrections, validation, price snapshots and unchanged inventory. PGlite is single-connection; a true two-connection race and live Supabase smoke test remain required.
 
 For a synthetic browser fixture, run `node tests/preview.mjs` after installing the test dependency. Open `http://127.0.0.1:8015/dashboard.html`, record a receipt, then `/mytrips.html?testRole=joiner`. This local fixture uses mock sessions and real PGlite schema/functions; it never connects to live Supabase. Stop it when finished.
+
+## Edit and cancel outside bookings (TP-009)
+
+On the dashboard, each outside booking has **Edit** and **Cancel** (owning organizer only). Adding joiners needs free slots; removing joiners or cancelling opens them again, exactly once. Every change needs a reason and is kept in `outside_booking_changes` (who, when, why, before/after). Recorded DPs are never changed or refunded by an edit or a cancel.

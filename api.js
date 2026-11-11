@@ -237,7 +237,8 @@ TP.addOutsideBooking = async b => {
   return data;
 };
 TP.outsideBookings = async () => {
-  const { data, error } = await TP.db.from("outside_bookings").select("*").eq("status", "confirmed").order("created_at");
+  // Confirmed and cancelled: cancelled ones stay listed (with their reason) so changes are traceable.
+  const { data, error } = await TP.db.from("outside_bookings").select("*").order("created_at");
   if (error) throw tpErr(error);
   return data || [];
 };
@@ -281,6 +282,26 @@ TP.recordReceipt = async r => {
     p_received: r.amount ? r.receivedAt : null, p_reason: r.reason, p_reference: r.amount ? (r.reference || null) : null });
   if (error) throw tpErr(error);
   return data;
+};
+// Edit or cancel an outside booking (TP-009). `revision` is the version the form was opened on;
+// the server refuses the edit if someone changed the booking since.
+TP.editOutsideBooking = async o => {
+  const { data, error } = await TP.db.rpc("edit_outside_booking", { p_id: o.id, p_revision: o.revision, p_name: o.name, p_size: o.size,
+    p_pickup: o.pickup, p_pickup_time: o.pickupTime || null, p_source: o.source, p_phone: o.phone || null, p_reason: o.reason });
+  if (error) throw tpErr(error);
+  await TP.sync({ reload: false });
+  return Array.isArray(data) ? data[0] : data;   // one row, whichever shape the client returns
+};
+TP.cancelOutsideBooking = async (id, reason) => {
+  const { data, error } = await TP.db.rpc("cancel_outside_booking", { p_id: id, p_reason: reason });
+  if (error) throw tpErr(error);
+  await TP.sync({ reload: false });
+  return Array.isArray(data) ? data[0] : data;
+};
+TP.outsideChanges = async id => {
+  const { data, error } = await TP.db.from("outside_booking_changes").select("*").eq("outside_id", id).order("id");
+  if (error) throw tpErr(error);
+  return data || [];
 };
 TP.setDateStatus = async (tripId, date, status) => {
   const { error } = await TP.db.from("departures").update({ status }).eq("trip_id", tripId).eq("date", date);

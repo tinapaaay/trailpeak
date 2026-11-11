@@ -89,6 +89,14 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .joiners tfoot td { font-weight: 700; background: var(--color-neutral); }
 .joiners input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--color-primary); }
 .checkin { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+/* Edit / Cancel on outside bookings in the joiner list (TP-009) */
+.out-actions { display: flex; flex-wrap: wrap; gap: 0 var(--space-sm); margin-top: var(--space-xs); }
+.out-actions .link-btn { padding: 0; min-height: 44px; }
+.confirm-out { border-color: var(--color-error); }
+.out-form > .field2 { display: grid; gap: var(--space-sm); }
+.out-form > .field2 .input { width: 100%; }
+.out-form details ol { margin: var(--space-xs) 0 0; padding-left: var(--space-lg); color: var(--color-secondary); font-size: 15px; display: grid; gap: 2px; }
+
 /* Expired DP holds under the joiner list (TP-011) */
 .expired-holds { padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--color-border); display: grid; gap: var(--space-sm); }
 .expired-holds h3 { font: 700 17px/1.3 var(--font-body); }
@@ -296,7 +304,7 @@ if (!me || me.role !== "organizer") {
 // Outside bookings (TP-008): how they booked, and a server row in the joiner-list shape.
 const SOURCES = { messenger: "Messenger", in_person: "In person", other: "Other" };
 function outsideRow(o) {
-  return { outsideId: o.id, expectedDp: o.expected_dp, totalFee: o.total_fee, name: o.name, size: o.size, pickup: o.pickup_time ? `${o.pickup} · ${o.pickup_time}` : o.pickup,
+  return { outsideId: o.id, revision: o.revision || 1, raw: o, expectedDp: o.expected_dp, totalFee: o.total_fee, name: o.name, size: o.size, pickup: o.pickup_time ? `${o.pickup} · ${o.pickup_time}` : o.pickup,
     phone: !o.phone ? "No number yet" : phMobile(o.phone) ? o.phone : `${o.phone} (check this number)`, wallet: null, checked: false, companions: [], emergency: null, source: o.source };
 }
 
@@ -335,13 +343,14 @@ async function start() {
         status: b.status, holdUntil: b.hold_until, dpReference: b.dp_reference, dpSentAt: b.dp_sent_at, expiredAt: b.expired_at,
         phone: b.joiner_phone || "No number yet", wallet: b.wallet, checked: false,
         companions: b.companions || [], emergency: b.emergency || null }))
-        .concat(outside.filter(o => o.trip_id === t.id && o.date === date).map(outsideRow));
+        .concat(outside.filter(o => o.trip_id === t.id && o.date === date && (o.status || "confirmed") === "confirmed").map(outsideRow));
       const taken = bookings.reduce((a, b) => a + b.size, 0) + (t.sampleBooked?.[date] || 0);
       const status = t.dateStatus?.[date] === "open" ? "open" : (t.dateStatus?.[date] || "open");
       // Expired DP holds (TP-011) no longer use slots: listed apart, with Rebook for late payers.
       const expired = bookings.filter(b => !b.source && dpState(b, 0) === "expired");
       state[t.id + "|" + date] = { trip: t, date, cap: t.capacity?.[date] || t.group, held: t.sampleBooked?.[date] || 0, status,
-        bookings: bookings.filter(b => !expired.includes(b)), expired, note: "" };
+        bookings: bookings.filter(b => !expired.includes(b)), expired, note: "",
+        outsideCancelled: outside.filter(o => o.trip_id === t.id && o.date === date && o.status === "cancelled") };
       return;
     }
     const booked = t.group - left, bookings = [];
@@ -466,7 +475,7 @@ async function start() {
     const toCome = s.bookings.reduce((a, b) => a + missingOf(b), 0);
     $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${booked} joiners · ${checked} checked in${toCome ? ` · ${toCome} ${toCome === 1 ? "name" : "names"} still to come` : ""}`;
     if (!s.bookings.length) {
-      $("joiners-wrap").innerHTML = `<p class="empty-list">No bookings yet for this date. Copy the Facebook text above and post it in your groups.</p>${expiredList(s)}`;
+      $("joiners-wrap").innerHTML = `<p class="empty-list">No bookings yet for this date. Copy the Facebook text above and post it in your groups.</p>${expiredList(s)}${cancelledOutsideList(s)}`;
       return;
     }
     const balance = s.trip.fee - s.trip.dp;
@@ -475,13 +484,13 @@ async function start() {
       <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">Emergency contact</th><th scope="col">DP record</th><th scope="col" class="num">Collect</th></tr></thead>
       <tbody>${s.bookings.map((b, i) => `<tr>
         <td><label class="checkin"><input type="checkbox" data-check="${i}" ${b.checked ? "checked" : ""}><span class="sr">${esc(b.name)} checked in</span></label></td>
-        <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b)}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
+        <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b)}${b.outsideId && TP.online && statusOf(s) !== "completed" && statusOf(s) !== "cancelled" ? `<div class="out-actions"><button type="button" class="link-btn" data-out-edit="${i}">Edit<span class="sr"> ${esc(b.name)}'s booking</span></button><button type="button" class="link-btn danger" data-out-cancel="${i}">Cancel<span class="sr"> ${esc(b.name)}'s booking</span></button></div>` : ""}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
         <td>${b.emergency ? `<div class="em"><span>${esc(b.emergency.name)}${b.emergency.relation ? ` (${esc(b.emergency.relation)})` : ""}</span><span class="data">${esc(b.emergency.phone)}</span></div>` : "Not added yet"}</td>
         <td>${TP.online && receipts === null ? "Unavailable" : `${pesos(receivedOf(b, s))} / ${pesos(expectedOf(b, s))}<br>${(st => DP_STATES[st] + (st === "sent" ? ` · ref ${esc(b.dpReference || "")}` : st === "held" ? ` · held until ${holdTime(b.holdUntil)}` : ""))(dpState(b, receivedOf(b, s), expectedOf(b, s)))}`}
           ${TP.online && receipts !== null ? `<br><button type="button" class="link-btn" data-receipt="${i}" aria-controls="receipt-panel">${receiptOf(b) ? "Correct DP / history" : "Record DP"}<span class="sr"> for ${esc(b.name)}</span></button>` : ""}</td>
         <td class="num">${TP.online && receipts === null ? "Unavailable" : pesos(balanceOf(b, s))}</td></tr>`).join("")}</tbody>
       <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td></td><td>${TP.online && receipts === null ? "Unavailable" : pesos(s.bookings.reduce((n,b) => n + receivedOf(b,s),0))}</td><td class="num">${TP.online && receipts === null ? "Unavailable" : pesos(s.bookings.reduce((n,b) => n + balanceOf(b,s),0))}</td></tr></tfoot>
-    </table>${expiredList(s)}`;
+    </table>${expiredList(s)}${cancelledOutsideList(s)}`;
   }
 
   // Everyone in a booking after the booker: name, under-18 flag, mobile; and names still to come.
@@ -496,7 +505,53 @@ async function start() {
 
   // Add outside booking: a panel above the joiner list for the selected date. One request id
   // per submit (kept for retries) so a double click or a resend saves it only once.
+  // Cancelled outside bookings stay listed with their reason, so the change is traceable.
+  function cancelledOutsideList(s) {
+    if (!s.outsideCancelled?.length) return "";
+    return `<div class="expired-holds"><h3>Cancelled outside bookings</h3><ul>${s.outsideCancelled.map(o => `<li><span><strong>${esc(o.name)}</strong> · ${o.size} ${o.size === 1 ? "joiner" : "joiners"} · ${SOURCES[o.source]} · cancelled ${holdTime(o.cancelled_at)}: ${esc(o.cancel_reason || "")}</span></li>`).join("")}</ul></div>`;
+  }
+  // Edit or cancel an outside booking (TP-009): the panel above the joiner list, like Add.
+  function renderOutsideChange(s) {
+    const b = s.bookings[s.outChange?.index];
+    if (!b) return false;
+    const o = b.raw, v = s.outChange.draft || {}, left = s.cap - takenOf(s), hist = s.outChange.history;
+    const historyHtml = hist === undefined ? "" : `<details><summary>History (${hist.length})</summary><ol>${hist.map(h => `<li>${holdTime(h.changed_at)} · ${h.action === "cancel" ? "Cancelled" : "Edited"}: ${["name", "size", "pickup", "phone", "source"].filter(k => JSON.stringify(h.before[k]) !== JSON.stringify(h.after[k])).map(k => `${k} ${esc(String(h.before[k] ?? "–"))} → ${esc(String(h.after[k] ?? "–"))}`).join(", ") || "status"}. ${esc(h.reason)}</li>`).join("") || "<li>No changes yet.</li>"}</ol></details>`;
+    const err = s.outChange.error ? `<p class="error" id="out-err" role="alert"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>${esc(s.outChange.error)}</span></p>` : `<p class="error" id="out-err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>`;
+    if (s.outChange.mode === "cancel") {
+      $("out-panel").innerHTML = `<form class="out-form confirm-out" id="out-cancel-form" novalidate aria-labelledby="oc-h">
+        <h3 id="oc-h">Cancel ${esc(b.name)}'s booking?</h3>
+        <p class="hint">${b.size} ${b.size === 1 ? "slot opens" : "slots open"} again. Any DP you recorded stays on record: refund it outside TrailPeak if your policy says so.</p>
+        <div class="field2"><label class="field-label" for="oc-reason">Reason</label><input class="input" id="oc-reason" maxlength="300" autocomplete="off" value="${esc(v.reason || "")}" placeholder="e.g. Group backed out on Messenger"></div>
+        ${err}
+        <div class="actions"><button type="submit" class="btn btn-danger label-caps"${s.outChange.saving ? " disabled" : ""}>${s.outChange.saving ? "Cancelling…" : "Cancel booking"}</button><button type="button" class="link-btn" id="oc-keep">Keep booking</button></div>
+        ${historyHtml}</form>`;
+      return true;
+    }
+    const picks = s.trip.pickups.map(p => [p.place, p.time]);
+    if (!picks.some(([p, t]) => p === o.pickup && (t || "") === (o.pickup_time || ""))) picks.unshift([o.pickup, o.pickup_time || ""]);
+    const cur = v.pick ?? String(picks.findIndex(([p, t]) => p === o.pickup && (t || "") === (o.pickup_time || "")));
+    $("out-panel").innerHTML = `<form class="out-form" id="out-edit-form" novalidate aria-labelledby="oe-h">
+      <h3 id="oe-h">Edit ${esc(o.name)}'s booking · ${nice(s.date)}</h3>
+      <p class="hint">Adding joiners needs free slots (${left} left). Fewer joiners open slots again. Recorded DPs stay as they are.</p>
+      <div class="out-grid">
+        <div class="field2"><label class="field-label" for="oe-name">Booker's name</label><input class="input" id="oe-name" autocomplete="off" value="${esc(v.name ?? o.name)}"></div>
+        <div class="field2"><label class="field-label" for="oe-size">Joiners</label><input class="input data" type="number" id="oe-size" min="1" max="${Math.min(20, o.size + left)}" value="${v.size ?? o.size}"></div>
+        <div class="field2"><label class="field-label" for="oe-pick">Pick-up</label><select class="input" id="oe-pick">${picks.map(([p, t], i) => `<option value="${i}"${String(i) === String(cur) ? " selected" : ""}>${esc(p)}${t ? ` · ${esc(t)}` : ""}</option>`).join("")}</select></div>
+        <div class="field2"><label class="field-label" for="oe-phone">Mobile (optional)</label><input class="input data" type="tel" id="oe-phone" autocomplete="off" value="${esc(v.phone ?? o.phone ?? "")}" placeholder="+63 917 123 4567"></div>
+      </div>
+      <fieldset class="out-src"><legend class="field-label">Booked through</legend>
+        ${Object.entries(SOURCES).map(([k, l]) => `<label><input type="radio" name="oe-src" value="${k}"${(v.source || o.source) === k ? " checked" : ""}>${l}</label>`).join("")}
+      </fieldset>
+      <div class="field2"><label class="field-label" for="oe-reason">Reason for the change</label><input class="input" id="oe-reason" maxlength="300" autocomplete="off" value="${esc(v.reason || "")}" placeholder="e.g. Fixed spelling; one friend dropped out"></div>
+      ${err}
+      <div class="actions"><button type="submit" class="btn btn-primary label-caps"${s.outChange.saving ? " disabled" : ""}>${s.outChange.saving ? "Saving…" : "Save changes"}</button><button type="button" class="link-btn" id="oe-close">Cancel</button></div>
+      ${historyHtml}
+    </form>`;
+    s.outChange.picks = picks;
+    return true;
+  }
   function renderOutsideForm(s) {
+    if (renderOutsideChange(s)) return;
     const open = statusOf(s) === "open", left = s.cap - takenOf(s);
     $("add-out").setAttribute("aria-expanded", String(!!s.adding));
     $("add-out").textContent = s.adding ? "Close the form" : "Add outside booking";
@@ -632,6 +687,23 @@ async function start() {
       const s = state[selected]; s.adding = !s.adding; renderJoiners();
       if (s.adding) ($("out-name") || $("out-panel").firstElementChild)?.focus?.(); else $("add-out").focus();
     }
+    if (d.outEdit !== undefined || d.outCancel !== undefined) {
+      const s = state[selected]; s.adding = false;
+      s.outChange = { mode: d.outEdit !== undefined ? "edit" : "cancel", index: Number(d.outEdit ?? d.outCancel) };
+      renderJoiners(); ($("oe-name") || $("oc-reason"))?.focus();
+      const b = s.bookings[s.outChange.index];
+      // History arrives a moment later; redraw without losing what the keyboard was on.
+      if (TP.online && b?.outsideId) TP.outsideChanges(b.outsideId).then(h => {
+        if (!s.outChange) return;
+        const was = document.activeElement?.id; s.outChange.history = h; renderOutsideForm(s);
+        if (was) document.getElementById(was)?.focus();
+      }).catch(() => {});
+      return;
+    }
+    if (t.id === "oe-close" || t.id === "oc-keep") {
+      const s = state[selected], i = s.outChange?.index, mode = s.outChange?.mode; s.outChange = null; renderJoiners();
+      document.querySelector(`[data-out-${mode}="${i}"]`)?.focus(); return;
+    }
     if (t.id === "out-cancel") { const s = state[selected]; s.adding = false; s.draft = null; s.requestId = null; renderJoiners(); $("add-out").focus(); }
     if (d.slots) {
       const s = state[d.slots]; s.editing = !s.editing; renderTrips();
@@ -722,6 +794,47 @@ async function start() {
     } catch (err) {
       s.receiptSaving = false; s.receiptError = err.message; renderReceiptForm(s); $("receipt-error").tabIndex = -1; $("receipt-error").focus();
     }
+  });
+
+  // Save an edit or a cancel of an outside booking. The server re-checks everything and keeps
+  // the history; on any error the booking stays as it was and the form keeps what was typed.
+  document.addEventListener("submit", async e => {
+    if (e.target.id !== "out-edit-form" && e.target.id !== "out-cancel-form") return;
+    e.preventDefault();
+    const s = state[selected], ch = s.outChange, b = s.bookings[ch?.index];
+    if (!b || ch.saving) return;
+    const fail = (msg, input) => { ch.saving = false; ch.error = msg; renderOutsideForm(s); const f = input && $(input.id); if (f) { f.setAttribute("aria-invalid", "true"); f.setAttribute("aria-describedby", "out-err"); f.focus(); } else $("out-err")?.focus(); say(msg); };
+    const o = b.raw;
+    if (ch.mode === "cancel") {
+      const reason = $("oc-reason").value.trim(); ch.draft = { reason };
+      if (!reason) return fail("Add a short reason for cancelling.", $("oc-reason"));
+      ch.saving = true; ch.error = ""; renderOutsideForm(s);
+      let row = { ...o, status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: reason };
+      if (TP.online) { try { row = await TP.cancelOutsideBooking(o.id, reason); } catch (err) { return fail(err.message); } }
+      s.bookings.splice(ch.index, 1); s.outsideCancelled = [...(s.outsideCancelled || []), row]; s.outChange = null;
+      s.note = `Cancelled ${o.name}'s booking (${o.size} ${o.size === 1 ? "joiner" : "joiners"}). ${s.cap - takenOf(s)} slots open now.`;
+      renderAll(); say(s.note); $("add-out").focus(); return;
+    }
+    const v = { name: $("oe-name").value.trim(), size: Number($("oe-size").value), pick: $("oe-pick").value, phone: $("oe-phone").value.trim(),
+      source: document.querySelector('input[name="oe-src"]:checked')?.value || o.source, reason: $("oe-reason").value.trim() };
+    ch.draft = v;
+    const left = s.cap - takenOf(s), [pickup, pickupTime] = ch.picks[Number(v.pick)] || [];
+    if (!v.name) return fail("Enter the booker's name.", $("oe-name"));
+    if (!Number.isInteger(v.size) || v.size < 1 || v.size > 20) return fail("Joiners must be between 1 and 20.", $("oe-size"));
+    if (v.size - o.size > left) return fail(`Only ${left} ${left === 1 ? "slot is" : "slots are"} left, so this booking can't grow by ${v.size - o.size}.`, $("oe-size"));
+    if (v.phone && !phMobile(v.phone)) return fail(`The mobile number ${PH_MOBILE_HINT}`, $("oe-phone"));
+    if (!v.reason) return fail("Add a short reason for the change.", $("oe-reason"));
+    ch.saving = true; ch.error = ""; renderOutsideForm(s);
+    let row = { ...o, name: v.name, size: v.size, pickup, pickup_time: pickupTime || null, phone: v.phone ? phMobile(v.phone) : null, source: v.source,
+      expected_dp: (o.expected_dp / o.size) * v.size, total_fee: (o.total_fee / o.size) * v.size, revision: (o.revision || 1) + 1 };
+    if (TP.online) {
+      try { row = await TP.editOutsideBooking({ id: o.id, revision: o.revision || 1, name: v.name, size: v.size, pickup, pickupTime, source: v.source, phone: v.phone, reason: v.reason }); }
+      catch (err) { return fail(err.message, /grow|slot/.test(err.message) ? $("oe-size") : null); }
+    }
+    s.bookings[ch.index] = outsideRow(row); s.outChange = null;
+    const diff = row.size - o.size;
+    s.note = `Updated ${row.name}'s booking${diff ? `: ${Math.abs(diff)} ${Math.abs(diff) === 1 ? "slot" : "slots"} ${diff > 0 ? "taken" : "opened"}` : ""}. ${s.cap - takenOf(s)} slots open now.`;
+    renderAll(); say(s.note); document.querySelector(`[data-out-edit="${ch.index}"]`)?.focus();
   });
 
   // Change slots: checked here for a quick answer, and again by the database, which has the

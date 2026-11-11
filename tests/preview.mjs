@@ -22,7 +22,9 @@ await db.query('insert into trips(id,organizer_id,org_name,details) values ($1,$
 await db.exec(`insert into departures(trip_id,date,capacity) values ('receipt-test','2099-01-01',10);
 insert into bookings(ref,trip_id,date,user_id,size,pickup,pickup_time,dp,balance,wallet,wallet_number,hold_until)
 values ('TP-LOCAL','receipt-test','2099-01-01','${joiner}',2,'Cubao','2 AM',1000,1998,'GCash','synthetic',now() + interval '6 hours'),
-       ('TP-LATE','receipt-test','2099-01-01','${joiner}',1,'Cubao','2 AM',500,999,'GCash','synthetic',now() - interval '1 hour');`);
+       ('TP-LATE','receipt-test','2099-01-01','${joiner}',1,'Cubao','2 AM',500,999,'GCash','synthetic',now() - interval '1 hour');
+insert into outside_bookings(request_id,trip_id,date,created_by,name,size,pickup,pickup_time,source)
+values (gen_random_uuid(),'receipt-test','2099-01-01','${org}','Tset Booker',2,'Cubao','2 AM','messenger');`);
 const bridge=`window.TRAILPEAK_SUPABASE={url:'local-test',anonKey:'local-test'};
 const testJoiner=new URLSearchParams(location.search).get('testRole')==='joiner';
 const testId=testJoiner?'${joiner}':'${org}';
@@ -38,12 +40,12 @@ const server=http.createServer(async(req,res)=>{try{
   const task=async()=>{await db.exec('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[q.user]);try{
    let result;
    if(q.name){
-    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
+    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired','edit_outside_booking','cancel_outside_booking'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
     const args=Object.entries(q.args||{});result=await db.query(`select * from ${q.name}(${args.map(([k],i)=>k+'=> $'+(i+1)).join(',')})`,args.map(([,v])=>v));
    }else{
-    if(!['profiles','trips','departures','bookings','reviews','outside_bookings','dp_receipts','organizer_activity','app_settings'].includes(q.table))throw Error('Unexpected table');
-    const filters=q.filters||[];for(const[k]of filters)if(!['id','user_id','status'].includes(k))throw Error('Unexpected filter');
-    const order=q.order;if(order&&!['revision','created_at','date'].includes(order))throw Error('Unexpected order');
+    if(!['profiles','trips','departures','bookings','reviews','outside_bookings','dp_receipts','organizer_activity','app_settings','outside_booking_changes'].includes(q.table))throw Error('Unexpected table');
+    const filters=q.filters||[];for(const[k]of filters)if(!['id','user_id','status','outside_id'].includes(k))throw Error('Unexpected filter');
+    const order=q.order;if(order&&!['revision','created_at','date','id'].includes(order))throw Error('Unexpected order');
     result=await db.query('select * from '+q.table+(filters.length?' where '+filters.map(([k],i)=>k+'=$'+(i+1)).join(' and '):'')+(order?' order by '+order+(q.desc?' desc':''):' '),filters.map(([,v])=>v));
    }
    return {data:q.single||q.name==='record_dp_receipt'?result.rows[0]:result.rows,error:null};
