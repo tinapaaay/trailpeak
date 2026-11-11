@@ -571,6 +571,7 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - Every page starts with a "Skip to content" link, visible on first Tab, that jumps to `main`.
 - Icons never carry meaning alone. Numbers get hidden screen-reader words ("Difficulty 4/9", "Rated 4.8 from 212 reviews"), and repeated buttons get unique names ("View and join Mt. Batulao").
 - Form errors are announced: a live line names the sections to fix, focus moves to the first one, and each section is linked to its error text only while the error shows.
+- Focus never falls back to the top of the page (TP-019). A form error focuses the field to fix and marks it invalid (sign-in profile included); in My trips, after saving details, moving, cancelling, sending a reference or posting a review, focus goes to that booking's title (`tabindex="-1"`, the usual 2px `primary` focus ring), and panel errors are announced as alerts. The upcoming list has a screen-reader-only "Upcoming trips" heading so the outline goes h1 → h2 → h3.
 - When a control changes a total off-screen (the joiner stepper), a hidden live line says the result ("3 joiners. Pay ₱1,500 now, ₱2,997 on meetup day.").
 - Never label the same thing twice: if the visible text already says "Meetup", the icon next to it stays silent.
 - Previews of real components are `inert`, so keyboard users can't tab into a fake button.

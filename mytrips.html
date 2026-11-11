@@ -109,7 +109,7 @@ textarea.input { width: 100%; resize: vertical; }
       <h1>My trips</h1>
       <p class="lead" id="lead"></p>
     </div>
-    <div id="upcoming"></div>
+    <section aria-labelledby="up-h"><h2 class="sr" id="up-h">Upcoming trips</h2><div id="upcoming"></div></section>
     <section id="past-sec" hidden aria-labelledby="past-h"><h2 id="past-h" style="margin-bottom:var(--space-md)">Past trips</h2><div id="past" style="display:grid;gap:var(--space-md)"></div></section>
     <section id="cx-sec" hidden aria-labelledby="cx-h"><h2 id="cx-h" style="margin-bottom:var(--space-md)">Cancelled</h2><div id="cancelled" style="display:grid;gap:var(--space-md)"></div></section>
     <p class="sr" id="live" aria-live="polite"></p>
@@ -238,7 +238,7 @@ function card(b) {
     <img src="${img(T.photo)}" alt="">
     <div class="body">
       <div class="top"><span class="pill ${status[0]}">${status[1]}</span>${!cancelled && !isPast ? `<span class="data countdown">${when}</span>` : ""}</div>
-      <h3>${esc(T.title)}</h3>
+      <h3 id="bh-${b.ref}" tabindex="-1">${esc(T.title)}</h3>
       <p class="meta byline">${esc(T.place)} · by ${esc(T.org)} · booking <span class="data">${b.ref}</span></p>
       <dl class="facts">
         <div><dt>Date</dt><dd>${nice(b.date)}</dd></div>
@@ -274,32 +274,35 @@ document.addEventListener("submit", async e => {
   if (!v) { input.setAttribute("aria-invalid", "true"); input.focus(); return alertPanel("Enter the reference number from your GCash or Maya receipt.", f); }
   const btn = f.querySelector("button[type=submit]"); if (btn.disabled) return;
   btn.disabled = true; btn.textContent = "Saving…";
-  try { await TP.sendDpReference(ref, v); delete open[ref]; open[ref] = "done"; render(); $("live").textContent = "DP reference saved. Your slots stay held while the organizer checks it."; }
+  try { await TP.sendDpReference(ref, v); delete open[ref]; open[ref] = "done"; render(); focusCard(ref); $("live").textContent = "DP reference saved. Your slots stay held while the organizer checks it."; }
   catch (err) { btn.disabled = false; btn.textContent = "I've sent the DP"; input.setAttribute("aria-invalid", "true"); alertPanel(err.message, f); input.focus(); }
 });
 function alertPanel(msg, panel = document.querySelector(".inline")) {
   if (!panel) return;
   let p = panel.querySelector(".srv-err");
-  if (!p) { p = document.createElement("p"); p.className = "note srv-err"; p.style.color = "var(--color-error)"; panel.append(p); }
+  if (!p) { p = document.createElement("p"); p.className = "note srv-err"; p.setAttribute("role", "alert"); p.style.color = "var(--color-error)"; panel.append(p); }
   p.textContent = msg;
 }
 function update(ref, fn) {
   const list = getBookings(); const b = list.find(x => x.ref === ref);
-  fn(b); saveBookings(list); delete open[ref]; render();
+  fn(b); saveBookings(list); delete open[ref]; render(); focusCard(ref);
 }
+// After a panel closes the list is redrawn: put focus back on that booking's title (TP-019),
+// so keyboard and screen reader users don't start again from the top of the page.
+const focusCard = ref => document.getElementById("bh-" + ref)?.focus();
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
   const d = t.dataset;
   if (d.ref) { open[d.ref] = "ref"; render(); document.getElementById("ref-" + d.ref)?.focus(); return; }
   if (d.move) { open[d.move] = "move"; render(); document.getElementById("mv-" + d.move)?.focus(); }
   if (d.cancel) { open[d.cancel] = "cancel"; render(); document.querySelector(`[data-cancel-yes="${d.cancel}"]`).focus(); }
-  if (d.close) { delete open[d.close]; render(); }
+  if (d.close) { delete open[d.close]; render(); focusCard(d.close); }
   if (d.details) { open[d.details] = "details"; render(); document.querySelector(`[data-details-form="${d.details}"] input`)?.focus(); }
   if (d.review) { open[d.review] = "review"; render(); document.getElementById(`rate-${d.review}-1`)?.focus(); }
   if (d.cancelYes) {
     if (TP.online) {
       t.disabled = true;
-      TP.cancel(d.cancelYes).then(() => { delete open[d.cancelYes]; render(); $("live").textContent = "Booking cancelled."; })
+      TP.cancel(d.cancelYes).then(() => { delete open[d.cancelYes]; render(); focusCard(d.cancelYes); $("live").textContent = "Booking cancelled."; })
         .catch(err => { t.disabled = false; $("live").textContent = err.message; alertPanel(err.message); });
       return;
     }
@@ -314,7 +317,7 @@ document.addEventListener("submit", e => {
   const ref = f.dataset.detailsForm, b = getBookings().find(x => x.ref === ref), dp = "d" + ref.replace(/\W/g, "");
   const jd = readJoinerFields(dp, b.size);
   if (jd.error) { alertPanel(jd.error, f); jd.field.focus(); return; }
-  const done = () => { delete open[ref]; render(); $("live").textContent = "Joiner details saved. The organizer can see them now."; };
+  const done = () => { delete open[ref]; render(); focusCard(ref); $("live").textContent = "Joiner details saved. The organizer can see them now."; };
   if (TP.online) {
     const btn = f.querySelector('button[type="submit"]'); btn.disabled = true;
     TP.updateDetails(ref, jd.companions, jd.emergency, jd.booker).then(done).catch(err => { btn.disabled = false; alertPanel(err.message, f); });
@@ -337,7 +340,7 @@ document.addEventListener("submit", e => {
   const btn = f.querySelector('button[type="submit"]');
   if (!stars) { alertPanel("Choose 1 to 5 stars.", f); f.querySelector("input").focus(); return; }
   if (!text) { alertPanel("Write a few words about the trip.", f); document.getElementById("rv-" + ref).focus(); return; }
-  const done = () => { delete open[ref]; delete draft[ref]; render(); $("live").textContent = "Review posted. Thanks for helping other joiners."; };
+  const done = () => { delete open[ref]; delete draft[ref]; render(); focusCard(ref); $("live").textContent = "Review posted. Thanks for helping other joiners."; };
   if (TP.online) {
     btn.disabled = true;
     TP.addReview(ref, stars, text).then(done).catch(err => { btn.disabled = false; alertPanel(err.message, f); $("live").textContent = err.message; });
@@ -352,7 +355,7 @@ document.addEventListener("submit", e => {
   e.preventDefault();
   const ref = f.dataset.moveForm, to = document.getElementById("mv-" + ref).value;
   if (TP.online) {
-    TP.move(ref, to).then(() => { delete open[ref]; render(); $("live").textContent = `Booking moved to ${nice(to)}.`; })
+    TP.move(ref, to).then(() => { delete open[ref]; render(); focusCard(ref); $("live").textContent = `Booking moved to ${nice(to)}.`; })
       .catch(err => { $("live").textContent = err.message; alertPanel(err.message); });
     return;
   }
