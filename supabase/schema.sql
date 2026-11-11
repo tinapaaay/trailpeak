@@ -648,8 +648,11 @@ create or replace function public.whos_going(p_trip text, p_date date)
 returns table (display_name text, size int, is_you boolean)
 language sql stable security definer set search_path = public as $$
   with mine as (
+    -- "Booked on that date" = a booking that still holds its seat: not cancelled, expired or a
+    -- lapsed unpaid hold (TP-005). Only then do you see other joiners' opted-in names.
     select exists (select 1 from public.bookings
-                   where trip_id = p_trip and date = p_date and user_id = auth.uid() and status = 'confirmed') as booked)
+                   where trip_id = p_trip and date = p_date and user_id = auth.uid()
+                     and public.booking_holds_seat(status, hold_until, dp_sent_at)) as booked)
   select case when (select booked from mine) and (b.listed or b.user_id = auth.uid()) then b.display_name end,
          b.size,
          b.user_id = auth.uid()
