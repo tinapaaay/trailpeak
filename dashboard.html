@@ -93,6 +93,8 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .out-actions { display: flex; flex-wrap: wrap; gap: 0 var(--space-sm); margin-top: var(--space-xs); }
 .out-actions .link-btn { padding: 0; min-height: 44px; }
 .confirm-out { border-color: var(--color-error); }
+.out-form > .field2 { display: grid; gap: var(--space-sm); }
+.out-form > .field2 .input { width: 100%; }
 .out-form details ol { margin: var(--space-xs) 0 0; padding-left: var(--space-lg); color: var(--color-secondary); font-size: 15px; display: grid; gap: 2px; }
 
 /* Expired DP holds under the joiner list (TP-011) */
@@ -690,7 +692,12 @@ async function start() {
       s.outChange = { mode: d.outEdit !== undefined ? "edit" : "cancel", index: Number(d.outEdit ?? d.outCancel) };
       renderJoiners(); ($("oe-name") || $("oc-reason"))?.focus();
       const b = s.bookings[s.outChange.index];
-      if (TP.online && b?.outsideId) TP.outsideChanges(b.outsideId).then(h => { if (s.outChange) { s.outChange.history = h; renderOutsideForm(s); } }).catch(() => {});
+      // History arrives a moment later; redraw without losing what the keyboard was on.
+      if (TP.online && b?.outsideId) TP.outsideChanges(b.outsideId).then(h => {
+        if (!s.outChange) return;
+        const was = document.activeElement?.id; s.outChange.history = h; renderOutsideForm(s);
+        if (was) document.getElementById(was)?.focus();
+      }).catch(() => {});
       return;
     }
     if (t.id === "oe-close" || t.id === "oc-keep") {

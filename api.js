@@ -290,13 +290,13 @@ TP.editOutsideBooking = async o => {
     p_pickup: o.pickup, p_pickup_time: o.pickupTime || null, p_source: o.source, p_phone: o.phone || null, p_reason: o.reason });
   if (error) throw tpErr(error);
   await TP.sync({ reload: false });
-  return data;
+  return Array.isArray(data) ? data[0] : data;   // one row, whichever shape the client returns
 };
 TP.cancelOutsideBooking = async (id, reason) => {
   const { data, error } = await TP.db.rpc("cancel_outside_booking", { p_id: id, p_reason: reason });
   if (error) throw tpErr(error);
   await TP.sync({ reload: false });
-  return data;
+  return Array.isArray(data) ? data[0] : data;
 };
 TP.outsideChanges = async id => {
   const { data, error } = await TP.db.from("outside_booking_changes").select("*").eq("outside_id", id).order("id");
