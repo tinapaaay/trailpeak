@@ -204,12 +204,14 @@ function card(b) {
   const group = ["You", ...(b.companions || []).map(c => c.name + (c.age === "minor" ? " (under 18)" : ""))].join(", ");
   const detailsLine = !cancelled && !isPast
     ? (missing
-      ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Add ${missing === 1 ? "1 joiner's" : `${missing} joiners'`} details by ${nice(dueDate(b.date))}.</strong> The organizer needs every name to register your group.</span></p>`
+      ? (detailsRequired(b.date)
+        ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>${missing === 1 ? "1 joiner's details were" : `${missing} joiners' details were`} due ${nice(dueDate(b.date))}.</strong> Add them now: the organizer needs every name to register your group.</span></p>`
+        : `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Add ${missing === 1 ? "1 joiner's" : `${missing} joiners'`} details before ${nice(dueDate(b.date))}.</strong> The organizer needs every name to register your group.</span></p>`)
       : (!b.emergency ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Add an emergency contact.</strong> Someone who isn't on this hike.</span></p>` : ""))
     : "";
   if (open[b.ref] === "details") {
     panel = `<form class="inline" data-details-form="${b.ref}" novalidate>
-      ${joinerFieldsHtml(dp, b.size, b.companions || [], b.emergency, { you: user.name })}
+      ${joinerFieldsHtml(dp, b.size, b.companions || [], b.emergency, { you: user.name, date: b.date, overdue: detailsRequired(b.date) })}
       <div class="row"><button type="submit" class="btn btn-primary label-caps">Save details</button><button type="button" class="link-btn" data-close="${b.ref}">Cancel</button></div>
     </form>`;
   }

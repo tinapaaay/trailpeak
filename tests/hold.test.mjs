@@ -46,7 +46,7 @@ r = await status(legacy);
 check("Upgrade: booking made before holds keeps no deadline and stays confirmed", r.status === "confirmed" && (await q(`select hold_until from bookings where ref=$1`, [legacy]))[0].hold_until === null, r);
 await q(`select public.expire_holds()`);
 check("...and expire_holds never expires it", (await status(legacy)).status === "confirmed");
-r = await q(`select key, value::int v from app_settings order by key`);
+r = await q(`select key, value::int v from app_settings where key like 'dp_%' order by key`);
 check("Settings: 6 h hold, 2 h within 3 days, 24 h reminder", JSON.stringify(r) === JSON.stringify([{ key: "dp_hold_hours", v: 6 }, { key: "dp_hold_hours_soon", v: 2 }, { key: "dp_hold_soon_days", v: 3 }, { key: "dp_reminder_hours", v: 24 }]), r);
 
 // Hold lengths and the 3-day boundary
@@ -148,7 +148,7 @@ check("Capacity guard counts held bookings (can't go below them)", !r.ok, r);
 r = await as(A, `select status, hold_until, dp_reference from public.organizer_bookings() where ref='${j3far}'`);
 check("Organizer list includes expired bookings with their hold fields", r.ok && r.rows[0]?.status === "expired" && r.rows[0].hold_until, r);
 r = await as(null, `select key from public.app_settings`, "anon");
-check("Anyone can read the hold settings (shown before booking)", r.ok && r.rows.length === 4, r);
+check("Anyone can read the hold settings (shown before booking)", r.ok && ["dp_hold_hours", "dp_hold_hours_soon", "dp_hold_soon_days", "dp_reminder_hours"].every(k => r.rows.some(x => x.key === k)), r);
 r = await as(A, `update public.app_settings set value = 1`);
 check("Nobody but the owner can change them", !r.ok, r);
 

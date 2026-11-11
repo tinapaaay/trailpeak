@@ -7,6 +7,7 @@ One short file per technical decision: the context, the options, why one won, an
 | [001](001-static-site-supabase.md) | Static site on GitHub Pages with a light Supabase backend | Accepted |
 | [002](002-dp-hold-expiry.md) | Release unpaid DP holds by computing them at read time, with pg_cron for labels | Accepted |
 | [003](003-manual-organizer-approval.md) | Approve pilot organizers by hand in the SQL editor | Accepted for the pilot |
+| [006](006-joiner-details-cutoff.md) | One Manila-date cut-off for joiner details, decided in the database | Accepted (3 days to confirm) |
 
 Planned: 004 payment gateway (TP-026) · 005 booking, payment and refund states (TP-027) · map provider (parked).
 

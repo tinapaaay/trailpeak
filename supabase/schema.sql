@@ -517,6 +517,12 @@ declare
 begin
   if me is null then raise exception 'Sign in to reserve.'; end if;
   people := public.clean_details(p_companions, p_size, p_emergency);
+  -- Joiner details rule (TP-014, ADR-006): from the due date on, every joiner's full name is
+  -- needed before the booking confirms. Earlier bookings may add names later in My trips.
+  if public.details_required(p_date) and jsonb_array_length(people) < p_size - 1 then
+    raise exception 'This trip is % days away or less, so add every joiner''s full name now (% of % still missing).',
+      public.app_setting('details_due_days')::int, p_size - 1 - jsonb_array_length(people), p_size - 1;
+  end if;
   perform public.clear_old_details();
   perform public.expire_holds();
   select * into dep from public.departures where trip_id = p_trip and date = p_date for update;
@@ -1256,3 +1262,32 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.my_booking_contacts from public, anon;
 grant execute on function public.my_booking_contacts to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- Joiner details cut-off (TP-014, ADR-006). Names are due `details_due_days` (3) days before the
+-- trip, on the Manila calendar: from that day on (trip date minus 3, inclusive) a new booking
+-- needs every joiner's full name and the emergency contact before it confirms. The pages use
+-- the same setting and Manila dates, so they agree with this function.
+-- ---------------------------------------------------------------------------
+insert into public.app_settings (key, value, note) values
+  ('details_due_days', 3, 'Joiner names are due this many days before the trip (Manila dates); bookings made from then on need every name')
+on conflict (key) do nothing;
+
+-- The Manila calendar date of a moment (the database clock runs on UTC).
+create or replace function public.ph_date(p_at timestamptz)
+returns date language sql stable as $$ select (p_at at time zone 'Asia/Manila')::date $$;
+
+-- The last moment to add names without them being required at booking: the due date.
+create or replace function public.details_due_date(p_trip_date date)
+returns date language sql stable security definer set search_path = public as $$
+  select p_trip_date - public.app_setting('details_due_days')::int;
+$$;
+
+-- Are every joiner's details required now for a trip on p_trip_date? p_today defaults to
+-- today in Manila; tests pass it explicitly to check the boundaries.
+create or replace function public.details_required(p_trip_date date, p_today date default null)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(p_today, public.ph_today()) >= public.details_due_date(p_trip_date);
+$$;
+grant execute on function public.ph_date, public.details_due_date, public.details_required to anon, authenticated;

@@ -60,16 +60,18 @@ function tpUser(p, email, unread = 0) {
 TP.sync = async function ({ reload = true } = {}) {
   if (!TP.online) return;
   const before = JSON.stringify([tpReadCache().trips, tpReadCache().slots, tpReadCache().reviews, localStorage.getItem(TP_USER_KEY), localStorage.getItem(TP_BOOKINGS_KEY)]);
-  const [{ data: trips, error: e1 }, { data: slots, error: e2 }, { data: deps }, { data: reviews }] = await Promise.all([
+  const [{ data: trips, error: e1 }, { data: slots, error: e2 }, { data: deps }, { data: reviews }, { data: settings }] = await Promise.all([
     TP.db.from("trips").select("id, organizer_id, org_name, details").order("created_at"),
     TP.db.rpc("all_slots"),
     TP.db.from("departures").select("trip_id, date, sample_booked, capacity"),
     TP.db.rpc("all_reviews"),
+    TP.db.from("app_settings").select("key, value"),   // rule numbers shared with the database (holds, details cut-off)
   ]);
   if (e1 || e2) { console.warn("TrailPeak: couldn't load trips", e1 || e2); return; }
   const dep = Object.fromEntries((deps || []).map(d => [d.trip_id + "|" + d.date, d]));
   tpWriteCache({ trips, slots: slots.map(s => ({ ...s, sample_booked: dep[s.trip_id + "|" + s.date]?.sample_booked || 0, capacity: dep[s.trip_id + "|" + s.date]?.capacity })),
-    reviews: (reviews || []).map(r => ({ tripId: r.trip_id, name: r.display_name, date: r.created_at.slice(0, 10), stars: r.stars, text: r.body })), at: Date.now() });
+    reviews: (reviews || []).map(r => ({ tripId: r.trip_id, name: r.display_name, date: r.created_at.slice(0, 10), stars: r.stars, text: r.body })),
+    settings: Object.fromEntries((settings || []).map(r => [r.key, Number(r.value)])), at: Date.now() });
 
   const { data: { session } } = await TP.db.auth.getSession();
   if (session) {

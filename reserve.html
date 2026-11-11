@@ -246,7 +246,8 @@ function start() {
   if (!TP.online) $("pay-note").textContent = "Prototype: no money moves. The payment is simulated and the booking is kept in this browser only.";
   $("listname").textContent = shortName(user.name);
   // Names for registration and an emergency contact (shared with My trips; see auth.js).
-  $("jd-box").innerHTML = joinerFieldsHtml("rv", size, [], null, { you: user.name });
+  // From the due date on (3 days before, Manila), every name is needed now; the server checks too.
+  $("jd-box").innerHTML = joinerFieldsHtml("rv", size, [], null, { you: user.name, allowLater: !detailsRequired(p.date), date: p.date });
   wireJoinerFields("rv");
 
   $("pay").addEventListener("submit", e => {
@@ -294,7 +295,7 @@ function start() {
       [`Meetup ${nice(b.date)} · ${b.pickupTime} at ${b.pickup}`, "Be there 15 minutes early. The van leaves on time."],
       [TP.online ? "Check your balance in My trips" : `Bring ${peso(b.balance)} for the balance`, TP.online ? "The full fee remains outstanding until the organizer records your DP." : "Demo amounts only."],
       [`Contact ${T.org} before departure`, "Ask for the coordinator and van details. Automated texts are not connected."],
-      ...(missingJoiners(b) ? [[`Add ${missingJoiners(b) === 1 ? "1 joiner's" : `${missingJoiners(b)} joiners'`} details by ${nice(dueDate(b.date))}`, "Open My trips and tap Add details. The organizer needs every name to register your group."]] : []),
+      ...(missingJoiners(b) ? [[`Add ${missingJoiners(b) === 1 ? "1 joiner's" : `${missingJoiners(b)} joiners'`} details before ${nice(dueDate(b.date))}`, "Open My trips and tap Add details. The organizer needs every name to register your group."]] : []),
     ].map(([a, b2]) => `<li>${tick}<div><strong>${a}</strong><p class="meta">${b2}</p></div></li>`).join("");
     $("done-h").tabIndex = -1; $("done-h").focus();
   }
