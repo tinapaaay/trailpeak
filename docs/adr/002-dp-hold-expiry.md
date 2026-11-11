@@ -77,6 +77,6 @@ The pilot's promise is dependable reservations, so the deciding factor is **what
 ## Action items
 
 1. [x] Build it (PR #55, 39 tests)
-2. [ ] Turn on pg_cron in Supabase (Database → Extensions) and re-run `schema.sql`
+2. [x] Turn on pg_cron in Supabase and re-run `schema.sql` (verified Nov 11: pg_cron 1.6.4, job trailpeak-expire-holds scheduled)
 3. [ ] Confirm the hold numbers in interviews; update `app_settings` if they change
 4. [ ] Add "counts seats through `booking_holds_seat()`" to the code-review checklist
