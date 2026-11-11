@@ -583,3 +583,10 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - **Do** use the same four difficulty levels (Easy, Moderate, Hard, Expert) in search, cards and detail pages, always mapped from the 1–9 score the same way.
 - **Do** show the event fee and the down payment, and say what is and isn't included. Hidden add-ons (environmental fee, guide fee) at checkout break trust with joiners.
 - **Do** show the meetup time and place, not only the hike date. A "Saturday" hike often means a Friday-night meetup.
+
+
+## Direct DP records (TP-010)
+
+The organizer dashboard uses the existing inline `out-form` surface for Record DP and Correct DP / history. It appears above the joiner table, with a labelled whole-peso cumulative amount (zero up to expected DP), method, Philippine received time, required note/correction reason, Save DP record and Cancel. The form explains that a correction replaces the total, never adds another payment, and that zero undoes an incorrect record without issuing a refund. History retains the amount, method, received time, actor, recorded time and reason. Errors stay in the form with alert semantics and focus; saving disables conflicting actions and retries retain the same request id.
+
+DP pending, Partial DP and DP received are text states, not verification badges. The table, dashboard totals and My trips calculate remaining balance from the booking's price snapshot minus the latest receipt. New and legacy connected bookings start with zero received; old simulated DP values remain expected DP only. Unknown receipt data says Unavailable and disables receipt entry rather than showing invented money. No online surface claims a TrailPeak payout. The table scroll container establishes a positioned containing block so off-screen accessible labels do not widen the mobile page.

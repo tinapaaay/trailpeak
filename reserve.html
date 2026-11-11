@@ -132,7 +132,7 @@
         <p class="error" id="err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
         <button type="submit" class="btn btn-primary label-caps pay-btn" id="pay-btn"></button>
         <p class="paying" id="paying" hidden aria-live="polite"><svg width="18" height="18" aria-hidden="true"><use href="#i-clock"/></svg><span></span></p>
-        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="pay-note">Prototype: no money moves. The payment is simulated, but your booking is real: the organizer sees it and the slots update for everyone.</span></p>
+        <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span id="pay-note">Reserve your slots, then pay the organizer directly. Your DP stays pending until the organizer records receipt. TrailPeak does not verify transfers or send payouts.</span></p>
       </form>
 
       <section class="done" id="done" hidden aria-labelledby="done-h">
@@ -159,7 +159,7 @@
 </main>
 
 <footer class="footer">
-  <div class="wrap">TrailPeak prototype · simulated payment: no money moves</div>
+  <div class="wrap">TrailPeak prototype · direct payments are recorded by the organizer; no money moves through TrailPeak</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -208,6 +208,15 @@ function start() {
   $("pay-btn").textContent = `Pay ${peso(dp)} DP`;
   $("agree-text").innerHTML = `I agree to this trip's <a href="trip.html#${T.id}">cancellation policy</a>: if I cancel less than 7 days before, or don't show up, the DP isn't refunded.`;
   if (user.phone) $("wnum").value = digits(user.phone).slice(2);
+  if (TP.online) {
+    $("pay-lead").textContent = `Reserve ${size} joiners for ${nice(p.date)}, then pay the ${peso(dp)} DP directly to ${T.org}. Your DP stays pending until the organizer records it.`;
+    $("pay-btn").textContent = "Reserve slots · DP pending";
+    $("wallet-l").textContent = "Preferred direct-payment method";
+    document.querySelectorAll(".choices .choice span").forEach(el => el.textContent = "Pay the organizer directly");
+    $("sum-lines").innerHTML = $("sum-lines").innerHTML.replace("Pay now (DP)", "DP due directly").replace("Pay on meetup day", "After full DP received");
+    $("wnum").required = false;
+    $("wnum").closest(".field2")?.setAttribute("hidden", "");
+  }
   if (!TP.online) $("pay-note").textContent = "Prototype: no money moves. The payment is simulated and the booking is kept in this browser only.";
   $("listname").textContent = shortName(user.name);
   // Names for registration and an emergency contact (shared with My trips; see auth.js).
@@ -218,7 +227,7 @@ function start() {
     e.preventDefault();
     const err = msg => { $("err").hidden = !msg; $("err").querySelector("span").textContent = msg || ""; };
     $("wnum").removeAttribute("aria-invalid");
-    if (!validPhone($("wnum").value)) { err("Enter the 10-digit wallet number that starts with 9."); $("wnum").setAttribute("aria-invalid", "true"); $("wnum").focus(); return; }
+    if (!TP.online && !validPhone($("wnum").value)) { err("Enter the 10-digit wallet number that starts with 9."); $("wnum").setAttribute("aria-invalid", "true"); $("wnum").focus(); return; }
     const jd = readJoinerFields("rv", size);
     if (jd.error) { err(jd.error); jd.field.focus(); return; }
     if (!$("agree").checked) { err("Tick the box to agree to the cancellation policy."); $("agree").focus(); return; }
@@ -227,7 +236,7 @@ function start() {
     const wallet = document.querySelector('input[name="wallet"]:checked').value;
     // Simulated wallet approval. A real app hands off to GCash or Maya here and waits for the result.
     $("pay-btn").disabled = true; $("paying").hidden = false;
-    $("paying").querySelector("span").textContent = `Waiting for ${wallet} to approve ${peso(dp)}…`;
+    $("paying").querySelector("span").textContent = TP.online ? "Reserving your slots…" : `Demo: waiting for ${wallet} approval…`;
     if (TP.online) {
       // The server checks slots again and sets the DP and balance; payment itself is still simulated.
       TP.book({ tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time, wallet,
@@ -255,10 +264,10 @@ function start() {
     $("ref").textContent = b.ref;
     const tick = '<svg width="20" height="20" aria-hidden="true"><use href="#i-tick"/></svg>';
     $("next").innerHTML = [
-      [`${peso(b.dp)} DP paid with ${b.wallet}`, `Sent to ${T.org}. Keep your booking number.`],
+      [TP.online ? `DP pending · ${peso(b.dp)} due` : `Demo DP: ${peso(b.dp)} with ${b.wallet}`, TP.online ? `Pay ${T.org} directly. Only the organizer can record receipt; no payment was taken here.` : "Simulated only: no money moved."],
       [`Meetup ${nice(b.date)} · ${b.pickupTime} at ${b.pickup}`, "Be there 15 minutes early. The van leaves on time."],
-      [`Bring ${peso(b.balance)} for the balance`, "Paid to the organizer on meetup day, in cash or by wallet."],
-      [`${T.org} will text you 2 days before`, "With the van plate number and the coordinator's contact."],
+      [TP.online ? "Check your balance in My trips" : `Bring ${peso(b.balance)} for the balance`, TP.online ? "The full fee remains outstanding until the organizer records your DP." : "Demo amounts only."],
+      [`Contact ${T.org} before departure`, "Ask for the coordinator and van details. Automated texts are not connected."],
       ...(missingJoiners(b) ? [[`Add ${missingJoiners(b) === 1 ? "1 joiner's" : `${missingJoiners(b)} joiners'`} details by ${nice(dueDate(b.date))}`, "Open My trips and tap Add details. The organizer needs every name to register your group."]] : []),
     ].map(([a, b2]) => `<li>${tick}<div><strong>${a}</strong><p class="meta">${b2}</p></div></li>`).join("");
     $("done-h").tabIndex = -1; $("done-h").focus();

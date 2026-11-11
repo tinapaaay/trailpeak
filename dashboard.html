@@ -76,7 +76,7 @@
 /* Joiner list for the chosen date */
 .joiners-head { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: baseline; justify-content: space-between; margin-bottom: var(--space-md); }
 .joiners-head p { color: var(--color-secondary); }
-.table-wrap { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); }
+.table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); }
 table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .joiners th, .joiners td { text-align: left; padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-border); }
 .joiners th { color: var(--color-secondary); font: 700 13px/1.2 var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; background: var(--color-neutral); }
@@ -91,6 +91,7 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .checkin { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
 /* Outside bookings (TP-008): the add form and the source tag in the joiner list */
 .out-form { display: grid; gap: var(--space-md); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-md); margin-bottom: var(--space-md); }
+.out-form details { overflow-wrap: anywhere; }
 .out-form h3 { font: 700 20px/1.25 var(--font-display); }
 .out-form .hint { color: var(--color-secondary); font-size: 15px; }
 .out-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-md); }
@@ -216,6 +217,7 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
         </div>
       </div>
       <div id="out-panel"></div>
+      <div id="receipt-panel"></div>
       <div class="table-wrap" id="joiners-wrap"></div>
       <p class="sr" id="live" aria-live="polite"></p>
     </section>
@@ -225,12 +227,12 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
       <ul class="payouts" id="payouts"></ul>
     </section>
 
-    <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><span id="dash-note">Bookings and dates are real and saved. Payments, payouts and text messages are still simulated; commission uses a sample rate of 10%.</span></span></p>
+    <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><span id="dash-note">Bookings and DP records are saved. Joiners pay organizers directly. TrailPeak does not verify transfers or send payouts; text messages are not connected.</span></span></p>
   </div>
 </main>
 
 <footer class="footer">
-  <div class="wrap" id="foot-note">TrailPeak prototype · real bookings on your trips; payments and payouts are simulated</div>
+  <div class="wrap" id="foot-note">TrailPeak prototype · direct DP records; no money moves through TrailPeak</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -244,7 +246,6 @@ const $ = id => document.getElementById(id);
 const pesos = n => "₱" + Math.round(n).toLocaleString(); // rounds: commission makes centavos
 const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const COMMISSION = 0.10; // sample rate until the real one is decided
 const SAMPLE_ORG = { name: "Lea Santos", org: "Batangas Trail Co.", role: "organizer", idVerified: true, business: "verified", phone: "+63 917 000 0101", method: "sample", payout: { wallet: "GCash", number: "+63 917 000 0101" } };
 
 // ---- Who is looking -------------------------------------------------------
@@ -266,18 +267,19 @@ if (!me || me.role !== "organizer") {
 // Outside bookings (TP-008): how they booked, and a server row in the joiner-list shape.
 const SOURCES = { messenger: "Messenger", in_person: "In person", other: "Other" };
 function outsideRow(o) {
-  return { name: o.name, size: o.size, pickup: o.pickup_time ? `${o.pickup} · ${o.pickup_time}` : o.pickup,
+  return { outsideId: o.id, expectedDp: o.expected_dp, totalFee: o.total_fee, name: o.name, size: o.size, pickup: o.pickup_time ? `${o.pickup} · ${o.pickup_time}` : o.pickup,
     phone: o.phone || "No number yet", wallet: null, checked: false, companions: [], emergency: null, source: o.source };
 }
 
 async function start() {
   // Online: the organizer's own trips and their real bookings from the database.
   // Offline: trips matching the organizer's name, or one sample trip, with sample bookings.
-  let mine, real = null, outside = [];
+  let mine, real = null, outside = [], receipts = null;
   if (TP.online) {
     mine = TRIPS.filter(t => t.organizerId === me.id);
     try { real = (await TP.organizerBookings()).filter(b => b.status === "confirmed"); }
     catch (e) { real = []; console.warn(e); }
+    try { receipts = await TP.receiptHistory(); } catch (e) { $("dash-note").textContent = e.message; }
     try { outside = await TP.outsideBookings(); }
     catch (e) { outside = []; console.warn(e); }
     if (!mine.length) {
@@ -297,7 +299,7 @@ async function start() {
   mine.forEach(t => Object.entries(t.departures).forEach(([date, left]) => {
     if (real) {
       const bookings = real.filter(b => b.trip_id === t.id && b.date === date).map(b => ({
-        name: b.joiner_name || "Joiner", size: b.size, pickup: `${b.pickup} · ${b.pickup_time}`,
+        bookingRef: b.ref, expectedDp: b.dp, totalFee: b.dp + b.balance, name: b.joiner_name || "Joiner", size: b.size, pickup: `${b.pickup} · ${b.pickup_time}`,
         phone: b.joiner_phone || "No number yet", wallet: b.wallet, checked: false,
         companions: b.companions || [], emergency: b.emergency || null }))
         .concat(outside.filter(o => o.trip_id === t.id && o.date === date).map(outsideRow));
@@ -327,10 +329,12 @@ async function start() {
   let selected = keys().find(k => state[k].bookings.length && !isPastDate(state[k].date)) || keys().find(k => !isPastDate(state[k].date)) || keys()[0];
 
   const bookedOf = s => s.bookings.reduce((a, b) => a + b.size, 0);
-  // Joiners who booked and paid their DP on TrailPeak. Outside bookings (b.source set) count
-  // for slots and headcount, but not for money: no DP has been recorded for them.
-  const paidOf = s => s.bookings.filter(b => !b.source).reduce((a, b) => a + b.size, 0);
-  const hasOutside = s => s.bookings.some(b => b.source);
+  const historyOf = b => (receipts || []).filter(r => b.outsideId ? r.outside_id === b.outsideId : r.booking_ref === b.bookingRef);
+  const receiptOf = b => historyOf(b)[0];
+  const receivedOf = (b, s) => TP.online ? (receiptOf(b)?.amount || 0) : (b.source ? 0 : s.trip.dp * b.size);
+  const expectedOf = (b, s) => b.expectedDp ?? s.trip.dp * b.size;
+  const totalOf = (b, s) => b.totalFee ?? s.trip.fee * b.size;
+  const balanceOf = (b, s) => totalOf(b, s) - receivedOf(b, s);
   // Seats in use: joiners' bookings plus any sample seats. The capacity can't go below this.
   const takenOf = s => bookedOf(s) + (s.held || 0);
   const statusOf = s => dateState(s.status, s.cap - takenOf(s), s.date);
@@ -342,15 +346,14 @@ async function start() {
     const kept = keys().map(k => state[k]).filter(s => s.status !== "cancelled");
     const live = kept.filter(s => !isPastDate(s.date));
     const joiners = live.reduce((a, s) => a + bookedOf(s), 0);
-    const dp = kept.reduce((a, s) => a + paidOf(s) * s.trip.dp, 0);
-    const balance = live.reduce((a, s) => a + paidOf(s) * (s.trip.fee - s.trip.dp), 0);
-    const outsideNote = kept.some(hasOutside) ? " (outside bookings not included)" : "";
-    const nextOpen = live.filter(s => statusOf(s) === "open").length;
+    const received = kept.reduce((a, s) => a + s.bookings.reduce((n, b) => n + receivedOf(b, s), 0), 0);
+    const balance = live.reduce((a, s) => a + s.bookings.reduce((n, b) => n + balanceOf(b, s), 0), 0);
+    const ready = !TP.online || receipts !== null;
     $("tiles").innerHTML = `
-      <div class="tile"><span class="label-caps">Joiners booked</span><span class="value">${joiners}</span><span class="note">Across ${live.length} upcoming ${live.length === 1 ? "date" : "dates"}, ${nextOpen} still open</span></div>
-      <div class="tile"><span class="label-caps">DPs received</span><span class="value">${pesos(dp)}</span><span class="note">Paid by joiners on TrailPeak${outsideNote}</span></div>
-      <div class="tile money"><span class="label-caps">Sent to your ${esc(me.payout?.wallet || "wallet")}</span><span class="value">${pesos(dp * (1 - COMMISSION))}</span><span class="note">After ${pesos(dp * COMMISSION)} TrailPeak commission</span></div>
-      <div class="tile"><span class="label-caps">To collect on meetup day</span><span class="value">${pesos(balance)}</span><span class="note">Balances TrailPeak joiners pay you in person${outsideNote}</span></div>`;
+      <div class="tile"><span class="label-caps">Joiners booked</span><span class="value">${joiners}</span><span class="note">Across ${live.length} upcoming dates</span></div>
+      <div class="tile"><span class="label-caps">DPs recorded</span><span class="value">${ready ? pesos(received) : "Unavailable"}</span><span class="note">${TP.online ? "Direct payments recorded by you" : "Demo amounts only"}</span></div>
+      <div class="tile"><span class="label-caps">Remaining balance</span><span class="value">${ready ? pesos(balance) : "Unavailable"}</span><span class="note">Upcoming active bookings, including outside bookings</span></div>
+      <div class="tile"><span class="label-caps">Payment handling</span><span class="note">Joiners pay you directly. TrailPeak does not verify transfers or send payouts.</span></div>`;
   }
 
   // Online: trips this account published. Offline: trips published from this browser.
@@ -408,6 +411,7 @@ async function start() {
     const s = state[selected];
     if (!s) return;
     renderOutsideForm(s);
+    renderReceiptForm(s);
     const booked = bookedOf(s), checked = s.bookings.filter(b => b.checked).reduce((a, b) => a + b.size, 0);
     $("joiners-h").textContent = `Joiners · ${nice(s.date)}`;
     const toCome = s.bookings.reduce((a, b) => a + missingOf(b), 0);
@@ -419,14 +423,15 @@ async function start() {
     const balance = s.trip.fee - s.trip.dp;
     $("joiners-wrap").innerHTML = `<table class="joiners">
       <caption class="sr">Joiners for ${nice(s.date)}</caption>
-      <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">Emergency contact</th><th scope="col">DP paid</th><th scope="col" class="num">Collect</th></tr></thead>
+      <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">Emergency contact</th><th scope="col">DP record</th><th scope="col" class="num">Collect</th></tr></thead>
       <tbody>${s.bookings.map((b, i) => `<tr>
         <td><label class="checkin"><input type="checkbox" data-check="${i}" ${b.checked ? "checked" : ""}><span class="sr">${esc(b.name)} checked in</span></label></td>
         <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b)}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
         <td>${b.emergency ? `<div class="em"><span>${esc(b.emergency.name)}${b.emergency.relation ? ` (${esc(b.emergency.relation)})` : ""}</span><span class="data">${esc(b.emergency.phone)}</span></div>` : "Not added yet"}</td>
-        ${b.source ? `<td>Not recorded</td><td class="num"><span aria-hidden="true">—</span><span class="sr">Not worked out</span></td>` : `<td>${pesos(s.trip.dp * b.size)} · ${b.wallet}</td><td class="num">${pesos(balance * b.size)}</td>`}</tr>`).join("")}</tbody>
-      <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td></td><td>${pesos(s.trip.dp * paidOf(s))}</td><td class="num">${pesos(balance * paidOf(s))}</td></tr>
-      ${hasOutside(s) ? `<tr class="foot-note"><td></td><td colspan="7">Outside bookings count for slots but not in the DP and collect totals: no DP has been recorded for them.</td></tr>` : ""}</tfoot>
+        <td>${TP.online && receipts === null ? "Unavailable" : `${pesos(receivedOf(b, s))} / ${pesos(expectedOf(b, s))}<br>${receivedOf(b, s) >= expectedOf(b, s) ? "DP received" : receivedOf(b, s) ? "Partial DP" : "DP pending"}`}
+          ${TP.online && receipts !== null ? `<br><button type="button" class="link-btn" data-receipt="${i}" aria-controls="receipt-panel">${receiptOf(b) ? "Correct DP / history" : "Record DP"}<span class="sr"> for ${esc(b.name)}</span></button>` : ""}</td>
+        <td class="num">${TP.online && receipts === null ? "Unavailable" : pesos(balanceOf(b, s))}</td></tr>`).join("")}</tbody>
+      <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td></td><td>${TP.online && receipts === null ? "Unavailable" : pesos(s.bookings.reduce((n,b) => n + receivedOf(b,s),0))}</td><td class="num">${TP.online && receipts === null ? "Unavailable" : pesos(s.bookings.reduce((n,b) => n + balanceOf(b,s),0))}</td></tr></tfoot>
     </table>`;
   }
 
@@ -478,12 +483,30 @@ async function start() {
   };
 
   function renderPayouts() {
-    const w = me.payout?.wallet || "GCash", num = me.payout?.number || "your wallet";
-    const paid = keys().map(k => state[k]).filter(s => paidOf(s) && s.status !== "cancelled").slice(0, 3);
-    $("payouts").innerHTML = paid.map(s => {
-      const dp = paidOf(s) * s.trip.dp;
-      return `<li><span>${esc(s.trip.title)}, ${nice(s.date)}: ${paidOf(s)} DPs<br><span class="meta">Sent to ${w} ${esc(num)} the next working day</span></span><span class="data">${pesos(dp * (1 - COMMISSION))}</span></li>`;
-    }).join("") || `<li><span class="meta">No payouts yet.</span></li>`;
+    $("payouts-h").textContent = "Direct payment records";
+    $("payouts").innerHTML = `<li><span>Recording a DP does not move money or confirm a wallet transfer. Existing simulated DPs have not been converted into received payments.</span></li>`;
+  }
+
+  const receiptTime = value => new Date(value).toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" }) + " PHT";
+  const receiptInputTime = value => new Date(new Date(value).getTime() + 8 * 3600000).toISOString().slice(0,16);
+  function renderReceiptForm(s) {
+    const b = s.receiptIndex == null ? null : s.bookings[s.receiptIndex];
+    if (!TP.online || !b || receipts === null) { $("receipt-panel").innerHTML = ""; return; }
+    const latest = receiptOf(b), v = s.receiptDraft || {};
+    $("receipt-panel").innerHTML = `<form class="out-form" id="receipt-form" aria-labelledby="receipt-h">
+      <h3 id="receipt-h">${latest ? "Correct the DP record" : "Record a direct DP"} · ${esc(b.name)}</h3>
+      <p id="receipt-help">Enter the total DP received so far, up to ${pesos(expectedOf(b,s))}. This replaces the previous amount; it does not add another payment. Use zero to undo an incorrect record. This does not issue a refund.</p>
+      <div class="out-grid">
+        <div class="field2"><label for="receipt-amount">Total DP received (₱)</label><input class="input" type="number" step="1" min="0" max="${expectedOf(b,s)}" id="receipt-amount" required value="${esc(v.amount ?? latest?.amount ?? expectedOf(b,s))}" aria-describedby="receipt-help"></div>
+        <div class="field2"><label for="receipt-method">Method</label><select class="input" id="receipt-method">${["GCash","Maya","Cash","Bank transfer"].map(m => `<option${m === (v.method || latest?.method) ? " selected" : ""}>${m}</option>`).join("")}</select></div>
+        <div class="field2"><label for="receipt-time">Received at (Philippine time)</label><input class="input" type="datetime-local" id="receipt-time" required value="${esc(v.time || receiptInputTime(latest?.received_at || new Date()))}"></div>
+      </div>
+      <label for="receipt-reason">${latest ? "Reason for correction" : "Receipt note"}</label><input class="input" id="receipt-reason" maxlength="300" required value="${esc(v.reason || "")}" placeholder="e.g. Checked the transfer in my wallet">
+      <p class="hint">You are recording a direct payment. TrailPeak does not verify it or send a payout. Partial DPs are supported; meetup balance payments are not recorded here.</p>
+      <p class="error" id="receipt-error" role="alert"${s.receiptError ? "" : " hidden"}>${esc(s.receiptError || "")}</p>
+      <div class="actions"><button class="btn btn-primary label-caps" id="receipt-save"${s.receiptSaving ? " disabled" : ""}>${s.receiptSaving ? "Saving…" : "Save DP record"}</button><button type="button" class="link-btn" id="receipt-close"${s.receiptSaving ? " disabled" : ""}>Cancel</button></div>
+      <details><summary>Receipt history (${historyOf(b).length})</summary><ol>${historyOf(b).map(h => `<li>${pesos(h.amount)}${h.method ? ` · ${esc(h.method)} · received ${receiptTime(h.received_at)}` : " · DP reset to pending"}. Recorded ${receiptTime(h.recorded_at)} by ${esc(h.recorded_by === me.id ? me.name : h.recorded_by)}. ${esc(h.reason)}</li>`).join("") || "<li>No receipt recorded.</li>"}</ol></details>
+    </form>`;
   }
 
   const renderAll = () => { renderTiles(); renderTrips(); renderJoiners(); renderPayouts(); };
@@ -494,6 +517,13 @@ async function start() {
   document.addEventListener("click", async e => {
     const t = e.target.closest("button"); if (!t) return;
     const d = t.dataset;
+    if (Object.values(state).some(s => s.receiptSaving)) return;
+    if (d.receipt !== undefined) {
+      const s = state[selected]; s.receiptIndex = Number(d.receipt); s.receiptDraft = null; s.receiptRequest = null; s.receiptSignature = null; s.receiptError = "";
+      s.receiptPrevious = receiptOf(s.bookings[s.receiptIndex])?.id || null;
+      renderReceiptForm(s); $("receipt-amount").focus();
+    }
+    if (t.id === "receipt-close") { state[selected].receiptIndex = null; $("receipt-panel").innerHTML = ""; document.querySelector("[data-receipt]")?.focus(); }
     if (d.view) { selected = d.view; renderTrips(); renderJoiners(); $("joiners-h").tabIndex = -1; $("joiners-h").focus(); }
     if (d.close && TP.online) {
       const s = state[d.close], to = s.status === "closed" ? "open" : "closed";
@@ -533,9 +563,7 @@ async function start() {
       const s = state[selected];
       // One line per hiker for registration at the jump-off, grouped by booking.
       const text = `${s.trip.title} · ${nice(s.date)} · meetup ${s.trip.meet}\n` + s.bookings.map((b, i) => [
-        b.source
-          ? `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} ${b.size === 1 ? "joiner" : "joiners"} · ${SOURCES[b.source]} booking · DP not recorded`
-          : `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} ${b.size === 1 ? "joiner" : "joiners"} · collect ${pesos((s.trip.fee - s.trip.dp) * b.size)}`,
+        `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} joiners${b.source ? ` · ${SOURCES[b.source]}` : ""} · ${receipts === null && TP.online ? "DP unavailable" : `DP recorded ${pesos(receivedOf(b,s))} · remaining ${pesos(balanceOf(b,s))}`}`,
         ...(b.companions || []).map(c => `   - ${c.name}${c.age === "minor" ? " (under 18)" : ""}${c.phone ? ` · ${c.phone}` : ""}`),
         ...Array.from({ length: missingOf(b) }, () => "   - (name to follow)"),
         b.emergency ? `   Emergency: ${b.emergency.name}${b.emergency.relation ? ` (${b.emergency.relation})` : ""} · ${b.emergency.phone}` : "   Emergency: not added yet",
@@ -572,6 +600,28 @@ async function start() {
     const nowLeft = s.cap - takenOf(s);
     s.note = `Added ${row.name}, ${row.size} ${row.size === 1 ? "joiner" : "joiners"} (${SOURCES[row.source]}). ${nowLeft} ${nowLeft === 1 ? "slot" : "slots"} left. No DP recorded.`;
     renderAll(); say(s.note); $("add-out").focus();
+  });
+
+  document.addEventListener("submit", async e => {
+    if (e.target.id !== "receipt-form") return;
+    e.preventDefault();
+    const s = state[selected], b = s.bookings[s.receiptIndex];
+    if (s.receiptSaving) return;
+    const v = { amount: $("receipt-amount").value, method: $("receipt-method").value, time: $("receipt-time").value, reason: $("receipt-reason").value.trim() };
+    const signature = JSON.stringify(v);
+    if (s.receiptSignature !== signature) { s.receiptRequest = crypto.randomUUID(); s.receiptSignature = signature; }
+    s.receiptDraft = v; s.receiptSaving = true; s.receiptError = ""; renderReceiptForm(s);
+    try {
+      const row = await TP.recordReceipt({ requestId: s.receiptRequest, bookingRef: b.bookingRef, outsideId: b.outsideId,
+        previousId: s.receiptPrevious, amount: Number(v.amount), method: v.method,
+        receivedAt: Number(v.amount) ? new Date(v.time + ":00+08:00").toISOString() : null, reason: v.reason });
+      receipts = [row, ...receipts.filter(h => h.id !== row.id)].sort((a,b) => Number(b.revision) - Number(a.revision));
+      s.receiptSaving = false; s.receiptIndex = null; s.receiptRequest = null; renderAll();
+      say(`Saved ${pesos(row.amount)} DP recorded for ${b.name}. No money moved.`);
+      document.querySelector("[data-receipt]")?.focus();
+    } catch (err) {
+      s.receiptSaving = false; s.receiptError = err.message; renderReceiptForm(s); $("receipt-error").tabIndex = -1; $("receipt-error").focus();
+    }
   });
 
   // Change slots: checked here for a quick answer, and again by the database, which has the

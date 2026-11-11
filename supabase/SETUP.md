@@ -154,3 +154,18 @@ Before this update, sign-up made people organizers and "ID verified" on the spot
 - clears every simulated ID and business check, so no old badge looks like a real check.
 
 Later runs don't touch approvals you've made. Sample trips from `seed.sql` keep their sample badges.
+
+
+## Direct DP receipt records (TP-010 / issue #5)
+
+Apply the updated `schema.sql` before deploying this application change. Do not rerun `seed.sql` against existing pilot data. The upgrade is repeatable and preserves accounts/bookings. Test first in a staging project. It creates an empty `dp_receipts` history: **existing simulated DP amounts are not receipts**. `bookings.dp` is the expected DP; `dp + balance` remains its original total fee snapshot. Outside bookings now snapshot `expected_dp` and `total_fee`; the first upgrade uses their trip's current prices because older outside rows had no price snapshot. Review that initial backfill before enabling pilot receipts. Future price changes do not rewrite snapshots.
+
+Only the owning organizer can use **Record DP** on a joiner or outside booking. Enter the total DP received so far (whole pesos, from zero up to expected DP), method, Philippine received time and a note. Partial DPs are supported; meetup/full-balance payments are outside this form's scope. To correct it, choose **Correct DP / history** and enter the replacement total and reason. Zero resets the DP to pending; this is a bookkeeping correction, not a refund. The history records the actor, received/recorded times and previous record. Corrections to cancelled bookings do not reopen them.
+
+`record_dp_receipt` checks owner authorization before replay, locks the target booking, compares the previous receipt to reject stale edits, and treats identical request ids/payloads as one write. Normal clients can read authorized history but cannot insert/update/delete it directly. Receipt changes never change booking status or occupied seats. Joiners see the same current amount and remaining balance in My trips. This records an organizer's statement, not wallet/provider verification. TrailPeak does not move money, send payouts, verify transfers, or deliver automated receipt notifications.
+
+Issue #10 remains the release prerequisite for full demo/pilot data isolation. This change replaces connected checkout's simulated approval copy with reservation/DP-pending wording, but does not claim that every demo/pilot operating boundary has been validated. Do not treat this branch as pilot-ready until #10 and the staged/live role tests pass.
+
+Regression tests: `npm ci --prefix tests` then `npm test --prefix tests`. They upgrade from the PR #9 main schema and verify RLS, RPC permissions, replay, stale corrections, validation, price snapshots and unchanged inventory. PGlite is single-connection; a true two-connection race and live Supabase smoke test remain required.
+
+For a synthetic browser fixture, run `node tests/preview.mjs` after installing the test dependency. Open `http://127.0.0.1:8015/dashboard.html`, record a receipt, then `/mytrips.html?testRole=joiner`. This local fixture uses mock sessions and real PGlite schema/functions; it never connects to live Supabase. Stop it when finished.

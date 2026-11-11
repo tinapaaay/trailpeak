@@ -1,5 +1,6 @@
 -- TrailPeak light backend: accounts, trips, dates and bookings.
--- Payments are still simulated. Organizers and ID checks are approved by hand; see supabase/SETUP.md.
+-- Direct DP receipts are recorded by organizers; TrailPeak does not move money.
+-- Organizers and ID checks are approved by hand; see supabase/SETUP.md.
 -- Run this in the Supabase SQL editor, then run seed.sql. Safe to run again after changes.
 --
 -- Privacy model (Row Level Security):
@@ -7,7 +8,7 @@
 --   * You can read and change only your own profile, and never your own organizer or
 --     verification status (only the owner can approve those).
 --   * Joiners see only their own bookings; organizers see bookings on their own trips.
---   * Bookings are created, moved and cancelled only through the f unctions below,
+--   * Bookings are created, moved and cancelled only through the functions below,
 --     which check slots and the cancellation policy on the server.
 --   * "Who's going" shows first name + last initial of opted-in joiners, and only
 --     to people who are booked on the same date. Phone numbers never leave the organizer.
@@ -661,3 +662,115 @@ grant delete on public.departures to authenticated;
 grant select on public.bookings to authenticated;   -- changes go through the functions only
 grant select on public.reviews to authenticated;    -- own rows only; writes go through add_review
 grant select on public.outside_bookings to authenticated;   -- organizer's own trips only (RLS); writes via add_outside_booking
+
+-- Direct DP receipts (TP-010). Expected DP remains bookings.dp; old simulated values
+-- are never receipts. Each row replaces the cumulative amount, retaining its history.
+alter table public.outside_bookings add column if not exists expected_dp int;
+alter table public.outside_bookings add column if not exists total_fee int;
+update public.outside_bookings o set
+  expected_dp = (t.details ->> 'dp')::int * o.size,
+  total_fee = (t.details ->> 'fee')::int * o.size
+from public.trips t where t.id = o.trip_id and o.total_fee is null;
+
+create or replace function public.snapshot_outside_price()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  select (details ->> 'dp')::int * new.size, (details ->> 'fee')::int * new.size
+    into new.expected_dp, new.total_fee from public.trips where id = new.trip_id;
+  if new.expected_dp is null or new.expected_dp < 0 or new.total_fee is null or new.total_fee < new.expected_dp then
+    raise exception 'This trip needs a valid fee and DP before booking.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists snapshot_outside_price on public.outside_bookings;
+create trigger snapshot_outside_price before insert on public.outside_bookings
+for each row execute function public.snapshot_outside_price();
+revoke all on function public.snapshot_outside_price from public, anon, authenticated;
+
+create table if not exists public.dp_receipts (
+  id uuid primary key default gen_random_uuid(),
+  revision bigint generated always as identity unique,
+  request_id uuid not null unique,
+  booking_ref text references public.bookings(ref),
+  outside_id uuid references public.outside_bookings(id),
+  trip_id text not null references public.trips(id),
+  previous_id uuid references public.dp_receipts(id),
+  amount int not null check (amount >= 0),
+  method text check (method in ('GCash', 'Maya', 'Cash', 'Bank transfer')),
+  received_at timestamptz,
+  recorded_by uuid not null references public.profiles(id),
+  recorded_at timestamptz not null default now(),
+  reason text not null check (char_length(trim(reason)) between 1 and 300),
+  check (num_nonnulls(booking_ref, outside_id) = 1),
+  check ((amount = 0 and method is null and received_at is null)
+      or (amount > 0 and method is not null and received_at is not null))
+);
+create index if not exists dp_receipts_booking on public.dp_receipts(booking_ref, revision desc);
+create index if not exists dp_receipts_outside on public.dp_receipts(outside_id, revision desc);
+alter table public.dp_receipts enable row level security;
+drop policy if exists "Booker and owning organizer read receipt history" on public.dp_receipts;
+create policy "Booker and owning organizer read receipt history" on public.dp_receipts
+for select using (
+  exists (select 1 from public.bookings b where b.ref = booking_ref and b.user_id = auth.uid())
+  or (public.is_organizer() and exists (
+    select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()))
+);
+revoke all on public.dp_receipts from anon, authenticated;
+grant select on public.dp_receipts to authenticated;
+
+create or replace function public.record_dp_receipt(
+  p_request uuid, p_booking text, p_outside uuid, p_previous uuid,
+  p_amount int, p_method text, p_received timestamptz, p_reason text)
+returns public.dp_receipts language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid(); trip text; due int; latest public.dp_receipts;
+  saved public.dp_receipts; why text := trim(p_reason);
+begin
+  if me is null or not public.is_organizer() then raise exception 'Only the trip organizer can record a DP.'; end if;
+  if p_request is null or num_nonnulls(p_booking, p_outside) <> 1 then raise exception 'Choose one booking and reload the receipt form.'; end if;
+  -- Serialize receipt changes per booking. Receipt writes never change capacity/status.
+  if p_booking is not null then
+    select trip_id, dp into trip, due from public.bookings where ref = p_booking for update;
+  else
+    select trip_id, expected_dp into trip, due from public.outside_bookings where id = p_outside for update;
+  end if;
+  if trip is null or not exists (select 1 from public.trips where id = trip and organizer_id = me) then
+    raise exception 'Only this trip''s organizer can record its DP.';
+  end if;
+  -- Authorization precedes replay, so a request id never reveals another booking.
+  select * into saved from public.dp_receipts where request_id = p_request;
+  if found then
+    if saved.booking_ref is distinct from p_booking or saved.outside_id is distinct from p_outside
+       or saved.recorded_by <> me or saved.amount is distinct from p_amount
+       or saved.method is distinct from p_method or saved.received_at is distinct from p_received
+       or saved.reason is distinct from why or saved.previous_id is distinct from p_previous then
+      raise exception 'This request was already used. Reload the receipt form.';
+    end if;
+    return saved;
+  end if;
+  select * into latest from public.dp_receipts
+    where (p_booking is not null and booking_ref = p_booking)
+       or (p_outside is not null and outside_id = p_outside)
+    order by revision desc limit 1;
+  if latest.id is distinct from p_previous then
+    raise exception 'Another receipt change was saved. Refresh before correcting it.';
+  end if;
+  if due is null or p_amount is null or p_amount < 0 or p_amount > due then
+    raise exception 'Enter the total DP received, from zero up to the expected DP.';
+  end if;
+  if why is null or char_length(why) not between 1 and 300 then raise exception 'Add a receipt note or correction reason (up to 300 characters).'; end if;
+  if p_amount > 0 and (p_method is null or p_method not in ('GCash','Maya','Cash','Bank transfer')
+       or p_received is null or p_received > now() + interval '5 minutes') then
+    raise exception 'Choose the payment method and a received time that is not in the future.';
+  end if;
+  if p_amount = 0 and (p_method is not null or p_received is not null) then
+    raise exception 'A zero receipt must have no payment method or received time.';
+  end if;
+  insert into public.dp_receipts(request_id, booking_ref, outside_id, trip_id, previous_id,
+    amount, method, received_at, recorded_by, reason)
+  values(p_request, p_booking, p_outside, trip, p_previous, p_amount, p_method, p_received, me, why)
+  returning * into saved;
+  return saved;
+end $$;
+revoke all on function public.record_dp_receipt from public, anon;
+grant execute on function public.record_dp_receipt to authenticated;

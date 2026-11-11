@@ -40,9 +40,12 @@ TP.applyTo = function (trips) {
 };
 
 // Server booking row -> the shape the pages already use.
-function tpBooking(b) {
+function tpBooking(b, receipts = null) {
+  const receipt = receipts?.find(r => r.booking_ref === b.ref);
   return { ref: b.ref, tripId: b.trip_id, date: b.date, size: b.size, pickup: b.pickup, pickupTime: b.pickup_time,
-    dp: b.dp, balance: b.balance, wallet: b.wallet, walletNumber: b.wallet_number, names: b.names || "",
+    dp: b.dp, expectedDp: b.dp, receivedDp: receipts === null ? null : (receipt?.amount || 0),
+    receipt, paymentsReady: receipts !== null, totalFee: b.dp + b.balance,
+    balance: receipts === null ? null : b.dp + b.balance - (receipt?.amount || 0), wallet: b.wallet, walletNumber: b.wallet_number, names: b.names || "",
     listed: b.listed, displayName: b.display_name, status: b.status, moved: b.moved, note: b.note, bookedAt: b.created_at,
     companions: b.companions || [], emergency: b.emergency || null };
 }
@@ -79,7 +82,9 @@ TP.sync = async function ({ reload = true } = {}) {
       TP.db.from("bookings").select("*").eq("user_id", session.user.id).order("date"),
       TP.db.from("reviews").select("booking_ref, trip_id, stars, body, created_at").eq("user_id", session.user.id),
     ]);
-    saveBookings((mine || []).map(tpBooking));
+    let receipts = null;
+    try { receipts = await TP.receiptHistory(); } catch (e) { console.warn(e.message); }
+    saveBookings((mine || []).map(b => tpBooking(b, receipts)));
     saveMyReviews((myReviews || []).map(r => ({ ref: r.booking_ref, tripId: r.trip_id, stars: r.stars, text: r.body, date: r.created_at.slice(0, 10) })));
   } else {
     try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); localStorage.removeItem(TP_REVIEWS_KEY); } catch { /* ignore */ }
@@ -158,7 +163,7 @@ TP.book = async p => {
   }
   if (error) throw tpErr(error);
   await TP.sync({ reload: false });
-  return tpBooking(data);
+  return getBookings().find(b => b.ref === data.ref) || tpBooking(data, []);
 };
 // Add or change joiner names and the emergency contact (any time before the trip date).
 TP.updateDetails = async (ref, companions, emergency) => {
@@ -225,6 +230,20 @@ TP.outsideBookings = async () => {
   const { data, error } = await TP.db.from("outside_bookings").select("*").eq("status", "confirmed").order("created_at");
   if (error) throw tpErr(error);
   return data || [];
+};
+// Newest first: one current cumulative amount per booking, with immutable history.
+TP.receiptHistory = async () => {
+  const { data, error } = await TP.db.from("dp_receipts").select("*").order("revision", { ascending: false });
+  if (error) throw new Error("Receipt history is unavailable. Apply the latest database schema, then refresh.");
+  return data || [];
+};
+TP.recordReceipt = async r => {
+  const { data, error } = await TP.db.rpc("record_dp_receipt", {
+    p_request: r.requestId, p_booking: r.bookingRef || null, p_outside: r.outsideId || null,
+    p_previous: r.previousId || null, p_amount: r.amount, p_method: r.amount ? r.method : null,
+    p_received: r.amount ? r.receivedAt : null, p_reason: r.reason });
+  if (error) throw tpErr(error);
+  return data;
 };
 TP.setDateStatus = async (tripId, date, status) => {
   const { error } = await TP.db.from("departures").update({ status }).eq("trip_id", tripId).eq("date", date);
