@@ -227,12 +227,13 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 <main id="main" class="wrap" tabindex="-1">
   <section class="gate" id="gate" hidden aria-labelledby="gate-h">
     <h1 id="gate-h">Organizer dashboard</h1>
-    <p>This is where organizers see bookings, joiner lists and DP payouts. Sign up as an organizer to use it, or look around with a sample organizer account.</p>
+    <p id="gate-lead">This is where organizers see bookings, joiner lists and DP payouts. Sign up as an organizer to use it, or look around with a sample organizer account.</p>
     <div class="actions">
       <a class="btn btn-primary label-caps" href="organizer-signup.html" id="gate-signup">Create organizer account</a>
+      <a class="btn btn-secondary label-caps" href="signin.html" id="gate-signin" hidden>Sign in</a>
       <button type="button" class="btn btn-secondary label-caps" id="use-sample">Use the sample account</button>
     </div>
-    <p class="proto-note"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: the bookings here are sample data, and nothing is saved.</span></p>
+    <p class="proto-note" id="gate-proto"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Prototype: the bookings here are sample data, and nothing is saved.</span></p>
   </section>
 
   <div class="dash" id="dash" hidden>
@@ -313,7 +314,28 @@ const SAMPLE_ORG = { name: "Lea Santos", org: "Batangas Trail Co.", role: "organ
 // ---- Who is looking -------------------------------------------------------
 let me = getUser();
 $("use-sample").addEventListener("click", () => { setUser(SAMPLE_ORG); location.reload(); });
-if (TP.online) $("use-sample").hidden = true;
+// Live site (TP-056): no sample account and no sample data, so say what's true there:
+// sign in, or apply; pilot organizers are approved by hand.
+if (TP.online) {
+  $("use-sample").hidden = true;
+  $("gate-proto").hidden = true;
+  const status = me?.organizerStatus;
+  if (!me) {
+    $("gate-lead").textContent = "Organizers see their bookings, joiner lists and DP records here. Already an organizer? Sign in. New here? Apply to become one: during the pilot, TrailPeak approves each organizer by hand.";
+    $("gate-signin").hidden = false;
+    $("gate-signin").addEventListener("click", () => rememberNext("dashboard.html"));
+    $("gate-signup").textContent = "Apply as an organizer";
+  } else if (status === "pending") {
+    $("gate-lead").textContent = "Thanks for applying. During the pilot TrailPeak approves each organizer by hand; your dashboard opens here once you're approved. We'll contact you if we need anything.";
+    $("gate-signup").hidden = true;
+  } else if (status === "revoked") {
+    $("gate-lead").textContent = "Your organizer access is turned off, so the dashboard isn't available. If you think that's a mistake, contact TrailPeak.";
+    $("gate-signup").hidden = true;
+  } else {
+    $("gate-lead").textContent = `You're signed in as a joiner${me.name ? ` (${me.name})` : ""}. To post trips and see bookings here, apply to become an organizer: during the pilot, TrailPeak approves each organizer by hand.`;
+    $("gate-signup").textContent = "Apply as an organizer";
+  }
+}
 if (!TP.online) {
   $("foot-note").textContent = "TrailPeak prototype · organizer dashboard with sample bookings";
   $("dash-note").textContent = "Prototype: bookings, joiners, numbers and payouts are sample data. Changes here aren't saved. Commission uses a sample rate of 10%.";
