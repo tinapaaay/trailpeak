@@ -116,12 +116,12 @@
     <div>
       <div class="page-head">
         <h1>Become a TrailPeak organizer</h1>
-        <p>Post trips, take DPs online, and get a verified badge joiners trust. Takes about 5 minutes.</p>
+        <p>Post trips and take DPs online. TrailPeak reviews every organizer before they can post. Takes about 5 minutes.</p>
       </div>
 
       <ol class="steps" aria-label="Sign-up steps">
         <li data-step="1">1 Account</li>
-        <li data-step="2">2 Verify ID</li>
+        <li data-step="2">2 ID</li>
         <li data-step="3">3 Business</li>
         <li data-step="4">4 Payout</li>
       </ol>
@@ -144,8 +144,8 @@
 
       <!-- Step 2: ID check -->
       <form class="panel" id="s2" hidden novalidate aria-labelledby="h2">
-        <h2 id="h2">Verify your ID</h2>
-        <p class="lead">This gives you the <strong>ID verified</strong> badge and protects joiners' DPs. An ID-checking service compares your ID with a selfie; TrailPeak keeps only the result, not the photos.</p>
+        <h2 id="h2">Your ID</h2>
+        <p class="lead">Joiners pay DPs before meeting you, so TrailPeak needs to know who you are. There's no automatic ID-check service yet: an ID badge on your trips shows <strong>Demo: not a real check</strong> beside it. Your photos stay on this device.</p>
         <div class="field2">
           <label class="field-label" for="idtype">ID type</label>
           <select class="input" id="idtype">
@@ -157,13 +157,13 @@
         <label class="upload"><input type="file" id="selfie" accept="image/*" capture="user"><span class="ph" id="selfie-ph"><svg width="24" height="24" aria-hidden="true"><use href="#i-user"/></svg></span><span><strong>Selfie holding your ID</strong><span class="meta">Face and ID both clear</span></span></label>
         <p class="error" id="e2" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
         <p class="checking" id="checking" hidden aria-live="polite"><svg width="18" height="18" aria-hidden="true"><use href="#i-clock"/></svg>Checking your ID…</p>
-        <div class="actions"><button type="submit" class="btn btn-primary label-caps">Verify ID</button><button type="button" class="link-btn" data-back="1">Back</button></div>
+        <div class="actions"><button type="submit" class="btn btn-primary label-caps">Continue</button><button type="button" class="link-btn" data-back="1">Back</button></div>
       </form>
 
       <!-- Step 3: business (optional) -->
       <form class="panel" id="s3" hidden novalidate aria-labelledby="h3">
         <h2 id="h3">Business documents <span class="meta" style="font:inherit;font-size:15px;font-weight:400">optional</span></h2>
-        <p class="lead" id="biz-lead">Add these for the <strong>Business verified</strong> badge. Our team reviews them with your application.</p>
+        <p class="lead" id="biz-lead">Add these if you have them. Our team reviews them with your application. A Business verified badge shows <strong>Demo: not a real check</strong> beside it for now.</p>
         <div class="choices" role="radiogroup" aria-label="Business type">
           <label class="choice"><input type="radio" name="btype" value="DTI" checked><strong>Sole proprietor</strong><span>DTI business name registration</span></label>
           <label class="choice"><input type="radio" name="btype" value="SEC"><strong>Corporation or partnership</strong><span>SEC registration</span></label>
@@ -203,8 +203,8 @@
     <aside class="why" aria-labelledby="why-h">
       <h2 id="why-h">Why we ask</h2>
       <ul>
-        <li><strong>ID check:</strong> joiners pay DPs before meeting you. A verified ID shows you're a real person.</li>
-        <li><strong>Business documents:</strong> optional, for the Business verified badge.</li>
+        <li><strong>ID:</strong> joiners pay DPs before meeting you, so we confirm who you are. It doesn't show guide experience, permits, gear or emergency plans.</li>
+        <li><strong>Business documents:</strong> optional, and a separate check from your ID.</li>
         <li><strong>Payout account:</strong> your DPs go straight to you, minus TrailPeak's commission.</li>
       </ul>
       <p class="meta">We keep the check results, not your ID photos (Data Privacy Act).</p>
@@ -230,7 +230,8 @@ if (TP.online && !existing) { rememberNext("organizer-signup.html"); location.re
 if (!TP.online) {
   $("acct-note").textContent = "Prototype: no real account is created, and photos stay on this device.";
   $("foot-note").textContent = "TrailPeak prototype · mock sign-up: no ID is checked and nothing is sent or saved outside this browser";
-  $("biz-lead").innerHTML = "Add these for the <strong>Business verified</strong> badge. Our team reviews them in 1–2 working days. You can post trips while you wait.";
+  $("biz-lead").innerHTML = "Add these if you have them. In this demo nothing is reviewed, and any Business verified badge shows <strong>Demo: not a real check</strong>.";
+  $("checking").lastChild.textContent = "Demo: pretending to check your ID…";
 }
 // Online, sign-up ends in an application: the owner approves organizers by hand (TP-001).
 const applied = TP.online && existing && existing.organizerStatus === "pending";
@@ -247,7 +248,7 @@ if (!alreadyOrganizer && (applied || revoked)) {
 
 if (alreadyOrganizer) {
   document.querySelector(".page > div").innerHTML = `<div class="page-head"><h1>You're already an organizer</h1>
-    <p>${escapeHtml(existing.org)} is set up${existing.idVerified ? " and ID verified" : ""}. Go to your dashboard to see bookings, or post a new trip.</p></div>
+    <p>${escapeHtml(existing.org)} is set up${existing.idVerified ? ` and marked ID verified (${DEMO_CHECK})` : ""}. Go to your dashboard to see bookings, or post a new trip.</p></div>
     <div class="actions"><a class="btn btn-primary label-caps" href="dashboard.html">Go to dashboard</a><a class="btn btn-secondary label-caps" href="organize.html">Post a trip</a></div>`;
 }
 if (!alreadyOrganizer && !applied && !revoked) {
@@ -365,7 +366,7 @@ function showFinished() {
 
   const row = (cls, icon, title, note) => `<li><svg class="${cls}" width="20" height="20" aria-hidden="true"><use href="#i-${icon}"/></svg><div><strong>${title}</strong><p class="meta">${note}</p></div></li>`;
   $("status").innerHTML =
-    row("ok", "tick", "ID verified", `${data.idType}. The badge shows on all your trips.`) +
+    row("ok", "tick", `ID verified <span class="tag-demo">${DEMO_CHECK}</span>`, `${data.idType}. Nothing was really checked: this is the offline demo.`) +
     (data.business === "review"
       ? row("wait", "clock", "Business documents in review", "Usually 1–2 working days. We'll text you when it's done.")
       : row("off", "x", "Business documents not added", "Add them anytime from your account for the Business verified badge.")) +

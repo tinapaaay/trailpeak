@@ -42,7 +42,8 @@ function card(t, dep) {
         <div><dt>${icon("calendar", 16)}</dt><dd>Meetup <span class="data">${niceDate(date)} · ${t.meet}</span></dd></div>
         <div><dt>${icon("van", 16)}</dt><dd>Pick-up ${t.pickups.join(" · ")}</dd></div>
       </dl>
-      <p class="organizer"><span class="org-avatar label-caps" aria-hidden="true">${initials(t.org)}</span>by ${t.org}${t.verified ? `<span class="verified" title="ID and business verified">${icon("check", 16)}<span class="sr">Verified organizer</span></span>` : ""}</p>
+      <p class="organizer"><span class="org-avatar label-caps" aria-hidden="true">${initials(t.org)}</span>by ${t.org}</p>
+      ${t.verified ? `<p class="org-claim">${claimBadge("ID verified")}</p>` : ""}
     </div>
     <div class="card-foot">
       <p class="price">${peso(t.fee)} <small>event fee · ${peso(t.dp)} to reserve</small></p>

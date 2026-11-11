@@ -132,6 +132,7 @@
 .ask-msg { font: 400 17px/1.5 var(--font-body); color: var(--color-on-surface); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); width: 100%; resize: vertical; }
 .ask-msg:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .fine-dark { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
+.org-card .org-checks { grid-column: 1 / -1; display: grid; gap: var(--space-xs); }
 .org-card .actions { grid-column: 1 / -1; display: flex; gap: var(--space-sm); flex-wrap: wrap; }
 
 /* Booking panel (desktop: sticky side panel) */
@@ -390,7 +391,9 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 const shapes = { easy: ["blaze-circle", 1], moderate: ["", 1], hard: ["blaze-diamond", 1], expert: ["blaze-diamond", 2] };
 const labels = { easy: "Easy", moderate: "Moderate", hard: "Hard", expert: "Expert" };
 const initials = n => n.split(" ").filter(w => /^[A-Z]/.test(w)).slice(0, 2).map(w => w[0]).join("");
-const seal = `<span class="verified" title="ID and business verified"><svg width="16" height="16" aria-hidden="true"><use href="#i-check"/></svg><span class="sr">Verified organizer</span></span>`;
+// ID and business are separate claims; each carries the demo tag (claimBadge in auth.js).
+const businessLine = b => b === "verified" ? claimBadge("Business verified")
+  : b === "review" ? `<span class="meta">Business documents in review</span>` : `<span class="meta">Business not checked</span>`;
 
 function renderStatic() {
   document.title = `${T.title} · TrailPeak`;
@@ -405,7 +408,7 @@ function renderStatic() {
     <div class="row meta">
       <span class="meta"><svg width="16" height="16" aria-hidden="true"><use href="#i-pin"/></svg>${esc(T.place)}</span>
       <span class="meta data"><svg width="16" height="16" aria-hidden="true"><use href="#i-star"/></svg>${T.isNew ? "New trip" : `${T.rating.toFixed(1)} (${T.reviews} reviews)`}</span>
-      <span class="organizer"><span class="org-avatar label-caps" aria-hidden="true">${initials(T.org)}</span>by ${esc(T.org)}${T.verified ? seal : ""}</span>
+      <span class="organizer"><span class="org-avatar label-caps" aria-hidden="true">${initials(T.org)}</span>by ${esc(T.org)}</span>${T.verified ? claimBadge("ID verified") : ""}
     </div>`;
   $("gallery").classList.toggle("single", T.gallery.length === 1);
   $("gallery").innerHTML = T.gallery.map(([src, alt]) => `<figure><img src="${src}" alt="${esc(alt)}"></figure>`).join("");
@@ -438,7 +441,12 @@ function renderStatic() {
   $("bring").closest(".section").hidden = !T.bring;
   $("bring").textContent = T.bring;
   $("org-card").innerHTML = `<span class="org-avatar label-caps" aria-hidden="true">${initials(T.org)}</span>
-    <div><p><strong>${esc(T.org)}</strong> ${T.verified ? seal : ""}</p><p class="meta">${T.verified ? "ID verified" : "Not verified yet"} · ${T.orgTrips ? `${T.orgTrips} trips run · ${T.rating.toFixed(1)} average` : "New on TrailPeak"}</p></div>
+    <div><p><strong>${esc(T.org)}</strong></p><p class="meta">${T.orgTrips ? `${T.orgTrips} trips run · ${T.rating.toFixed(1)} average` : "New on TrailPeak"}</p></div>
+    <div class="org-checks">
+      <p>${T.verified ? claimBadge("ID verified") : `<span class="meta">ID not checked yet</span>`}</p>
+      <p>${businessLine(T.business)}</p>
+      <p class="meta">${ID_LIMITS}</p>
+    </div>
     <div class="actions"><a class="btn btn-secondary label-caps" href="org.html#${T.org.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}">View profile</a><button type="button" class="btn btn-secondary label-caps" id="ask" aria-expanded="false" aria-controls="ask-panel">Ask the organizer</button></div>
     <div class="ask-panel" id="ask-panel" hidden>
       <label class="field-label" for="ask-msg">Your message to ${esc(T.org)}</label>
