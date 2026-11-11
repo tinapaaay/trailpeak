@@ -300,7 +300,7 @@ async function start() {
   const statusOf = s => s.status === "cancelled" ? "cancelled" : isPastDate(s.date) ? "done" : s.status === "closed" ? "closed" : (bookedOf(s) >= s.cap ? "full" : "open");
   const statusLabel = { open: "Open", full: "Full", closed: "Closed", cancelled: "Cancelled", done: "Done" };
 
-  $("org-line").innerHTML = `<span class="org-avatar label-caps" aria-hidden="true">${esc(initialsOf(me.org))}</span>${esc(me.org)}${me.idVerified ? `<span class="verified" title="ID verified"><svg width="16" height="16" aria-hidden="true"><use href="#i-check"/></svg><span class="sr">Verified organizer</span></span>` : ""}`;
+  $("org-line").innerHTML = `<span class="org-avatar label-caps" aria-hidden="true">${esc(initialsOf(me.org))}</span>${esc(me.org)}${me.idVerified ? claimBadge("ID verified") : ""}`;
 
   function renderTiles() {
     const kept = keys().map(k => state[k]).filter(s => s.status !== "cancelled");

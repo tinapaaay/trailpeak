@@ -25,6 +25,17 @@ function takeNext(fallback = "index.html") {
 function initialsOf(name) {
   return (name || "").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
 }
+// ---- Verification claims (TP-002) ------------------------------------------
+// TrailPeak has no real ID-check service yet, so every "ID verified" or "Business verified"
+// claim carries this tag right beside it, never only in a footer. ID and business stay
+// separate claims. The label is always one of the fixed strings below, never user text.
+const DEMO_CHECK = "Demo: not a real check";
+function claimBadge(label) {
+  return `<span class="claim"><svg width="16" height="16" aria-hidden="true"><use href="#i-check"/></svg>${label} <span class="tag-demo">${DEMO_CHECK}</span></span>`;
+}
+// What an ID check can't tell joiners. Shown wherever an organizer's checks are listed.
+const ID_LIMITS = "An ID check only confirms who the organizer is. It doesn't check guide experience, permits, gear or emergency plans, so ask the organizer about these before you book.";
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -46,7 +57,7 @@ function renderAccount() {
     return;
   }
   const role = user.role === "organizer"
-    ? `Organizer · ${escapeHtml(user.org || "")}${user.idVerified ? " · ID verified" : ""}`
+    ? `Organizer · ${escapeHtml(user.org || "")}${user.idVerified ? ` · ID verified (${DEMO_CHECK})` : ""}`
     : user.organizerStatus === "pending" ? "Joiner · organizer application in review" : "Joiner";
   slot.outerHTML = `<details class="acct">
     <summary class="avatar label-caps" aria-label="Account: ${escapeHtml(user.name)}">${escapeHtml(initialsOf(user.name))}</summary>

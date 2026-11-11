@@ -207,14 +207,16 @@ create policy "Organizers edit their own trips" on public.trips
   for update using (organizer_id = auth.uid() and public.is_organizer())
   with check (organizer_id = auth.uid() and public.is_organizer());
 
--- The verified seal on a trip comes from its organizer's profile, never from what the
--- organizer typed into the trip. Sample trips (no organizer) keep their seed value.
+-- The verified seal and business status on a trip come from its organizer's profile, never
+-- from what the organizer typed into the trip. Sample trips (no organizer) keep their seed value.
+-- The website shows both with a "Demo: not a real check" tag until real checks exist (TP-002).
 create or replace function public.trip_verified_from_profile()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.organizer_id is not null then
-    new.details := jsonb_set(new.details, '{verified}',
-      to_jsonb(coalesce((select id_verified from public.profiles where id = new.organizer_id), false)));
+    new.details := new.details || jsonb_build_object(
+      'verified', coalesce((select id_verified from public.profiles where id = new.organizer_id), false),
+      'business', coalesce((select business from public.profiles where id = new.organizer_id), 'none'));
   end if;
   return new;
 end $$;
@@ -225,7 +227,8 @@ create trigger trip_verified_from_profile
 -- Bring existing organizer trips in line (cheap, and safe to repeat).
 update public.trips set details = details
  where organizer_id is not null
-   and details -> 'verified' is distinct from to_jsonb(coalesce((select p.id_verified from public.profiles p where p.id = organizer_id), false));
+   and (details -> 'verified' is distinct from to_jsonb(coalesce((select p.id_verified from public.profiles p where p.id = organizer_id), false))
+     or details ->> 'business' is distinct from coalesce((select p.business from public.profiles p where p.id = organizer_id), 'none'));
 
 create table if not exists public.departures (
   trip_id        text not null references public.trips (id) on delete cascade,

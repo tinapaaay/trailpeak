@@ -15,7 +15,6 @@
 .who { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-lg); align-items: center; }
 .who .org-avatar { width: 96px; height: 96px; font-size: 28px; background: var(--color-neutral); }
 .who h1 { font: 700 40px/1.1 var(--font-display); letter-spacing: -0.02em; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
-.who .verified svg { width: 28px; height: 28px; }
 .who p { color: var(--color-secondary); }
 .stats-row { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin-top: var(--space-sm); }
 .stats-row div { display: grid; gap: 2px; }
@@ -26,6 +25,7 @@
 .check-item { background: var(--color-card); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-xs); align-content: start; }
 .check-item svg { color: var(--color-primary); }
 .check-item.no svg { color: var(--color-secondary); }
+.check-item .tag-demo { justify-self: start; }
 .check-item p { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
 .section-title { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; margin-bottom: var(--space-md); }
 
@@ -106,6 +106,7 @@ if (!trips.length) {
   root.innerHTML = `<div class="missing"><h1 class="section-title">Organizer not found</h1><p class="meta">This organizer may have stopped posting trips.</p><a class="btn btn-primary label-caps" href="index.html">Find trips</a></div>`;
 } else {
   const org = trips[0].org, verified = trips.some(t => t.verified);
+  const business = trips.some(t => t.business === "verified") ? "verified" : trips.some(t => t.business === "review") ? "review" : "none";
   const runs = Math.max(...trips.map(t => t.orgTrips || 0));
   const reviews = trips.flatMap(t => (t.reviewList || []).map(r => [...r, t])).sort((a, b) => b[1].localeCompare(a[1]));
   const rated = trips.filter(t => t.reviews);
@@ -128,7 +129,8 @@ if (!trips.length) {
     <section class="who" aria-labelledby="org-h">
       <span class="org-avatar label-caps" aria-hidden="true">${esc(initialsOf(org))}</span>
       <div>
-        <h1 id="org-h">${esc(org)}${verified ? `<span class="verified" title="Verified organizer">${icon("check", 28)}<span class="sr">Verified organizer</span></span>` : ""}</h1>
+        <h1 id="org-h">${esc(org)}</h1>
+        ${verified ? `<p class="org-claim">${claimBadge("ID verified")}</p>` : ""}
         <p>Joiner trips to ${esc(mountains.join(", "))}. Pick-ups in ${esc(pickups.join(", "))}.</p>
         <div class="stats-row">
           <div><span class="value">${runs || "New"}</span><span class="label-caps">${runs ? "Trips run" : "On TrailPeak"}</span></div>
@@ -141,11 +143,13 @@ if (!trips.length) {
     <section aria-labelledby="checks-h">
       <h2 class="sr" id="checks-h">Verification</h2>
       <div class="checks">
-        <div class="check-item${verified ? "" : " no"}">${icon(verified ? "tick" : "x", 24)}<strong>${verified ? "ID verified" : "ID not verified yet"}</strong><p>${verified ? "A government ID and a live selfie were checked when the organizer signed up." : "Book with care: TrailPeak hasn't checked this organizer's ID yet."}</p></div>
-        <div class="check-item${verified ? "" : " no"}">${icon(verified ? "tick" : "x", 24)}<strong>${verified ? "Business verified" : "Business not verified yet"}</strong><p>${verified ? "DTI or SEC registration and a mayor's business permit were reviewed." : "No business documents have been reviewed yet."}</p></div>
+        <div class="check-item${verified ? "" : " no"}">${icon(verified ? "tick" : "x", 24)}<strong>${verified ? "ID verified" : "ID not checked yet"}</strong>${verified ? `<span class="tag-demo">${DEMO_CHECK}</span>` : ""}<p>${verified ? "Marked as checked, but TrailPeak has no real ID-check service yet." : "Book with care: TrailPeak hasn't checked this organizer's ID."}</p></div>
+        <div class="check-item${business === "verified" ? "" : " no"}">${icon(business === "verified" ? "tick" : business === "review" ? "clock" : "x", 24)}<strong>${business === "verified" ? "Business verified" : business === "review" ? "Business documents in review" : "Business not checked"}</strong>${business === "verified" ? `<span class="tag-demo">${DEMO_CHECK}</span>` : ""}<p>${business === "verified" ? "Marked as checked, but TrailPeak has no real business-document check yet." : business === "review" ? "The organizer sent business documents; they haven't been checked." : "No business documents have been reviewed."}</p></div>
         <div class="check-item">${icon("calendar", 24)}<strong>Standard cancellation policy</strong><p>Weather or closure: move or refund. Organizer cancels: full DP refund. Joiner cancels 7+ days before: move once.</p></div>
       </div>
     </section>
+
+    <p class="meta id-limits">${ID_LIMITS}</p>
 
     <section aria-labelledby="trips-h">
       <h2 class="section-title" id="trips-h">Upcoming trips</h2>
