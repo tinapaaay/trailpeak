@@ -560,7 +560,8 @@ function update() {
   $("size-note").textContent = `${left} ${left === 1 ? "slot" : "slots"} left on this date`;
   $("b-fee").textContent = `${peso(FEE)} × ${size}`;
   $("b-balance").textContent = peso((FEE - DP) * size);
-  $("b-now").textContent = peso(DP * size);
+  // The DP is per joiner: show the sum like the event fee line above it.
+  $("b-now").textContent = size > 1 ? `${peso(DP)} × ${size} = ${peso(DP * size)}` : peso(DP);
   $("m-now").textContent = peso(DP * size);
   $("m-date").textContent = `to reserve · ${nice(picked)}`;
   if (TP.online && !T.organizerId) {

@@ -47,7 +47,7 @@ function card(t, dep) {
       ${t.verified ? `<p class="org-claim">${claimBadge("ID verified")}</p>` : ""}
     </div>
     <div class="card-foot">
-      <p class="price">${peso(t.fee)} <small>event fee · ${peso(t.dp)} to reserve</small></p>
+      <p class="price">${peso(t.fee)} <small>per joiner · ${peso(t.dp)} DP to reserve</small></p>
       <a class="btn btn-primary label-caps" href="${t.page || "#"}" aria-label="View and join ${t.title}">View &amp; join</a>
     </div>
   </article>`;
