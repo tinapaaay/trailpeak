@@ -611,3 +611,14 @@ DP pending, Partial DP and DP received are text states, not verification badges.
 **Transaction reference.** The Record DP form has an optional "Transaction reference" field (up to 40 characters, `data` font) for the GCash, Maya or bank reference number. It appears in the receipt history ("₱1,000 · GCash · ref 1012 345 678 · received…") and in the joiner's My trips note, so both sides can match the transfer. It is the organizer's note, not a verification.
 
 **Mobile numbers.** Every mobile field (outside booking, joiner details, emergency contact) accepts 0917…, 917… or +63 917… with spaces or dashes, and anything else gets the same `error` line: "The mobile number must be a Philippine mobile number: 10 digits starting with 9, like 0917 123 4567.", with the field marked invalid and focused. Numbers are never cut short to make them fit. Saved numbers are shown as "+63 917 123 4567"; an older outside booking whose number fails the check shows it with "(check this number)".
+
+
+## DP hold, reference and expiry (TP-011)
+
+**DP states** use one set of words everywhere (`dpState()` in `auth.js`): *DP pending* (slots held until a deadline), *DP sent, waiting for organizer* (the joiner entered the reference), *Partial DP*, *DP received*, *Expired: DP not sent*. A deadline is always written out in Manila time ("Wed, Nov 11, 8:30 PM"), never as a countdown alone, so it reads the same on every device.
+
+**My trips.** A booking with a running hold shows a `due` line with a `secondary` clock icon: "Send the ₱1,000 DP to Batangas Trail Co. by Wed, Nov 11, 8:30 PM, then enter the reference here. With no reference by then, your slots are released." Under it an inline form, open by default: "GCash or Maya reference number" (`data` font, up to 40 characters), a `button-primary` "I've sent the DP" (disabled with "Saving…" while it saves), and a `text-meta` hint on why it's asked. Once sent, a `text-meta` line gives the time and reference and says the slots stay held, with a "Change reference" text button. An expired booking moves to the cancelled section with an "Expired" pill and a `due` line (alert icon) saying the slots were released and that a late payer should contact the organizer to be rebooked or refunded.
+
+**Reserve page.** The lead says how long the slots will be held (the shorter hold named as "shorter because the trip is soon"), and the confirmation's first line gives the exact deadline.
+
+**Dashboard.** The DP column adds "· ref 1012 345 678" to a sent DP and "· held until …" to a running hold. Under the joiner table, **Expired holds · DP not sent** lists each lapsed booking (name, joiners, when it expired) with a `button-secondary` "Rebook", under a `text-meta` line: "Paid after the deadline? Rebook if slots remain; otherwise refund the DP under your policy." A refused rebook shows as an `error` line there. Expired bookings never count toward slots or money.

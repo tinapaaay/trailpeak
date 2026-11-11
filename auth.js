@@ -110,6 +110,20 @@ function todayIso() {
 }
 const isPastDate = iso => iso < todayIso();
 
+// DP status of a live booking (TP-011), the same words on My trips, the confirmation page and
+// the dashboard: held (DP pending, slots held until a deadline), sent (joiner entered the
+// reference, waiting for the organizer), partial, received, expired (no reference in time), or
+// pending (older bookings with no deadline).
+function dpState(b, received = b.receivedDp || 0, expected = b.expectedDp ?? b.dp) {
+  if (b.status === "expired" || (b.status === "confirmed" && b.holdUntil && !b.dpSentAt && new Date(b.holdUntil) <= new Date())) return "expired";
+  if (received && received >= expected) return "received";
+  if (received) return "partial";
+  if (b.dpSentAt) return "sent";
+  return b.holdUntil ? "held" : "pending";
+}
+const DP_STATES = { held: "DP pending", sent: "DP sent, waiting for organizer", partial: "Partial DP", received: "DP received", expired: "Expired: DP not sent", pending: "DP pending" };
+const holdTime = iso => new Date(iso).toLocaleString("en-PH", { timeZone: "Asia/Manila", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
 // One name for each date state, shared by the dashboard and the public pages (TP-012).
 // Stored on the server: open, closed, cancelled. Derived here: full (open, no slots left)
 // and completed (the date has passed). A cancelled date stays "cancelled" even after it passes.

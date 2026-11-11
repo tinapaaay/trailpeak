@@ -2,7 +2,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node syntax.test.mjs && node receipts.test.mjs && node activity.test.mjs"
+    "test": "node syntax.test.mjs && node receipts.test.mjs && node activity.test.mjs && node hold.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.16"

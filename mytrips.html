@@ -142,10 +142,12 @@ else { if (!TP.online) $("mt-note").textContent = "Prototype: bookings are kept 
 
 function render() {
   const all = getBookings();
-  const upcoming = all.filter(b => b.status === "confirmed" && daysUntil(b.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = all.filter(b => b.status === "confirmed" && daysUntil(b.date) >= 0 && !(TP.online && b.bookingMode !== "demo" && dpState(b) === "expired")).sort((a, b) => a.date.localeCompare(b.date));
   // Done trips (newest first) and cancelled bookings get their own sections, so a finished hike never looks cancelled.
   const past = all.filter(b => b.status === "confirmed" && daysUntil(b.date) < 0).sort((a, b) => b.date.localeCompare(a.date));
-  const cancelled = all.filter(b => b.status === "cancelled").sort((a, b) => b.date.localeCompare(a.date));
+  // Expired holds sit with cancelled bookings: neither holds a slot any more.
+  const isExpired = b => TP.online && b.bookingMode !== "demo" && dpState(b) === "expired";
+  const cancelled = all.filter(b => b.status === "cancelled" || isExpired(b)).sort((a, b) => b.date.localeCompare(a.date));
   $("lead").textContent = upcoming.length
     ? `${upcoming.length} upcoming ${upcoming.length === 1 ? "trip" : "trips"} for ${user.name}.`
     : `No upcoming trips yet, ${user.name.split(" ")[0]}.`;
@@ -161,8 +163,21 @@ function render() {
 function card(b) {
   const T = tripById(b.tripId); if (!T) return "";
   const isDemo = TP.online && b.bookingMode === "demo";
-  const d = daysUntil(b.date), cancelled = b.status === "cancelled", isPast = !cancelled && d < 0;
-  const status = cancelled ? ["cancelled", "Cancelled"] : isPast ? ["past", "Done"] : ["confirmed", "Confirmed"];
+  const pay = TP.online && !isDemo ? dpState(b) : null;
+  const d = daysUntil(b.date), cancelled = b.status === "cancelled" || pay === "expired", isPast = !cancelled && d < 0;
+  const status = pay === "expired" ? ["cancelled", "Expired"] : cancelled ? ["cancelled", "Cancelled"] : isPast ? ["past", "Done"] : ["confirmed", "Confirmed"];
+  // DP step (TP-011): send the DP, then enter the reference; the slots stay held while the organizer checks.
+  const refOpen = open[b.ref] === "ref" || (pay === "held" && open[b.ref] === undefined);
+  const dpStep = !pay || isPast ? "" : pay === "expired"
+    ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Expired: DP not sent.</strong> No reference by ${b.holdUntil ? holdTime(b.holdUntil) : "the deadline"}, so your ${b.size === 1 ? "slot was" : "slots were"} released. If you already paid, contact ${esc(T.org)}: they can rebook you if slots remain, or refund the DP.</span></p>`
+    : pay === "held" || pay === "sent" ? `${pay === "held" ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-clock"/></svg><span><strong>Send the ${peso(b.expectedDp)} DP to ${esc(T.org)} by ${holdTime(b.holdUntil)}</strong>, then enter the reference here. With no reference by then, your slots are released.</span></p>` : `<p class="note">DP sent ${b.dpSentAt ? holdTime(b.dpSentAt) : ""} · ref <span class="data">${esc(b.dpReference || "")}</span>. Your slots stay held while ${esc(T.org)} checks it.</p>`}
+      ${refOpen ? `<form class="inline" data-ref-form="${b.ref}" novalidate>
+        <label class="field-label" for="ref-${b.ref}">GCash or Maya reference number</label>
+        <div class="row"><input class="input data" id="ref-${b.ref}" maxlength="40" autocomplete="off" value="${esc(b.dpReference || "")}" placeholder="e.g. 1012 345 678" aria-describedby="ref-hint-${b.ref}">
+        <button type="submit" class="btn btn-primary label-caps">${pay === "sent" ? "Save reference" : "I've sent the DP"}</button>${pay === "sent" ? `<button type="button" class="link-btn" data-close="${b.ref}">Cancel</button>` : ""}</div>
+        <p class="note" id="ref-hint-${b.ref}">From the receipt in your wallet app. ${esc(T.org)} uses it to find your payment.</p>
+      </form>` : pay === "sent" ? `<div class="row"><button type="button" class="link-btn" data-ref="${b.ref}">Change reference<span class="sr"> for ${esc(T.title)}</span></button></div>` : ""}`
+    : "";
   const when = d === 0 ? "Today" : d === 1 ? "Tomorrow" : `In ${d} days`;
   const canMove = !isDemo && !cancelled && !isPast && d >= 7 && !b.moved;
   let panel = "";
@@ -225,11 +240,12 @@ function card(b) {
         <div><dt>Date</dt><dd>${nice(b.date)}</dd></div>
         <div><dt>Meetup</dt><dd>${b.pickupTime} · ${esc(b.pickup)}</dd></div>
         <div><dt>Joiners</dt><dd>${b.size}${b.size > 1 && !cancelled ? `<span class="group"> · ${esc(group)}</span>` : ""}</dd></div>
-        <div><dt>${isDemo ? "Demo booking" : TP.online ? "DP record" : "Demo DP"}</dt><dd>${isDemo ? "Sample only · no DP due" : TP.online ? (b.paymentsReady ? `${peso(b.receivedDp)} / ${peso(b.expectedDp)} · ${b.receivedDp >= b.expectedDp ? "DP received" : b.receivedDp ? "Partial DP" : "DP pending"}` : "Unavailable: refresh after the database update") : `${peso(b.dp)} · ${b.wallet}`}</dd></div>
+        <div><dt>${isDemo ? "Demo booking" : TP.online ? "DP record" : "Demo DP"}</dt><dd>${isDemo ? "Sample only · no DP due" : TP.online ? (b.paymentsReady ? `${peso(b.receivedDp)} / ${peso(b.expectedDp)} · ${DP_STATES[pay]}` : "Unavailable: refresh after the database update") : `${peso(b.dp)} · ${b.wallet}`}</dd></div>
         ${cancelled || isPast ? "" : `<div><dt>Bring for balance</dt><dd>${isDemo ? "Sample amount only" : b.balance === null ? "Unavailable" : peso(b.balance)}</dd></div>`}
       </dl>
-      ${isDemo ? `<p class="note">This is a legacy demo booking. No payment was recorded. <a href="demo.html">Try the isolated demo</a>.</p>` : TP.online && b.paymentsReady ? `<p class="note">${b.receipt?.amount ? `Recorded by the organizer · ${esc(b.receipt.method)}${b.receipt.reference ? ` · ref ${esc(b.receipt.reference)}` : ""} · received ${new Date(b.receipt.received_at).toLocaleString("en-PH", {timeZone:"Asia/Manila"})} PHT.` : `Pay the ${peso(b.expectedDp)} DP directly to ${esc(T.org)} and ask them to record receipt.`} TrailPeak does not verify wallet transfers or send payouts.</p>` : ""}
+      ${isDemo ? `<p class="note">This is a legacy demo booking. No payment was recorded. <a href="demo.html">Try the isolated demo</a>.</p>` : TP.online && b.paymentsReady && (b.receipt?.amount || pay === "pending") ? `<p class="note">${b.receipt?.amount ? `Recorded by the organizer · ${esc(b.receipt.method)}${b.receipt.reference ? ` · ref ${esc(b.receipt.reference)}` : ""} · received ${new Date(b.receipt.received_at).toLocaleString("en-PH", {timeZone:"Asia/Manila"})} PHT.` : `Pay the ${peso(b.expectedDp)} DP directly to ${esc(T.org)} and ask them to record receipt.`} TrailPeak does not verify wallet transfers or send payouts.</p>` : ""}
       ${b.note ? `<p class="note">${esc(b.note)}</p>` : ""}
+      ${dpStep}
       ${detailsLine}
       ${!cancelled && !isPast ? `<div class="actions">
         <a class="btn btn-secondary label-caps" href="trip.html#${T.id}">Trip details</a>
@@ -245,6 +261,17 @@ function card(b) {
 }
 
 // Shows a server error (for example "Not enough slots on that date") inside the open panel.
+// "I've sent the DP": saves the reference on the server (it stops the hold clock).
+document.addEventListener("submit", async e => {
+  const f = e.target.closest("[data-ref-form]"); if (!f) return;
+  e.preventDefault();
+  const ref = f.dataset.refForm, input = document.getElementById("ref-" + ref), v = input.value.trim();
+  if (!v) { input.setAttribute("aria-invalid", "true"); input.focus(); return alertPanel("Enter the reference number from your GCash or Maya receipt.", f); }
+  const btn = f.querySelector("button[type=submit]"); if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = "Saving…";
+  try { await TP.sendDpReference(ref, v); delete open[ref]; open[ref] = "done"; render(); $("live").textContent = "DP reference saved. Your slots stay held while the organizer checks it."; }
+  catch (err) { btn.disabled = false; btn.textContent = "I've sent the DP"; input.setAttribute("aria-invalid", "true"); alertPanel(err.message, f); input.focus(); }
+});
 function alertPanel(msg, panel = document.querySelector(".inline")) {
   if (!panel) return;
   let p = panel.querySelector(".srv-err");
@@ -258,6 +285,7 @@ function update(ref, fn) {
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
   const d = t.dataset;
+  if (d.ref) { open[d.ref] = "ref"; render(); document.getElementById("ref-" + d.ref)?.focus(); return; }
   if (d.move) { open[d.move] = "move"; render(); document.getElementById("mv-" + d.move)?.focus(); }
   if (d.cancel) { open[d.cancel] = "cancel"; render(); document.querySelector(`[data-cancel-yes="${d.cancel}"]`).focus(); }
   if (d.close) { delete open[d.close]; render(); }

@@ -328,6 +328,27 @@ create policy "Joiners read their bookings, organizers read bookings on their tr
 create or replace function public.ph_today()
 returns date language sql stable as $$ select (now() at time zone 'Asia/Manila')::date $$;
 
+-- DP hold (TP-011, Nov 2026). A new pilot booking holds its slots until hold_until (6 hours,
+-- or 2 when the trip is within 3 days; see app_settings below). Entering the GCash/Maya
+-- reference (dp_reference, dp_sent_at) stops the clock: the slots stay held while the organizer
+-- checks. With no reference by hold_until the slots are free again at once (booking_holds_seat
+-- below) and expire_holds() marks the booking 'expired'. Bookings made before this update have
+-- no hold_until and never expire.
+alter table public.bookings add column if not exists hold_until timestamptz;
+alter table public.bookings add column if not exists dp_reference text check (dp_reference is null or char_length(dp_reference) between 1 and 40);
+alter table public.bookings add column if not exists dp_sent_at timestamptz;
+alter table public.bookings add column if not exists dp_reminded_at timestamptz;
+alter table public.bookings add column if not exists expired_at timestamptz;
+alter table public.bookings drop constraint if exists bookings_status_check;
+alter table public.bookings add constraint bookings_status_check check (status in ('confirmed', 'cancelled', 'expired'));
+
+-- Does this booking use its slots right now? Confirmed, and either no hold (older bookings),
+-- the DP reference already sent, or the hold still running. One rule for every count.
+create or replace function public.booking_holds_seat(p_status text, p_hold_until timestamptz, p_dp_sent_at timestamptz)
+returns boolean language sql stable as $$
+  select p_status = 'confirmed' and (p_hold_until is null or p_dp_sent_at is not null or p_hold_until > now());
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Outside bookings (TP-008): joiners who booked through Messenger, in person or another
 -- way, recorded by the trip's organizer so they use the same slots. They aren't accounts:
@@ -366,7 +387,8 @@ create or replace function public.seats_taken(p_trip text, p_date date)
 returns int language sql stable security definer set search_path = public as $$
   select (coalesce((select d.sample_booked from public.departures d where d.trip_id = p_trip and d.date = p_date), 0)
         + coalesce((select sum(b.size) from public.bookings b
-                    where b.trip_id = p_trip and b.date = p_date and b.status = 'confirmed'), 0)
+                    where b.trip_id = p_trip and b.date = p_date
+                      and public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at)), 0)
         + coalesce((select sum(o.size) from public.outside_bookings o
                     where o.trip_id = p_trip and o.date = p_date and o.status = 'confirmed'), 0))::int;
 $$;
@@ -448,6 +470,7 @@ begin
   if me is null then raise exception 'Sign in to reserve.'; end if;
   people := public.clean_details(p_companions, p_size, p_emergency);
   perform public.clear_old_details();
+  perform public.expire_holds();
   select * into dep from public.departures where trip_id = p_trip and date = p_date for update;
   if not found or dep.status <> 'open' then raise exception 'This date is not open for booking.'; end if;
   if p_date < public.ph_today() then raise exception 'This date has passed.'; end if;
@@ -456,7 +479,7 @@ begin
   if t.organizer_id is null then raise exception 'This is a demo trip. Try the separate demo; no live reservation or payment is created.'; end if;
   select * into who from public.profiles where id = me;
   insert into public.bookings (ref, trip_id, date, user_id, size, pickup, pickup_time, dp, balance,
-                               wallet, wallet_number, names, listed, display_name, companions, emergency)
+                               wallet, wallet_number, names, listed, display_name, companions, emergency, hold_until)
   values ('TP-' || upper(substr(md5(random()::text), 1, 6)), p_trip, p_date, me, p_size, p_pickup, p_pickup_time,
           (t.details ->> 'dp')::int * p_size,
           ((t.details ->> 'fee')::int - (t.details ->> 'dp')::int) * p_size,
@@ -469,7 +492,8 @@ begin
                else trim(who.name) end,
           people,
           jsonb_build_object('name', left(trim(p_emergency ->> 'name'), 100), 'relation', left(trim(coalesce(p_emergency ->> 'relation', '')), 40),
-                             'phone', left(trim(p_emergency ->> 'phone'), 20)))
+                             'phone', left(trim(p_emergency ->> 'phone'), 20)),
+          public.dp_hold_until(p_date))
   returning * into b;
   return b;
 end $$;
@@ -582,7 +606,7 @@ language sql stable security definer set search_path = public as $$
          b.size,
          b.user_id = auth.uid()
   from public.bookings b
-  where b.trip_id = p_trip and b.date = p_date and b.status = 'confirmed';
+  where b.trip_id = p_trip and b.date = p_date and public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at);
 $$;
 
 -- Organizer dashboard: bookings on the caller's trips, with the joiner's name and phone,
@@ -591,12 +615,14 @@ drop function if exists public.organizer_bookings();
 create or replace function public.organizer_bookings()
 returns table (ref text, trip_id text, date date, size int, pickup text, pickup_time text, dp int, balance int,
                wallet text, joiner_name text, joiner_phone text, status text, created_at timestamptz,
-               companions jsonb, emergency jsonb)
+               companions jsonb, emergency jsonb, hold_until timestamptz, dp_reference text, dp_sent_at timestamptz,
+               expired_at timestamptz)
 language sql stable security definer set search_path = public as $$
   select b.ref, b.trip_id, b.date, b.size, b.pickup, b.pickup_time, b.dp, b.balance, b.wallet,
          p.name, p.phone, b.status, b.created_at,
          case when b.date >= public.ph_today() - 30 then b.companions else '[]'::jsonb end,
-         case when b.date >= public.ph_today() - 30 then b.emergency end
+         case when b.date >= public.ph_today() - 30 then b.emergency end,
+         b.hold_until, b.dp_reference, b.dp_sent_at, b.expired_at
   from public.bookings b
   join public.trips t on t.id = b.trip_id and t.organizer_id = auth.uid()
   join public.profiles p on p.id = b.user_id
@@ -820,11 +846,14 @@ create table if not exists public.organizer_activity (
   trip_id       text not null,
   date          date,
   booking_ref   text,
-  kind          text not null check (kind in ('booked', 'cancelled', 'moved')),
+  kind          text not null,
   summary       text not null,
   created_at    timestamptz not null default now(),
   read_at       timestamptz
 );
+alter table public.organizer_activity drop constraint if exists organizer_activity_kind_check;
+alter table public.organizer_activity add constraint organizer_activity_kind_check
+  check (kind in ('booked', 'cancelled', 'moved', 'dp_sent', 'reminder', 'expired', 'rebooked'));
 create index if not exists organizer_activity_feed on public.organizer_activity (organizer_id, created_at desc);
 alter table public.organizer_activity enable row level security;
 drop policy if exists "Organizers read their own activity" on public.organizer_activity;
@@ -844,7 +873,28 @@ begin
     insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
     values (org, new.trip_id, new.date, new.ref, 'booked',
       who || ' booked ' || n || ' on ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD')
-      || '. DP of ₱' || to_char(new.dp, 'FM999,999') || ' pending: send your payment details.');
+      || '. DP of ₱' || to_char(new.dp, 'FM999,999') || ' pending: send your payment details.'
+      || coalesce(' Slots held until ' || to_char(new.hold_until at time zone 'Asia/Manila', 'Mon FMDD, FMHH12:MI AM') || '.', ''));
+  elsif new.status = 'expired' and old.status <> 'expired' then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'expired',
+      who || '''s hold on ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD') || ' expired: DP not sent. '
+      || n || ' released.');
+  elsif new.status = 'confirmed' and old.status = 'expired' then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'rebooked',
+      who || ' was rebooked on ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD') || ' after paying late.');
+  elsif new.dp_reference is distinct from old.dp_reference and new.dp_reference is not null then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'dp_sent',
+      who || case when old.dp_reference is null then ' sent the ₱' else ' changed the reference for the ₱' end
+      || to_char(new.dp, 'FM999,999') || ' DP for ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD')
+      || ' (ref ' || new.dp_reference || '). Check your wallet and record it.');
+  elsif new.dp_reminded_at is not null and old.dp_reminded_at is null then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'reminder',
+      'Reminder: ' || who || ' sent the DP for ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD')
+      || ' over a day ago (ref ' || coalesce(new.dp_reference, '-') || '). Record it or contact them.');
   elsif new.status = 'cancelled' and old.status <> 'cancelled' then
     insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
     values (org, new.trip_id, new.date, new.ref, 'cancelled',
@@ -872,3 +922,143 @@ returns int language sql security definer set search_path = public as $$
 $$;
 revoke all on function public.log_booking_activity, public.mark_activity_read from public, anon, authenticated;
 grant execute on function public.mark_activity_read to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- DP hold and expiry (TP-011, Nov 2026). Rule from issue #13, to confirm in interviews:
+-- reserve -> slots held for dp_hold_hours (dp_hold_hours_soon when the trip is within
+-- dp_hold_soon_days, Manila time); the joiner enters the GCash/Maya reference -> "DP sent,
+-- waiting for organizer", the clock stops; the organizer is reminded after dp_reminder_hours
+-- unconfirmed; no reference by the deadline -> slots released, booking "Expired: DP not sent";
+-- paid after release -> the organizer rebooks if slots remain, otherwise refunds.
+-- Change a number with: update app_settings set value = 8 where key = 'dp_hold_hours';
+-- ---------------------------------------------------------------------------
+create table if not exists public.app_settings (
+  key    text primary key,
+  value  numeric not null check (value > 0),
+  note   text
+);
+alter table public.app_settings enable row level security;
+drop policy if exists "Anyone reads settings" on public.app_settings;
+create policy "Anyone reads settings" on public.app_settings for select using (true);
+revoke all on public.app_settings from anon, authenticated;
+grant select on public.app_settings to anon, authenticated;
+-- Only adds missing keys: re-running this file never undoes a change you made.
+insert into public.app_settings (key, value, note) values
+  ('dp_hold_hours', 6, 'Hours a new booking holds its slots before the DP reference is sent'),
+  ('dp_hold_hours_soon', 2, 'Hold hours when the trip is within dp_hold_soon_days'),
+  ('dp_hold_soon_days', 3, 'Days before the trip when the shorter hold applies (Manila time)'),
+  ('dp_reminder_hours', 24, 'Hours after the DP reference before the organizer is reminded')
+on conflict (key) do nothing;
+
+create or replace function public.app_setting(p_key text)
+returns numeric language sql stable security definer set search_path = public as $$
+  select value from public.app_settings where key = p_key;
+$$;
+
+-- When a booking made now for p_date stops holding its slots (unless the DP reference is sent).
+create or replace function public.dp_hold_until(p_date date)
+returns timestamptz language sql stable security definer set search_path = public as $$
+  select now() + (case when p_date - public.ph_today() <= public.app_setting('dp_hold_soon_days')
+                       then public.app_setting('dp_hold_hours_soon') else public.app_setting('dp_hold_hours') end)::float8
+               * interval '1 hour';
+$$;
+
+-- Every change to the joiner's DP reference, so edits stay traceable.
+create table if not exists public.dp_reference_log (
+  id           bigint generated always as identity primary key,
+  booking_ref  text not null references public.bookings (ref) on delete cascade,
+  reference    text not null,
+  previous     text,
+  changed_by   uuid not null references public.profiles (id),
+  changed_at   timestamptz not null default now()
+);
+alter table public.dp_reference_log enable row level security;
+drop policy if exists "Booker and organizer read reference history" on public.dp_reference_log;
+create policy "Booker and organizer read reference history" on public.dp_reference_log
+  for select using (exists (select 1 from public.bookings b where b.ref = booking_ref
+    and (b.user_id = auth.uid() or exists (select 1 from public.trips t where t.id = b.trip_id and t.organizer_id = auth.uid()))));
+revoke all on public.dp_reference_log from anon, authenticated;
+grant select on public.dp_reference_log to authenticated;
+
+-- Joiner: "I've sent the DP", with the reference from their GCash/Maya receipt. Stops the
+-- clock and keeps the slots. Changing it later is allowed and logged; clearing it isn't.
+create or replace function public.send_dp_reference(p_ref text, p_reference text)
+returns public.bookings language plpgsql security definer set search_path = public as $$
+declare b public.bookings; r text := trim(coalesce(p_reference, ''));
+begin
+  if auth.uid() is null then raise exception 'Please sign in again.'; end if;
+  select * into b from public.bookings where ref = p_ref and user_id = auth.uid() for update;
+  if not found or b.status = 'cancelled' then raise exception 'Booking not found.'; end if;
+  if b.status = 'expired' or not public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at) then
+    raise exception 'This reservation expired: the DP wasn''t sent in time, so its slots were released. Book again if slots remain, or contact the organizer.';
+  end if;
+  if r = '' then raise exception 'Enter the reference number from your GCash or Maya receipt.'; end if;
+  if char_length(r) > 40 then raise exception 'The reference can be up to 40 characters.'; end if;
+  if b.dp_reference = r then return b; end if;   -- the same reference again: nothing changes
+  insert into public.dp_reference_log (booking_ref, reference, previous, changed_by) values (b.ref, r, b.dp_reference, auth.uid());
+  update public.bookings set dp_reference = r, dp_sent_at = coalesce(dp_sent_at, now()) where ref = b.ref returning * into b;
+  return b;
+end $$;
+
+-- Marks overdue holds expired (their slots are already free) and reminds organizers about DPs
+-- sent over dp_reminder_hours ago and still not recorded. Safe to run any time, as often as
+-- you like: each booking expires and is reminded at most once. Runs every 5 minutes (pg_cron,
+-- below) and whenever someone books or opens My trips or the dashboard.
+create or replace function public.expire_holds()
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  update public.bookings set status = 'expired', expired_at = hold_until
+   where status = 'confirmed' and dp_sent_at is null and hold_until is not null and hold_until <= now();
+  get diagnostics n = row_count;
+  update public.bookings b set dp_reminded_at = now()
+   where b.status = 'confirmed' and b.dp_sent_at is not null and b.dp_reminded_at is null
+     and b.dp_sent_at <= now() - public.app_setting('dp_reminder_hours')::float8 * interval '1 hour'
+     and not exists (select 1 from public.dp_receipts r where r.booking_ref = b.ref);
+  return n;
+end $$;
+
+-- Organizer: a joiner paid after their hold expired. Rebook them if the date still has room;
+-- otherwise the DP is refunded under the trip's policy (outside TrailPeak).
+create or replace function public.rebook_expired(p_ref text)
+returns public.bookings language plpgsql security definer set search_path = public as $$
+declare b public.bookings; dep public.departures; left_now int;
+begin
+  select * into b from public.bookings where ref = p_ref for update;
+  if not found or not public.is_organizer()
+     or not exists (select 1 from public.trips where id = b.trip_id and organizer_id = auth.uid()) then
+    raise exception 'Only this trip''s organizer can rebook it.';
+  end if;
+  if b.status = 'confirmed' then return b; end if;  -- already rebooked
+  if b.status <> 'expired' then raise exception 'Only an expired booking can be rebooked.'; end if;
+  select * into dep from public.departures where trip_id = b.trip_id and date = b.date for update;
+  if b.date < public.ph_today() then raise exception 'This date has passed.'; end if;
+  if dep.status <> 'open' then raise exception 'This date is %. Reopen it first, or refund the DP.', dep.status; end if;
+  left_now := public.slots_left(b.trip_id, b.date);
+  if left_now < b.size then
+    raise exception 'Only % % left, so this booking can''t come back. Refund the DP under the trip''s policy.',
+      left_now, case when left_now = 1 then 'slot is' else 'slots are' end;
+  end if;
+  update public.bookings set status = 'confirmed', hold_until = null,
+         note = 'Rebooked by the organizer after the hold expired.'
+   where ref = p_ref returning * into b;
+  return b;
+end $$;
+
+revoke all on function public.send_dp_reference, public.expire_holds, public.rebook_expired from public, anon;
+grant execute on function public.send_dp_reference, public.expire_holds, public.rebook_expired to authenticated;
+grant execute on function public.app_setting, public.dp_hold_until to anon, authenticated;
+
+-- Run expire_holds every 5 minutes with pg_cron when the project has it (Supabase does).
+-- Without it the slots are still released on time; only the "Expired" label waits until the
+-- next booking or page load.
+do $$
+begin
+  if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
+    create extension if not exists pg_cron;
+    perform cron.schedule('trailpeak-expire-holds', '*/5 * * * *', 'select public.expire_holds()');
+  end if;
+exception when others then
+  raise notice 'pg_cron not set up (%). Turn it on under Database > Extensions, then run this file again.', sqlerrm;
+end $$;

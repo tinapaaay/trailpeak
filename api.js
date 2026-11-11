@@ -43,6 +43,7 @@ TP.applyTo = function (trips) {
 function tpBooking(b, receipts = null, mode = "pilot") {
   const receipt = receipts?.find(r => r.booking_ref === b.ref);
   return { bookingMode: mode, ref: b.ref, tripId: b.trip_id, date: b.date, size: b.size, pickup: b.pickup, pickupTime: b.pickup_time,
+    holdUntil: b.hold_until || null, dpReference: b.dp_reference || null, dpSentAt: b.dp_sent_at || null, expiredAt: b.expired_at || null,
     dp: b.dp, expectedDp: b.dp, receivedDp: receipts === null ? null : (receipt?.amount || 0),
     receipt, paymentsReady: receipts !== null, totalFee: b.dp + b.balance,
     balance: receipts === null ? null : b.dp + b.balance - (receipt?.amount || 0), wallet: b.wallet, walletNumber: b.wallet_number, names: b.names || "",
@@ -72,6 +73,8 @@ TP.sync = async function ({ reload = true } = {}) {
 
   const { data: { session } } = await TP.db.auth.getSession();
   if (session) {
+    // Tidy overdue DP holds first (their slots are already free; this sets the "Expired" label).
+    try { await TP.db.rpc("expire_holds"); } catch { /* older database: nothing to tidy */ }
     const { data: profile } = await TP.db.from("profiles").select("*").eq("id", session.user.id).single();
     // Organizers: how many activity items (new bookings, cancellations, moves) are unread,
     // for the count on the header's Dashboard button.
@@ -253,6 +256,23 @@ TP.activity = async () => {
 TP.markActivityRead = async (ids = null) => {
   const { error } = await TP.db.rpc("mark_activity_read", { p_ids: ids });
   if (error) throw tpErr(error);
+};
+// Joiner: "I've sent the DP" with the GCash/Maya reference. Stops the hold clock (TP-011).
+TP.sendDpReference = async (ref, reference) => {
+  const { error } = await TP.db.rpc("send_dp_reference", { p_ref: ref, p_reference: reference });
+  if (error) throw tpErr(error);
+  await TP.sync({ reload: false });
+};
+// Organizer: a joiner paid after the hold expired; rebook if the date still has room.
+TP.rebookExpired = async ref => {
+  const { data, error } = await TP.db.rpc("rebook_expired", { p_ref: ref });
+  if (error) throw tpErr(error);
+  return data;
+};
+// Hold settings, to show joiners how long slots are held before they book.
+TP.holdSettings = async () => {
+  const { data } = await TP.db.from("app_settings").select("key, value");
+  return Object.fromEntries((data || []).map(r => [r.key, Number(r.value)]));
 };
 TP.recordReceipt = async r => {
   const { data, error } = await TP.db.rpc("record_dp_receipt", {
