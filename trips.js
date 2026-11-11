@@ -268,3 +268,6 @@ if (typeof TP !== "undefined" && TP.online) {
 }
 
 function tripById(id) { return TRIPS.find(t => t.id === id); }
+// Shown in search, trip cards and organizer profiles: published trips only. Drafts and archived
+// trips stay in TRIPS for their organizer's dashboard and joiners' My trips (TP-053).
+const isListed = t => !t.status || t.status === "published";

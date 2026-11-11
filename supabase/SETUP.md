@@ -292,6 +292,24 @@ from departure_checks order by date, id;
 ```
 
 
+## Drafts and archived trips (TP-053, ADR-011)
+
+A trip is a **draft** (only its organizer sees it), **published** (public), or **archived** (retired). The database decides who sees what, so a direct API call gets the same answer as the website:
+
+| | Signed out / other joiners | Joiner with a booking on it | Its organizer | Other organizers |
+| --- | --- | --- | --- | --- |
+| Draft | hidden (search, direct link, dates, slots) | – (drafts can't be booked) | sees it | hidden |
+| Published | sees it | sees it | sees it | sees it |
+| Archived | hidden | sees it in My trips | sees it under "Archived trips" | hidden |
+
+- **Save as draft** is under Publish on Post a trip; **Publish** is on the draft in the dashboard.
+- **Archive** (dashboard, per trip) is refused while any upcoming date still has joiners holding seats or confirmed outside bookings; the message names the dates. Close or cancel those dates first. Bookings, DP records, history and reviews stay; **Restore** brings the trip back.
+- Booking a draft or archived trip is refused by the database.
+- The owner's old suspension switch still works and overrides everything: `update trips set published = false where organizer_id = '<user id>';`
+
+`tests/trip-status.test.mjs` checks each row of the table straight through the database.
+
+
 ## Last-slot safety test (TP-013, ADR-009)
 
 `tests/race.test.mjs` fires competing requests at the same time on separate database connections: two groups for the last seats (online, outside and mixed), the same submit sent twice, booking against a capacity change or a date being closed, a hold lapsing while someone else books, two receipt saves at once, rebooking a late payer, and bursts of 12 mixed requests into 10 seats. After each, it counts the seats actually held and checks they never exceed capacity. It needs a disposable Postgres:

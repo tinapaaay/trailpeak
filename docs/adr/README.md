@@ -12,6 +12,7 @@ One short file per technical decision: the context, the options, why one won, an
 | [008](008-overdue-details-release.md) | Overdue joiner details alert the organizer in-app; slots are released only by the organizer | Accepted for the pilot |
 | [009](009-concurrency-rules.md) | Concurrency rules for seats: one lock order, real-clock deadlines, one request id per submit | Accepted |
 | [010](010-reconciliation-log.md) | Reconcile each departure by hand, logged in an append-only table that never blocks bookings | Accepted for the pilot |
+| [011](011-trip-status.md) | Trips are draft, published or archived; the database hides drafts and archived trips | Accepted |
 
 Planned: 004 payment gateway (TP-026) · 005 booking, payment and refund states (TP-027) · map provider (parked).
 

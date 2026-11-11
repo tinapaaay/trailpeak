@@ -111,7 +111,7 @@
 <script src="cards.js"></script>
 <script>
 // Trips come from trips.js (shared with the trip page). Cards need a few fields in their own shape.
-const tours = TRIPS.map(t => ({
+const tours = TRIPS.filter(isListed).map(t => ({
   ...t, length: `${t.typeLabel} · ${t.hours}`, page: `trip.html#${t.id}`,
   pickups: t.pickups.map(p => p.place), departures: Object.keys(t.departures).sort().map(d => [d, slotsLeft(t, d)]),
 }));

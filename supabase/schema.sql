@@ -1570,3 +1570,104 @@ begin
 end $$;
 revoke all on function public.log_departure_check from public, anon;
 grant execute on function public.log_departure_check to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Trip status (TP-053, ADR-011): draft (only the organizer sees it), published (public),
+-- archived (retired: out of search, trip cards and the organizer profile; its bookings,
+-- history and DP records stay). `published` stays as the owner's suspension switch
+-- (revoke_organizer note above): a trip is public only when published and status = 'published'.
+-- Organizers see all their own trips; a joiner also sees a trip they have a booking on, so
+-- My trips keeps working after the trip is archived.
+-- ---------------------------------------------------------------------------
+alter table public.trips add column if not exists status text not null default 'published';
+alter table public.trips add column if not exists archived_at timestamptz;
+do $$ begin
+  alter table public.trips add constraint trips_status_check check (status in ('draft', 'published', 'archived'));
+exception when duplicate_object then null; end $$;
+
+-- Without RLS (security definer), so the trips policy can look at bookings without the
+-- bookings policy looking back at trips (that loop is an error in Postgres).
+create or replace function public.has_booking_on(p_trip text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.bookings where trip_id = p_trip and user_id = auth.uid());
+$$;
+create or replace function public.trip_is_public(p_trip text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.trips where id = p_trip and published and status = 'published');
+$$;
+grant execute on function public.has_booking_on, public.trip_is_public to anon, authenticated;
+
+drop policy if exists "Anyone reads published trips" on public.trips;
+create policy "Anyone reads published trips" on public.trips
+  for select using ((published and status = 'published') or organizer_id = auth.uid() or public.has_booking_on(id));
+-- Dates follow their trip: a draft's dates aren't public either.
+drop policy if exists "Anyone reads dates" on public.departures;
+create policy "Anyone reads dates" on public.departures
+  for select using (exists (select 1 from public.trips t where t.id = trip_id));
+
+-- Seats left, only for trips the caller can see (same rule as the trips table).
+create or replace function public.all_slots()
+returns table (trip_id text, date date, left_count int, status text)
+language sql stable security definer set search_path = public as $$
+  select d.trip_id, d.date, public.slots_left(d.trip_id, d.date), d.status
+  from public.departures d join public.trips t on t.id = d.trip_id
+  where (t.published and t.status = 'published') or t.organizer_id = auth.uid() or public.has_booking_on(t.id);
+$$;
+
+-- Upcoming dates of a trip that still have people on them (joiners holding seats or
+-- confirmed outside bookings), e.g. "Sat, Nov 14 (3 joiners)". Empty when none.
+create or replace function public.trip_upcoming_bookings(p_trip text)
+returns text language sql stable security definer set search_path = public as $$
+  select string_agg(to_char(x.date, 'Dy, Mon FMDD') || ' (' || x.n || case when x.n = 1 then ' joiner)' else ' joiners)' end, ', ' order by x.date)
+  from (
+    select d.date, (select coalesce(sum(b.size), 0) from public.bookings b
+                     where b.trip_id = d.trip_id and b.date = d.date and public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at))
+                 + (select coalesce(sum(o.size), 0) from public.outside_bookings o
+                     where o.trip_id = d.trip_id and o.date = d.date and coalesce(o.status, 'confirmed') = 'confirmed') as n
+    from public.departures d
+    where d.trip_id = p_trip and d.date >= public.ph_today() and d.status <> 'cancelled'
+  ) x where x.n > 0;
+$$;
+
+-- Status rules, for every way a trip row changes (the dashboard, or a direct API call):
+-- a new trip starts as draft or published; it can't leave "published" (archive it or turn it
+-- back into a draft) while upcoming dates still have people on them.
+create or replace function public.guard_trip_status()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare busy text;
+begin
+  if tg_op = 'INSERT' then
+    if new.status = 'archived' then raise exception 'A new trip can''t start archived. Save it as a draft or publish it.'; end if;
+    return new;
+  end if;
+  if new.status is distinct from old.status then
+    if old.status = 'published' and new.status in ('archived', 'draft') then
+      busy := public.trip_upcoming_bookings(new.id);
+      if busy is not null then
+        raise exception 'This trip still has upcoming bookings: %. Close or cancel those dates first, then %.',
+          busy, case when new.status = 'archived' then 'archive it' else 'turn it into a draft' end;
+      end if;
+    end if;
+    new.archived_at := case when new.status = 'archived' then now() end;
+  end if;
+  return new;
+end $$;
+drop trigger if exists guard_trip_status on public.trips;
+create trigger guard_trip_status before insert or update on public.trips
+  for each row execute function public.guard_trip_status();
+revoke all on function public.guard_trip_status, public.trip_upcoming_bookings from public, anon, authenticated;
+
+-- Joiners book published trips only (a draft or archived trip's dates may still be open).
+create or replace function public.guard_booking_trip()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not public.trip_is_public(new.trip_id)
+     and exists (select 1 from public.trips where id = new.trip_id and organizer_id is not null) then
+    raise exception 'This trip isn''t open for booking.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists guard_booking_trip on public.bookings;
+create trigger guard_booking_trip before insert on public.bookings
+  for each row execute function public.guard_booking_trip();
+revoke all on function public.guard_booking_trip from public, anon, authenticated;

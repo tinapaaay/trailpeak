@@ -298,6 +298,7 @@
       <div id="preview" inert></div>
       <div class="publish">
         <button type="submit" form="form" class="btn btn-primary label-caps">Publish trip</button>
+        <button type="button" class="btn btn-secondary label-caps" id="save-draft">Save as draft</button>
         <p class="hint" id="publish-note" aria-live="polite">You can edit or close dates anytime after publishing.</p>
       </div>
       <section class="done" id="done" aria-live="polite">
@@ -473,6 +474,7 @@ function fillEditForm() {
     lists[key].on = [...have]; drawChips(key);
   });
   document.querySelector('button[form="form"]').textContent = "Save changes";
+  $("save-draft").hidden = true;
   $("publish-note").textContent = "Joiners who already booked keep the price and DP they paid.";
 }
 if (editId && !ownTrip) $("publish-note").textContent = "You can only edit trips you published, so this form starts a new trip.";
@@ -486,8 +488,13 @@ function check(id, ok) {
   if (ok) $(id).removeAttribute("aria-describedby"); else $(id).setAttribute("aria-describedby", id + "-e");
   return ok;
 }
+// Save as draft (TP-053): the same checks as publishing, but only the organizer can see the
+// trip until they publish it from the dashboard.
+let asDraft = false;
+$("save-draft").addEventListener("click", () => { asDraft = true; $("form").requestSubmit(); asDraft = false; });
 document.getElementById("form").addEventListener("submit", e => {
   e.preventDefault();
+  const draft = asDraft;
   // Publishing needs an organizer account; the form itself can be tried by anyone.
   if (!isOrganizer) {
     $("publish-note").innerHTML = 'To publish, <a href="organizer-signup.html" id="need-org">create an organizer account</a>. It takes about 5 minutes; what you typed here stays on this page only until you leave.';
@@ -518,8 +525,12 @@ document.getElementById("form").addEventListener("submit", e => {
     return;
   }
   if (ownTrip) { saveEdit(t); return; }
-  const pub = toPublishedTrip(t);
+  const pub = { ...toPublishedTrip(t), status: draft ? "draft" : "published" };
   const finish = () => {
+    if (draft) {
+      $("publish-note").innerHTML = `Saved as a draft: only you can see it. Publish it from your <a href="dashboard.html">dashboard</a> when it's ready.`;
+      return;
+    }
     $("publish-note").textContent = "Your trip is live. You can edit or close dates anytime.";
     $("fb").value = facebookText(t, pub.id);
     makeShareImage(t);
@@ -530,9 +541,9 @@ document.getElementById("form").addEventListener("submit", e => {
   if (TP.online) {
     // Saved to the database: the trip shows for everyone right away.
     const btn = document.querySelector('button[form="form"]'); btn.disabled = true;
-    $("publish-note").textContent = "Publishing…";
+    $("publish-note").textContent = draft ? "Saving…" : "Publishing…";
     TP.publishTrip(pub).then(finish)
-      .catch(err => { $("publish-note").textContent = `Couldn't publish: ${err.message}`; })
+      .catch(err => { $("publish-note").textContent = `Couldn't ${draft ? "save" : "publish"}: ${err.message}`; })
       .finally(() => { btn.disabled = false; });
     return;
   }

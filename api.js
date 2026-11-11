@@ -27,7 +27,7 @@ TP.applyTo = function (trips) {
   trips.length = 0;
   for (const row of c.trips) {
     // `saved` keeps the stored details as they are, so editing a trip never saves page-only fields back.
-    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, bookingMode: row.organizer_id ? "pilot" : "demo", saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
+    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, status: row.status || "published", archived_at: row.archived_at || null, bookingMode: row.organizer_id ? "pilot" : "demo", saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
     for (const s of (c.slots || []).filter(s => s.trip_id === row.id)) {
       t.departures[s.date] = s.status === "open" ? s.left_count : 0;
       t.sampleBooked[s.date] = s.sample_booked || 0;
@@ -61,7 +61,7 @@ TP.sync = async function ({ reload = true } = {}) {
   if (!TP.online) return;
   const before = JSON.stringify([tpReadCache().trips, tpReadCache().slots, tpReadCache().reviews, localStorage.getItem(TP_USER_KEY), localStorage.getItem(TP_BOOKINGS_KEY)]);
   const [{ data: trips, error: e1 }, { data: slots, error: e2 }, { data: deps }, { data: reviews }, { data: settings }] = await Promise.all([
-    TP.db.from("trips").select("id, organizer_id, org_name, details").order("created_at"),
+    TP.db.from("trips").select("*").order("created_at"),   // status: draft / published / archived (TP-053)
     TP.db.rpc("all_slots"),
     TP.db.from("departures").select("trip_id, date, sample_booked, capacity"),
     TP.db.rpc("all_reviews"),
@@ -208,12 +208,21 @@ TP.whosGoing = async (tripId, date) => {
 TP.publishTrip = async trip => {
   const { data: { session } } = await TP.db.auth.getSession();
   if (!session) throw new Error("Please sign in again.");
-  const { departures, ...details } = trip;
-  const { error: e1 } = await TP.db.from("trips").insert({ id: trip.id, organizer_id: session.user.id, org_name: trip.org, details });
+  const { departures, status, ...details } = trip;
+  let { error: e1 } = await TP.db.from("trips").insert({ id: trip.id, organizer_id: session.user.id, org_name: trip.org, details, status: status || "published" });
+  // Database not updated yet (no status column): publish the old way; a draft has to wait.
+  if (e1 && /status/.test(e1.message || "") && status !== "draft") ({ error: e1 } = await TP.db.from("trips").insert({ id: trip.id, organizer_id: session.user.id, org_name: trip.org, details }));
   if (e1) throw tpErr(e1);
   const rows = Object.entries(departures).map(([date, cap]) => ({ trip_id: trip.id, date, capacity: cap }));
   const { error: e2 } = await TP.db.from("departures").insert(rows);
   if (e2) throw tpErr(e2);
+  await TP.sync({ reload: false });
+};
+// Draft -> published, published -> archived or draft, archived -> published (TP-053, ADR-011).
+// The database refuses archiving while a date still has upcoming bookings, and says which.
+TP.setTripStatus = async (id, status) => {
+  const { error } = await TP.db.from("trips").update({ status }).eq("id", id);
+  if (error) throw tpErr(error);
   await TP.sync({ reload: false });
 };
 // Save changes to a trip's page (not its dates: those change one by one on the dashboard).

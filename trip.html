@@ -205,6 +205,7 @@
   .timeline li { grid-template-columns: 60px 1fr; gap: 29px; }
   .timeline li::before { left: 68px; }
 }
+#reserve[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }   /* draft or archived trip (TP-053) */
 </style>
 </head>
 <body>
@@ -540,7 +541,8 @@ function noDates() {
   $("head-slots").textContent = "No upcoming dates";
   $("going").innerHTML = `<p class="meta">Shows once there's an upcoming date.</p>`;
   $("book").querySelectorAll(".book-row, .breakdown, #reserve, #dp-note").forEach(el => { el.hidden = true; });
-  $("reserve-note").textContent = "No upcoming dates to reserve. Tap Ask the organizer on this page to ask about the next one.";
+  $("reserve-note").textContent = T.status === "archived" ? "This trip is archived and no longer takes bookings."
+    : "No upcoming dates to reserve. Tap Ask the organizer on this page to ask about the next one.";
   document.querySelector(".mobile-bar").hidden = true;
 }
 
@@ -568,6 +570,13 @@ function update() {
     $("reserve").textContent = "Try the demo";
     $("reserve-note").textContent = "Sample trip only. The separate demo never creates real bookings or payments.";
   }
+  // Draft or archived (TP-053): only its organizer, or a joiner already booked on it, gets here.
+  if (!isListed(T)) {
+    $("reserve").setAttribute("aria-disabled", "true");
+    $("reserve-note").textContent = T.status === "draft"
+      ? "Draft: only you can see this trip. Publish it from your dashboard to take bookings."
+      : "This trip is archived and no longer takes bookings.";
+  }
   renderGoing();
 }
 
@@ -581,6 +590,7 @@ $("plus").addEventListener("click", () => { size++; update(); announce(); });
 // Reserve: sign in first. Payment itself isn't built in this prototype.
 $("reserve").addEventListener("click", e => {
   e.preventDefault();
+  if (!isListed(T)) { $("reserve-note").focus?.(); return; }
   if (TP.online && !T.organizerId) { location.href = "demo.html"; return; }
   const user = getUser();
   setPending({ tripId: T.id, date: picked, size, pickup: $("pickup").selectedIndex });
