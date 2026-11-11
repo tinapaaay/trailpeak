@@ -583,3 +583,15 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 - **Do** use the same four difficulty levels (Easy, Moderate, Hard, Expert) in search, cards and detail pages, always mapped from the 1–9 score the same way.
 - **Do** show the event fee and the down payment, and say what is and isn't included. Hidden add-ons (environmental fee, guide fee) at checkout break trust with joiners.
 - **Do** show the meetup time and place, not only the hike date. A "Saturday" hike often means a Friday-night meetup.
+
+
+## Direct DP records (TP-010)
+
+The organizer dashboard uses the existing inline `out-form` surface for Record DP and Correct DP / history. It appears above the joiner table, with a labelled whole-peso cumulative amount (zero up to expected DP), method, Philippine received time, required note/correction reason, Save DP record and Cancel. The form explains that a correction replaces the total, never adds another payment, and that zero undoes an incorrect record without issuing a refund. History retains the amount, method, received time, actor, recorded time and reason. Errors stay in the form with alert semantics and focus; saving disables conflicting actions and retries retain the same request id.
+
+DP pending, Partial DP and DP received are text states, not verification badges. The table, dashboard totals and My trips calculate remaining balance from the booking's price snapshot minus the latest receipt. New and legacy connected bookings start with zero received; old simulated DP values remain expected DP only. Unknown receipt data says Unavailable and disables receipt entry rather than showing invented money. No online surface claims a TrailPeak payout. The table scroll container establishes a positioned containing block so off-screen accessible labels do not widen the mobile page.
+
+
+## Demo and pilot separation (TP-004)
+
+`demo.html` reuses TrailPeak's existing paper colors, type scale, form fields, buttons and spacing. It is a narrow sample booking exercise, labelled Demo only before and after submission. It has no account UI or data connection. Its example hike, prices, pick-up and six slots are explicitly sample data. The simulator reports sample amounts, rejects groups that do not fit and has a Reset demo action. It cannot create a real booking or receipt. Seeded trip cards carry a Demo sample note; their trip/reserve action points to this separate demo. Legacy sample reservations in My trips say Sample only / no DP due. Real reservations say DP pending until the organizer records a direct payment.

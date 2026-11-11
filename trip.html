@@ -546,6 +546,10 @@ function update() {
   $("b-now").textContent = peso(DP * size);
   $("m-now").textContent = peso(DP * size);
   $("m-date").textContent = `to reserve · ${nice(picked)}`;
+  if (TP.online && !T.organizerId) {
+    $("reserve").textContent = "Try the demo";
+    $("reserve-note").textContent = "Sample trip only. The separate demo never creates real bookings or payments.";
+  }
   renderGoing();
 }
 
@@ -559,6 +563,7 @@ $("plus").addEventListener("click", () => { size++; update(); announce(); });
 // Reserve: sign in first. Payment itself isn't built in this prototype.
 $("reserve").addEventListener("click", e => {
   e.preventDefault();
+  if (TP.online && !T.organizerId) { location.href = "demo.html"; return; }
   const user = getUser();
   setPending({ tripId: T.id, date: picked, size, pickup: $("pickup").selectedIndex });
   if (!user) { rememberNext("reserve.html"); location.href = "signin.html"; return; }
