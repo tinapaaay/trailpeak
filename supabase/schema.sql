@@ -149,17 +149,61 @@ begin
   return p;
 end $$;
 
--- Owner only (SQL editor or service role). Approve an organizer, optionally recording an ID
--- you checked yourself and the business check result. Safe to run again to change them.
---   select approve_organizer('<user id>');                          -- organizer, not ID verified
---   select approve_organizer('<user id>', true);                    -- organizer, ID verified
---   select approve_organizer('<user id>', true, 'verified');        -- plus Business verified
+-- Pilot approval checklist (TP-003). Every item must be confirmed (true) before someone becomes
+-- an organizer for the first time; the approval is logged in organizer_approvals with who
+-- approved, when, the checklist and a note. Changing an approved organizer's labels later
+-- (ID or business) doesn't need the checklist again. See supabase/SETUP.md for the wording.
+create table if not exists public.organizer_approvals (
+  id         bigint generated always as identity primary key,
+  user_id    uuid not null references public.profiles (id) on delete cascade,
+  action     text not null check (action in ('approve', 'update', 'revoke')),
+  approver   text not null,
+  checklist  jsonb,
+  note       text,
+  id_verified boolean,
+  business   text,
+  at         timestamptz not null default now()
+);
+alter table public.organizer_approvals enable row level security;   -- no policies: SQL editor only
+revoke all on public.organizer_approvals from anon, authenticated;
+
+create or replace function public.approval_checklist()
+returns table (key text, item text) language sql immutable as $$
+  values ('id_checked',       'Saw their government ID on a video call; the name matches their TrailPeak profile'),
+         ('payout_matches',   'Their GCash or Maya account name matches that ID'),
+         ('track_record',     'They have run joiner trips before (posts, reviews or a reference you checked)'),
+         ('permits_known',    'They know the registration and permit steps for the mountains they will post'),
+         ('safety_plan',      'They have a guide ratio and an emergency plan (who to call, nearest hospital)'),
+         ('pilot_rules',      'They agreed to the pilot rules: outside bookings within 1 hour, confirm DPs within 24 hours, check the list 2 days before');
+$$;
+
+-- Owner only (SQL editor or service role). First approval needs the checklist and your name:
+--   select approve_organizer('<user id>', p_approver => 'Christine',
+--     p_checklist => '{"id_checked":true,"payout_matches":true,"track_record":true,"permits_known":true,"safety_plan":true,"pilot_rules":true}');
+-- Later label changes on an approved organizer (safe to run again):
+--   select approve_organizer('<user id>', true, p_approver => 'Christine');             -- ID verified badge
+--   select approve_organizer('<user id>', true, 'verified', p_approver => 'Christine'); -- plus Business verified
+drop function if exists public.approve_organizer(uuid, boolean, text);
 create or replace function public.approve_organizer(
-  p_user uuid, p_id_verified boolean default false, p_business text default 'none')
+  p_user uuid, p_id_verified boolean default false, p_business text default 'none',
+  p_checklist jsonb default null, p_approver text default null, p_note text default null)
 returns public.profiles language plpgsql security definer set search_path = public as $$
-declare p public.profiles;
+declare p public.profiles; missing text; who text := trim(coalesce(p_approver, ''));
 begin
   if p_business not in ('none', 'review', 'verified') then raise exception 'business must be none, review or verified'; end if;
+  if who = '' then raise exception 'Add p_approver => ''your name'' so the approval is on record.'; end if;
+  select * into p from public.profiles where id = p_user for update;
+  if not found then raise exception 'No profile with id %', p_user; end if;
+  if p.organizer_status <> 'approved' or p.role <> 'organizer' then
+    select string_agg('  - ' || c.key || ': ' || c.item, E'\n') into missing
+      from public.approval_checklist() c where (p_checklist -> c.key) is distinct from 'true'::jsonb;  -- only a real true counts
+    if missing is not null then
+      raise exception E'Confirm every checklist item before approving (p_checklist => ''{"key": true, ...}''). Still missing:\n%', missing;
+    end if;
+  end if;
+  insert into public.organizer_approvals (user_id, action, approver, checklist, note, id_verified, business)
+  values (p_user, case when p.organizer_status = 'approved' and p.role = 'organizer' then 'update' else 'approve' end,
+          who, p_checklist, nullif(trim(coalesce(p_note, '')), ''), coalesce(p_id_verified, false), p_business);
   update public.profiles
      set role = 'organizer', organizer_status = 'approved', id_verified = coalesce(p_id_verified, false), business = p_business
    where id = p_user returning * into p;
@@ -170,10 +214,14 @@ end $$;
 
 -- Owner only. Turn organizer access off: they can no longer post, edit trips or change dates.
 -- Their published trips stay up; unpublish them with: update trips set published = false where organizer_id = '<user id>';
-create or replace function public.revoke_organizer(p_user uuid)
+drop function if exists public.revoke_organizer(uuid);
+create or replace function public.revoke_organizer(p_user uuid, p_approver text default null, p_note text default null)
 returns public.profiles language plpgsql security definer set search_path = public as $$
 declare p public.profiles;
 begin
+  if trim(coalesce(p_approver, '')) = '' then raise exception 'Add p_approver => ''your name'' so the change is on record.'; end if;
+  if not exists (select 1 from public.profiles where id = p_user) then raise exception 'No profile with id %', p_user; end if;
+  insert into public.organizer_approvals (user_id, action, approver, note) values (p_user, 'revoke', trim(p_approver), nullif(trim(coalesce(p_note, '')), ''));
   update public.profiles
      set role = 'joiner', organizer_status = 'revoked', id_verified = false, business = 'none'
    where id = p_user returning * into p;
