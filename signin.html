@@ -261,6 +261,9 @@ if (TP.online) {
   }
   TP.db.auth.getSession().then(async ({ data: { session } }) => {
     if (!session) return;
+    // Signed in within an hour of a link sent from this browser: record it once (TP-022).
+    let sentAt = 0; try { sentAt = Number(localStorage.getItem("trailpeak.codeSentAt")) || 0; localStorage.removeItem("trailpeak.codeSentAt"); } catch { /* ignore */ }
+    if (sentAt && Date.now() - sentAt < 3600e3) await Promise.race([TP.track("signed_in"), new Promise(r => setTimeout(r, 1500))]);
     await TP.sync({ reload: false });
     const u = getUser();
     // Done when we have a name and a mobile number. Google gives the name but no number, so ask for it.
@@ -306,6 +309,9 @@ $("step-email").addEventListener("submit", e => {
   if (TP.online) {
     const btn = e.submitter; btn.disabled = true;
     TP.sendCode(contact).then(() => {
+      // Sign-in timing (TP-022): when the link was sent, to measure how long the email takes.
+      try { localStorage.setItem("trailpeak.codeSentAt", String(Date.now())); } catch { /* ignore */ }
+      TP.track("code_sent");
       // Supabase's emails hold only a link, so there's no code to type: just wait for the link.
       $("sent-lead").textContent = `We sent a sign-in link to ${contact}. Open it on this device to finish. It can take a minute; check spam too.`;
       show("step-sent"); startResendTimer();
@@ -361,6 +367,8 @@ function startResendTimer() {
 function resendLink() {
   const btn = $("open-link"), err = $("sent-err"); btn.disabled = true; err.hidden = true;
   TP.sendCode(contact).then(() => {
+    try { localStorage.setItem("trailpeak.codeSentAt", String(Date.now())); } catch { /* ignore */ }
+    TP.track("code_sent");
     $("sent-lead").textContent = `We sent a new sign-in link to ${contact}. Use the newest email; older links stop working.`;
     startResendTimer();
   }).catch(e => {

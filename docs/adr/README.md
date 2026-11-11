@@ -13,6 +13,7 @@ One short file per technical decision: the context, the options, why one won, an
 | [009](009-concurrency-rules.md) | Concurrency rules for seats: one lock order, real-clock deadlines, one request id per submit | Accepted |
 | [010](010-reconciliation-log.md) | Reconcile each departure by hand, logged in an append-only table that never blocks bookings | Accepted for the pilot |
 | [011](011-trip-status.md) | Trips are draft, published or archived; the database hides drafts and archived trips | Accepted |
+| [012](012-pilot-analytics.md) | Measure the pilot funnel in our own database with anonymous events; owner-only SQL views | Accepted for the pilot |
 
 Planned: 004 payment gateway (TP-026) · 005 booking, payment and refund states (TP-027) · map provider (parked).
 

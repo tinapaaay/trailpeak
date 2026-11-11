@@ -1671,3 +1671,169 @@ drop trigger if exists guard_booking_trip on public.bookings;
 create trigger guard_booking_trip before insert on public.bookings
   for each row execute function public.guard_booking_trip();
 revoke all on function public.guard_booking_trip from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Pilot funnel measurement (TP-022, ADR-012). Events stay in this database (no third-party
+-- analytics) and carry no names, emails, phone numbers or account ids: only a random id the
+-- browser makes for itself (`visitor`), the trip, and for a reservation its booking number.
+-- Reservations, DP sent and DP confirmed are read from the bookings and receipts themselves;
+-- events add only what the database can't see: visits, where they came from, and sign-in timing.
+-- Owner-only: nobody can read events through the website; the owner reads the pilot_* views
+-- in the SQL editor.
+-- ---------------------------------------------------------------------------
+create table if not exists public.pilot_events (
+  id          bigint generated always as identity primary key,
+  kind        text not null check (kind in ('trip_view', 'code_sent', 'signed_in', 'reserved')),
+  visitor     uuid not null,
+  trip_id     text references public.trips (id) on delete cascade,
+  booking_ref text references public.bookings (ref) on delete cascade,
+  source      text check (source in ('share', 'direct')),
+  created_at  timestamptz not null default now()
+);
+create index if not exists pilot_events_by_visitor on public.pilot_events (visitor, kind, created_at);
+-- One visit per visitor, trip and Manila day: reloads and spam don't inflate the count.
+create unique index if not exists pilot_events_one_view_a_day
+  on public.pilot_events (visitor, trip_id, kind, ((created_at at time zone 'Asia/Manila')::date)) where kind = 'trip_view';
+alter table public.pilot_events enable row level security;
+revoke all on public.pilot_events from anon, authenticated;
+
+insert into public.app_settings (key, value, note) values
+  ('attribution_days', 7, 'A reservation counts as coming from a shared link if the same browser opened that trip from a shared link within this many days before')
+on conflict (key) do nothing;
+
+-- The pages call this; it checks and stores one event and never fails the page.
+create or replace function public.log_event(p_kind text, p_visitor uuid, p_trip text default null,
+                                            p_ref text default null, p_source text default null)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_visitor is null or p_kind not in ('trip_view', 'code_sent', 'signed_in', 'reserved') then return; end if;
+  if p_kind = 'trip_view' then
+    if not public.trip_is_public(p_trip) then return; end if;   -- drafts and archived trips aren't counted
+    insert into public.pilot_events (kind, visitor, trip_id, source)
+    values ('trip_view', p_visitor, p_trip, case when p_source = 'share' then 'share' else 'direct' end)
+    on conflict do nothing;
+  elsif p_kind = 'reserved' then
+    -- Only the booker can tag their own booking, once.
+    if auth.uid() is null or not exists (select 1 from public.bookings where ref = p_ref and user_id = auth.uid())
+       or exists (select 1 from public.pilot_events where kind = 'reserved' and booking_ref = p_ref) then return; end if;
+    insert into public.pilot_events (kind, visitor, trip_id, booking_ref)
+    select 'reserved', p_visitor, trip_id, ref from public.bookings where ref = p_ref;
+  elsif p_kind = 'signed_in' then
+    if auth.uid() is null then return; end if;
+    insert into public.pilot_events (kind, visitor) values ('signed_in', p_visitor);
+  else
+    insert into public.pilot_events (kind, visitor) values ('code_sent', p_visitor);
+  end if;
+end $$;
+revoke all on function public.log_event from public;
+grant execute on function public.log_event to anon, authenticated;
+
+-- Owner's weekly log during the pilot (filled in by hand in the SQL editor; see SETUP.md).
+create table if not exists public.pilot_admin_log (
+  id              bigint generated always as identity primary key,
+  week_of         date not null,              -- the Monday of the week
+  organizer       text not null default 'all',
+  admin_minutes   int not null default 0 check (admin_minutes >= 0),
+  messages        int not null default 0 check (messages >= 0),
+  corrections     int not null default 0 check (corrections >= 0),
+  support_cases   int not null default 0 check (support_cases >= 0),
+  note            text,
+  created_at      timestamptz not null default now()
+);
+alter table public.pilot_admin_log enable row level security;
+revoke all on public.pilot_admin_log from anon, authenticated;
+
+-- One row per real (organizer) booking, with what the funnel needs.
+create or replace view public.pilot_bookings as
+select b.ref, b.trip_id, b.created_at,
+       date_trunc('week', b.created_at at time zone 'Asia/Manila')::date as week_of,
+       -- First-time: this account's first booking on any real trip.
+       not exists (select 1 from public.bookings p join public.trips pt on pt.id = p.trip_id and pt.organizer_id is not null
+                   where p.user_id = b.user_id and p.created_at < b.created_at) as first_time,
+       -- From a shared link: the browser that reserved opened this trip from a shared link
+       -- within attribution_days before the reservation.
+       exists (select 1 from public.pilot_events r join public.pilot_events v
+                 on v.visitor = r.visitor and v.kind = 'trip_view' and v.source = 'share' and v.trip_id = b.trip_id
+                and v.created_at <= b.created_at
+                and v.created_at > b.created_at - public.app_setting('attribution_days')::int * interval '1 day'
+               where r.kind = 'reserved' and r.booking_ref = b.ref) as from_share,
+       b.dp_sent_at,
+       (select min(r.recorded_at) from public.dp_receipts r where r.booking_ref = b.ref and r.amount >= b.dp) as dp_confirmed_at,
+       b.status
+from public.bookings b join public.trips t on t.id = b.trip_id and t.organizer_id is not null;
+
+-- The weekly funnel. Denominators: visits = distinct browsers that opened a trip from a shared
+-- link that week; each later step counts bookings made that week.
+create or replace view public.pilot_funnel_weekly as
+with weeks as (
+  select week_of from public.pilot_bookings
+  union select date_trunc('week', created_at at time zone 'Asia/Manila')::date from public.pilot_events
+), visits as (
+  select date_trunc('week', created_at at time zone 'Asia/Manila')::date as week_of,
+         count(distinct visitor) filter (where source = 'share') as shared_visitors,
+         count(distinct visitor) as all_visitors
+  from public.pilot_events where kind = 'trip_view' group by 1
+)
+select w.week_of,
+       coalesce(v.shared_visitors, 0) as shared_link_visitors,
+       coalesce(v.all_visitors, 0) as trip_page_visitors,
+       count(b.ref) as reservations,
+       count(b.ref) filter (where b.from_share) as reservations_from_share,
+       count(b.ref) filter (where b.dp_sent_at is not null) as dp_sent,
+       count(b.ref) filter (where b.dp_confirmed_at is not null) as dp_confirmed,
+       count(b.ref) filter (where b.first_time) as first_time_joiners,
+       count(b.ref) filter (where not b.first_time) as returning_joiners,
+       round(100.0 * count(b.ref) filter (where b.from_share) / nullif(v.shared_visitors, 0), 1) as share_to_reserve_pct,
+       round(100.0 * count(b.ref) filter (where b.dp_confirmed_at is not null) / nullif(count(b.ref), 0), 1) as reserve_to_confirmed_pct
+from weeks w left join visits v using (week_of) left join public.pilot_bookings b using (week_of)
+group by w.week_of, v.shared_visitors, v.all_visitors
+order by w.week_of;
+
+-- Waiting times, kept apart: the email (sign-in link sent -> signed in, same browser, within an
+-- hour) and the organizer (DP reference sent -> DP recorded in full). Medians and the slowest 10%.
+create or replace view public.pilot_waits_weekly as
+with email as (
+  select date_trunc('week', c.created_at at time zone 'Asia/Manila')::date as week_of,
+         extract(epoch from (s.created_at - c.created_at)) / 60 as minutes
+  from public.pilot_events c
+  join lateral (select min(created_at) as created_at from public.pilot_events s
+                where s.visitor = c.visitor and s.kind = 'signed_in'
+                  and s.created_at > c.created_at and s.created_at <= c.created_at + interval '1 hour') s on s.created_at is not null
+  where c.kind = 'code_sent'
+), organizer as (
+  select week_of, extract(epoch from (dp_confirmed_at - dp_sent_at)) / 3600 as hours, first_time
+  from public.pilot_bookings where dp_sent_at is not null and dp_confirmed_at is not null
+), weeks as (select week_of from email union select week_of from organizer)
+select w.week_of,
+       (select count(*) from email e where e.week_of = w.week_of) as sign_ins_timed,
+       (select round(percentile_cont(0.5) within group (order by minutes)::numeric, 1) from email e where e.week_of = w.week_of) as email_median_minutes,
+       (select round(percentile_cont(0.9) within group (order by minutes)::numeric, 1) from email e where e.week_of = w.week_of) as email_p90_minutes,
+       (select count(*) from organizer o where o.week_of = w.week_of) as dps_timed,
+       (select round(percentile_cont(0.5) within group (order by hours)::numeric, 1) from organizer o where o.week_of = w.week_of) as organizer_median_hours,
+       (select round(percentile_cont(0.9) within group (order by hours)::numeric, 1) from organizer o where o.week_of = w.week_of) as organizer_p90_hours,
+       (select round(percentile_cont(0.5) within group (order by hours)::numeric, 1) from organizer o where o.week_of = w.week_of and o.first_time) as organizer_median_hours_first_time
+from weeks w order by w.week_of;
+
+-- Admin load and incidents per week: the owner's log plus the reconciliation log (TP-020).
+create or replace view public.pilot_admin_weekly as
+with logged as (
+  select week_of, sum(admin_minutes) as admin_minutes, sum(messages) as messages,
+         sum(corrections) as corrections, sum(support_cases) as support_cases
+  from public.pilot_admin_log group by 1
+), incidents as (
+  select date_trunc('week', created_at at time zone 'Asia/Manila')::date as week_of,
+         count(*) filter (where kind = 'overbooking') as overbookings,
+         count(*) filter (where kind = 'correction') as logged_corrections,
+         count(*) filter (where kind = 'reconciled') as reconciliations
+  from public.departure_checks group by 1
+)
+select coalesce(l.week_of, i.week_of) as week_of,
+       coalesce(l.admin_minutes, 0) as admin_minutes, coalesce(l.messages, 0) as messages,
+       coalesce(l.corrections, 0) as corrections,               -- from the owner's log
+       coalesce(i.logged_corrections, 0) as dashboard_corrections,   -- logged by organizers (TP-020)
+       coalesce(l.support_cases, 0) as support_cases,
+       coalesce(i.overbookings, 0) as overbookings, coalesce(i.reconciliations, 0) as reconciliations
+from logged l full join incidents i using (week_of)
+order by 1;
+
+revoke all on public.pilot_bookings, public.pilot_funnel_weekly, public.pilot_waits_weekly, public.pilot_admin_weekly from anon, authenticated;

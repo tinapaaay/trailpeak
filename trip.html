@@ -395,6 +395,8 @@
 // Which trip: from the link (trip.html#mt-pulag-akiki), else the first one.
 const $ = id => document.getElementById(id);
 const T = tripById(location.hash.slice(1)) || TRIPS[0];
+// Pilot funnel (TP-022): one visit per browser, trip and day; only published trips count.
+TP.track("trip_view", { trip: T.id, source: TP.visitSource() });
 const FEE = T.fee, DP = T.dp, GROUP = T.group, MEET = T.meet;
 // Slots after this browser's own bookings.
 T.baseDepartures = { ...T.departures }; // before this browser's bookings, for the joiner list

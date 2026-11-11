@@ -271,7 +271,7 @@ function start() {
       if (!p.requestId && crypto.randomUUID) { p.requestId = crypto.randomUUID(); setPending(p); }
       TP.book({ tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time, wallet, requestId: p.requestId,
         walletNumber: pretty($("wnum").value), listed: $("listme").checked, companions: jd.companions, emergency: jd.emergency, booker: jd.booker })
-        .then(b => { setPending(null); showDone(b); })
+        .then(b => { setPending(null); showDone(b); TP.track("reserved", { ref: b.ref }); })
         .catch(e2 => { err(e2.message); $("pay-btn").disabled = false; $("paying").hidden = true; });
       return;
     }

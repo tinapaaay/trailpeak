@@ -310,6 +310,40 @@ A trip is a **draft** (only its organizer sees it), **published** (public), or *
 `tests/trip-status.test.mjs` checks each row of the table straight through the database.
 
 
+## Pilot funnel and baseline (TP-022, ADR-012)
+
+TrailPeak counts the pilot funnel in its own database; there's no outside analytics service. Events carry **no names, emails, phones or account ids**, only a random id each browser makes for itself. Browsers that send Do Not Track or Global Privacy Control are skipped. Only you can read the numbers, in the SQL editor; the website and the API can't.
+
+**What's counted, and the denominators**
+
+| Step | Counted from | Denominator |
+| --- | --- | --- |
+| Shared-link visits | `trip_view` events with source `share`: the link has `?s=share` (the Facebook text adds it), `fbclid` or `utm_`, or another site sent the visitor | distinct browsers per week |
+| Reservations | bookings on real (organizer) trips made that week | – |
+| From a shared link | the browser that reserved opened that trip from a shared link within **7 days** before (`attribution_days`) | shared-link visitors that week |
+| DP sent | the booking has a DP reference | reservations that week |
+| DP confirmed | the organizer recorded the full DP | reservations that week |
+| First-time vs returning | the account's first booking on any real trip, or not | reservations that week |
+
+**Waits, kept apart:** *email*: sign-in link sent → signed in, same browser, within an hour; *organizer*: DP reference sent → full DP recorded. Each has a median and the slowest 10% (p90). A link opened on another device isn't timed.
+
+**Read the numbers** (SQL editor):
+```sql
+select * from pilot_funnel_weekly;   -- visits, reservations, DP sent/confirmed, first-time vs returning, rates
+select * from pilot_waits_weekly;    -- email and organizer waits (median, p90)
+select * from pilot_admin_weekly;    -- your admin log + organizers' overbookings and corrections
+```
+
+**Log admin work once a week** (Monday of the week, per organizer or `all`):
+```sql
+insert into pilot_admin_log (week_of, organizer, admin_minutes, messages, corrections, support_cases, note)
+values ('2026-11-16', 'Batangas Trail Co.', 45, 12, 1, 2, 'Two DP questions, one wrong pick-up');
+```
+`corrections` here are fixes you made yourself (SQL editor, by hand); the ones organizers log under **Reconcile or log** show separately as `dashboard_corrections`.
+
+**Baseline:** in the first pilot week, run the three queries and paste the rows into the PRD's Success metrics as the baseline, with the date. Compare each later week against it. Change the attribution window with `update app_settings set value = 14 where key = 'attribution_days';`.
+
+
 ## Last-slot safety test (TP-013, ADR-009)
 
 `tests/race.test.mjs` fires competing requests at the same time on separate database connections: two groups for the last seats (online, outside and mixed), the same submit sent twice, booking against a capacity change or a date being closed, a hold lapsing while someone else books, two receipt saves at once, rebooking a late payer, and bursts of 12 mixed requests into 10 seats. After each, it counts the seats actually held and checks they never exceed capacity. It needs a disposable Postgres:

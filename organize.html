@@ -692,7 +692,7 @@ ${pick}
 
 Open for: ${t.who.join(", ").toLowerCase()}
 
-Reserve here: ${new URL("trip.html#" + tripId, location.href).href}
+Reserve here: ${new URL("trip.html?s=share#" + tripId, location.href).href}
 Organized by ${t.org}`;
 }
 $("copy").addEventListener("click", async () => {
