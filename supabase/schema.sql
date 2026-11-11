@@ -1501,3 +1501,72 @@ grant execute on function public.organizer_overdue to authenticated;
 revoke all on function public.flag_overdue_details from authenticated;
 grant execute on function public.release_overdue_booking to authenticated;
 grant execute on function public.booking_details_missing, public.missing_details_text to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Reconciliation and incident log (TP-020, ADR-010). Two days before each departure the
+-- organizer checks that every outside booking is entered and whether the trail is open, and
+-- records it here with who checked and where the trail status came from. Overbookings and
+-- manual corrections are logged here too. Append-only: entries are never edited or deleted.
+-- The log informs; it never blocks bookings. A confirmed closure is acted on with Close or
+-- Cancel for weather on the date.
+-- ---------------------------------------------------------------------------
+create table if not exists public.departure_checks (
+  id               bigint generated always as identity primary key,
+  trip_id          text not null,
+  date             date not null,
+  organizer_id     uuid not null references public.profiles (id),
+  kind             text not null check (kind in ('reconciled', 'overbooking', 'correction', 'other')),
+  checked_by       text not null check (char_length(checked_by) between 1 and 80),
+  trail            text check (trail in ('open', 'closed')),
+  source           text check (char_length(source) <= 200),
+  outside_entered  boolean,
+  note             text check (char_length(note) <= 500),
+  created_at       timestamptz not null default now(),
+  foreign key (trip_id, date) references public.departures (trip_id, date) on update cascade on delete cascade,
+  check (kind <> 'reconciled' or (trail is not null and coalesce(source, '') <> '' and outside_entered))
+);
+create index if not exists departure_checks_by_date on public.departure_checks (trip_id, date, id);
+alter table public.departure_checks enable row level security;
+drop policy if exists "Organizers read checks on their trips" on public.departure_checks;
+create policy "Organizers read checks on their trips" on public.departure_checks
+  for select using (exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()));
+revoke all on public.departure_checks from anon, authenticated;
+grant select on public.departure_checks to authenticated;
+
+create or replace function public.log_departure_check(
+  p_trip text, p_date date, p_kind text, p_checked_by text, p_note text default null,
+  p_trail text default null, p_source text default null, p_outside_entered boolean default null)
+returns public.departure_checks language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); c public.departure_checks;
+begin
+  if me is null or not public.is_organizer()
+     or not exists (select 1 from public.trips where id = p_trip and organizer_id = me) then
+    raise exception 'Only this trip''s organizer can log checks for it.';
+  end if;
+  if not exists (select 1 from public.departures where trip_id = p_trip and date = p_date) then
+    raise exception 'This date isn''t on the trip.';
+  end if;
+  if coalesce(p_kind, '') not in ('reconciled', 'overbooking', 'correction', 'other') then
+    raise exception 'Choose what you''re logging.';
+  end if;
+  if coalesce(trim(p_checked_by), '') = '' then raise exception 'Add the name of the person who checked.'; end if;
+  if p_kind = 'reconciled' then
+    if p_outside_entered is not true then
+      raise exception 'Enter every outside booking first, or close the date until you can.';
+    end if;
+    if coalesce(p_trail, '') not in ('open', 'closed') then raise exception 'Choose whether the trail is open or closed.'; end if;
+    if coalesce(trim(p_source), '') = '' then raise exception 'Say where you checked the trail status (for example, the park''s Facebook page).'; end if;
+  elsif coalesce(trim(p_note), '') = '' then
+    raise exception 'Describe what happened and what you did.';
+  end if;
+  insert into public.departure_checks (trip_id, date, organizer_id, kind, checked_by, trail, source, outside_entered, note)
+  values (p_trip, p_date, me, p_kind, left(trim(p_checked_by), 80),
+          case when p_kind = 'reconciled' then p_trail end,
+          case when p_kind = 'reconciled' then left(trim(p_source), 200) end,
+          case when p_kind = 'reconciled' then true end,
+          nullif(left(trim(coalesce(p_note, '')), 500), ''))
+  returning * into c;
+  return c;
+end $$;
+revoke all on function public.log_departure_check from public, anon;
+grant execute on function public.log_departure_check to authenticated;

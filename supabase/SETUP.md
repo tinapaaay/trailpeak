@@ -268,6 +268,30 @@ Every hiker under 18, the booker included, needs a parent or guardian 18 or olde
 From the details due date (3 days before the trip), a booking that still misses a joiner's name, the emergency contact or a guardian for an under-18 is **overdue**. The organizer gets one Activity alert per booking (no texts), and the booking shows "Details overdue" with what's missing in the joiner list. The booker sees exactly what to add in My trips. Nothing is released automatically: the organizer can use **Release slots** to let go of just the unnamed slots (keeping the named joiners) or the whole booking, with a reason the joiner sees. Recorded DPs are never changed; refunds follow the trip's policy outside TrailPeak.
 
 
+## Closure checks and reconciliation routine (TP-020, ADR-010)
+
+Keeps availability dependable: what TrailPeak shows must match the bookings you took elsewhere and the trail's real status.
+
+**Who:** the trip's organizer is responsible. If someone else does the check (a co-organizer or guide), they type their own name under "Checked by".
+
+1. **Outside bookings within 1 hour.** When you agree to a booking in Messenger, by text or in person, add it under **Add outside booking** within 1 hour. If you can't (on the trail, no signal), **Close** the date until you've entered it, then reopen it.
+2. **Reconcile 2 days before each departure.** Each upcoming date shows "Reconcile on {date}", then "Reconcile due" from 2 days before. Open the date's joiners, press **Reconcile or log**, and:
+   - Compare the joiner list with your Messenger chats and notes; add anything missing. Tick "Every outside booking is in the joiner list" (you can't save without it).
+   - Check the trail status at its official source (the park, DENR or LGU page) and choose Open or Closed. Write where you checked, for example "Mt. Pulag NP Facebook page, 9 AM".
+   - Save. The date then shows "Reconciled {time} by {name} · trail open".
+3. **Trail closed?** Use **Cancel for weather** (joiners are offered another date or a refund under your policy) or **Close** if you're waiting for confirmation. Logging "Closed" alone changes nothing for joiners.
+4. **Log incidents.** Under **Reconcile or log**, choose Overbooking, Manual correction or Other incident, and write what happened and what you did (for example "12 of 10 after a late Messenger entry; moved Ben (2) to Jan 8 with his OK"). Log any manual change made outside the dashboard, such as a fix in the SQL editor.
+5. **Check it again on the day if the weather turns.** Reconcile again; every check is kept.
+
+Entries can't be edited or deleted. To correct one, log another. The log never blocks bookings or changes a date by itself. Only the trip's organizer can read or write it.
+
+**Pilot review:** count checks and incidents per date in the SQL editor:
+```sql
+select trip_id, date, kind, checked_by, trail, source, note, created_at
+from departure_checks order by date, id;
+```
+
+
 ## Last-slot safety test (TP-013, ADR-009)
 
 `tests/race.test.mjs` fires competing requests at the same time on separate database connections: two groups for the last seats (online, outside and mixed), the same submit sent twice, booking against a capacity change or a date being closed, a hold lapsing while someone else books, two receipt saves at once, rebooking a late payer, and bursts of 12 mixed requests into 10 seats. After each, it counts the seats actually held and checks they never exceed capacity. It needs a disposable Postgres:
