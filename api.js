@@ -48,7 +48,7 @@ function tpBooking(b, receipts = null, mode = "pilot") {
     receipt, paymentsReady: receipts !== null, totalFee: b.dp + b.balance,
     balance: receipts === null ? null : b.dp + b.balance - (receipt?.amount || 0), wallet: b.wallet, walletNumber: b.wallet_number, names: b.names || "",
     listed: b.listed, displayName: b.display_name, status: b.status, moved: b.moved, note: b.note, bookedAt: b.created_at,
-    companions: b.companions || [], emergency: b.emergency || null };
+    companions: b.companions || [], emergency: b.emergency || null, booker: b.booker || { age: "adult" } };
 }
 function tpUser(p, email, unread = 0) {
   return { id: p.id, name: p.name, phone: p.phone || "", email: email || "", role: p.role, org: p.org || "",
@@ -168,7 +168,7 @@ const tpErr = e => {
 TP.book = async p => {
   const base = { p_trip: p.tripId, p_date: p.date, p_size: p.size, p_pickup: p.pickup, p_pickup_time: p.pickupTime,
     p_wallet: p.wallet, p_wallet_number: p.walletNumber, p_listed: !!p.listed };
-  let { data, error } = await TP.db.rpc("book_trip", { ...base, p_names: "", p_companions: p.companions || [], p_emergency: p.emergency || null });
+  let { data, error } = await TP.db.rpc("book_trip", { ...base, p_names: "", p_companions: p.companions || [], p_emergency: p.emergency || null, p_booker: p.booker || null });
   // Database not updated yet (schema.sql not re-run): book the old way, with names as plain text.
   if (error && error.code === "PGRST202") {
     ({ data, error } = await TP.db.rpc("book_trip", { ...base, p_names: (p.companions || []).map(c => c.name).join(", ") }));
@@ -178,8 +178,8 @@ TP.book = async p => {
   return getBookings().find(b => b.ref === data.ref) || tpBooking(data, []);
 };
 // Add or change joiner names and the emergency contact (any time before the trip date).
-TP.updateDetails = async (ref, companions, emergency) => {
-  const { error } = await TP.db.rpc("update_booking_details", { p_ref: ref, p_companions: companions, p_emergency: emergency });
+TP.updateDetails = async (ref, companions, emergency, booker = null) => {
+  const { error } = await TP.db.rpc("update_booking_details", { p_ref: ref, p_companions: companions, p_emergency: emergency, p_booker: booker });
   if (error) throw tpErr(error);
   await TP.sync({ reload: false });
 };

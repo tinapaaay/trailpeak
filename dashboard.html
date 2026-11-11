@@ -342,7 +342,7 @@ async function start() {
         bookingRef: b.ref, expectedDp: b.dp, totalFee: b.dp + b.balance, name: b.joiner_name || "Joiner", size: b.size, pickup: `${b.pickup} · ${b.pickup_time}`,
         status: b.status, holdUntil: b.hold_until, dpReference: b.dp_reference, dpSentAt: b.dp_sent_at, expiredAt: b.expired_at,
         phone: b.joiner_phone || "No number yet", wallet: b.wallet, checked: false,
-        companions: b.companions || [], emergency: b.emergency || null }))
+        companions: b.companions || [], emergency: b.emergency || null, booker: b.booker || { age: "adult" } }))
         .concat(outside.filter(o => o.trip_id === t.id && o.date === date && (o.status || "confirmed") === "confirmed").map(outsideRow));
       const taken = bookings.reduce((a, b) => a + b.size, 0) + (t.sampleBooked?.[date] || 0);
       const status = t.dateStatus?.[date] === "open" ? "open" : (t.dateStatus?.[date] || "open");
@@ -496,8 +496,11 @@ async function start() {
   // Everyone in a booking after the booker: name, under-18 flag, mobile; and names still to come.
   const missingOf = b => b.source ? 0 : Math.max(0, b.size - 1 - (b.companions || []).length);
   function groupList(b) {
-    if (b.size < 2) return "";
-    const items = (b.companions || []).map(c => `<li>${esc(c.name)}${c.age === "minor" ? ' <span class="minor">under 18</span>' : ""}${c.phone ? ` <span class="data meta">${esc(c.phone)}</span>` : ""}</li>`);
+    if (b.size < 2 && b.booker?.age !== "minor") return "";
+    // Under 18: who in the booking is responsible for them (TP-015).
+    const guard = g => g.guardian ? ` · with ${g.guardian === 1 ? esc(b.name) : esc(b.companions?.[g.guardian - 2]?.name || "joiner " + g.guardian)} (${{ parent: "parent", guardian: "legal guardian", permitted_adult: "adult with parents' permission" }[g.relation] || "guardian"})` : "";
+    const items = (b.companions || []).map(c => `<li>${esc(c.name)}${c.age === "minor" ? ` <span class="minor">under 18</span><span class="meta">${guard(c)}</span>` : ""}${c.phone ? ` <span class="data meta">${esc(c.phone)}</span>` : ""}</li>`);
+    if (b.booker?.age === "minor") items.unshift(`<li><span class="minor">booker under 18</span><span class="meta">${guard(b.booker)}</span></li>`);
     const miss = missingOf(b);
     if (miss) items.push(`<li class="meta">${miss === 1 ? "1 name" : `${miss} names`} still to come</li>`);
     return `<ul class="group">${items.join("")}</ul>`;
@@ -734,7 +737,8 @@ async function start() {
       // One line per hiker for registration at the jump-off, grouped by booking.
       const text = `${s.trip.title} · ${nice(s.date)} · meetup ${s.trip.meet}\n` + s.bookings.map((b, i) => [
         `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} joiners${b.source ? ` · ${SOURCES[b.source]}` : ""} · ${receipts === null && TP.online ? "DP unavailable" : `DP recorded ${pesos(receivedOf(b,s))} · remaining ${pesos(balanceOf(b,s))}`}`,
-        ...(b.companions || []).map(c => `   - ${c.name}${c.age === "minor" ? " (under 18)" : ""}${c.phone ? ` · ${c.phone}` : ""}`),
+        ...(b.booker?.age === "minor" ? [`   (booker is under 18, with ${b.companions?.[b.booker.guardian - 2]?.name || "joiner " + b.booker.guardian})`] : []),
+        ...(b.companions || []).map(c => `   - ${c.name}${c.age === "minor" ? ` (under 18, with ${c.guardian === 1 ? b.name : b.companions?.[c.guardian - 2]?.name || "joiner " + c.guardian})` : ""}${c.phone ? ` · ${c.phone}` : ""}`),
         ...Array.from({ length: missingOf(b) }, () => "   - (name to follow)"),
         b.emergency ? `   Emergency: ${b.emergency.name}${b.emergency.relation ? ` (${b.emergency.relation})` : ""} · ${b.emergency.phone}` : "   Emergency: not added yet",
       ].join("\n")).join("\n");

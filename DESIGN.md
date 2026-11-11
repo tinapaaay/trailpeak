@@ -639,3 +639,8 @@ In the joiner list each outside booking has two text buttons under its name: "Ed
 ## Joiner details due date (TP-014)
 
 Dates for this rule are always Manila calendar days. On the reserve page, a booking before the due date keeps the "Some names aren't ready yet. I'll add them in My trips before Wed, Nov 18." checkbox (the date is written out). From the due date on, the checkbox is replaced by one bold `jd-hint` line, "This trip is 3 days away or less, so add every joiner's full name now.", and a missing name gets the `error` line "Enter joiner 3's full name: this trip is too soon to add names later." In My trips, the `due` line says "Add 2 joiners' details before Wed, Nov 18." and, once the due date has passed, "1 joiner's details were due Wed, Nov 11. Add them now: the organizer needs every name to register your group."
+
+
+## Under-18 hikers (TP-015)
+
+Joiner 1 ("You") now has a "Your age" select like every other joiner (18 or older / Under 18). Choosing Under 18 for anyone reveals, right under that joiner, an indented row (2px `border` rule on the left) with two selects: "Parent or guardian (18+)" listing the other joiners as "Joiner 1 (you)", "Joiner 2"…, and "They are the" (Parent, Legal guardian, Adult with the parents' written permission). The row stacks on phones. Errors name the person: "Kid Cruz is under 18: choose their parent or guardian (18 or older) from this booking." and focus the field. On the dashboard each minor shows the `minor` tag followed by a `text-meta` "· with Ana Reyes (parent)"; a minor booker gets a "booker under 18" tag on its own line. The copied joiner list writes "(under 18, with Ana Reyes)".

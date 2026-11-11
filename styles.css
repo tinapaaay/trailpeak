@@ -335,6 +335,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .jd-rows { display: grid; gap: var(--space-lg); }
 .jd-joiner { display: grid; gap: var(--space-sm); }
 .jd-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px 200px; gap: var(--space-md); align-items: end; }
+/* Under 18 (TP-015): who is responsible, and how they're related */
+.jd-guard { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding-left: var(--space-md); border-left: 2px solid var(--color-border); }
 .jd-field { display: grid; gap: var(--space-sm); min-width: 0; }
 .jd-opt { font-weight: 400; color: var(--color-secondary); }
 .jd-prefix { display: grid; grid-template-columns: auto 1fr; gap: var(--space-sm); align-items: center; }

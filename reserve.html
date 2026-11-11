@@ -267,7 +267,7 @@ function start() {
     if (TP.online) {
       // The server checks slots again and sets the DP and balance; payment itself is still simulated.
       TP.book({ tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time, wallet,
-        walletNumber: pretty($("wnum").value), listed: $("listme").checked, companions: jd.companions, emergency: jd.emergency })
+        walletNumber: pretty($("wnum").value), listed: $("listme").checked, companions: jd.companions, emergency: jd.emergency, booker: jd.booker })
         .then(b => { setPending(null); showDone(b); })
         .catch(e2 => { err(e2.message); $("pay-btn").disabled = false; $("paying").hidden = true; });
       return;
@@ -276,7 +276,7 @@ function start() {
       const ref = "TP-" + Math.random().toString(36).slice(2, 8).toUpperCase();
       const booking = { ref, tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time,
         dp, balance, wallet, walletNumber: pretty($("wnum").value), names: jd.companions.map(c => c.name).join(", "),
-        companions: jd.companions, emergency: jd.emergency,
+        companions: jd.companions, emergency: jd.emergency, booker: jd.booker,
         status: "confirmed", moved: false, bookedAt: new Date().toISOString(),
         listed: $("listme").checked, displayName: shortName(user.name), userName: user.name };
       saveBookings([...getBookings(), booking]);

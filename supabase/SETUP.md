@@ -245,3 +245,8 @@ Post a trip now asks for a **mobile number for joiners**, shown on the trip page
 ## Joiner details cut-off (TP-014, ADR-006)
 
 Joiner names are due **3 days before the trip** (Manila calendar). A booking made earlier can leave names for later; My trips shows "Add N joiners' details before {date}". From that due date on, a new booking needs every joiner's full name and the emergency contact before it confirms (the reserve page stops offering "add later", and the database refuses an incomplete booking). Bookings already missing names after the due date show "details were due {date}. Add them now". Change the number with `update app_settings set value = 4 where key = 'details_due_days';`.
+
+
+## Under-18 hikers (TP-015, ADR-007)
+
+Every hiker under 18, the booker included, needs a parent or guardian 18 or older **in the same booking**. On the reserve page and in My trips, choosing "Under 18" shows two more fields: who their parent or guardian is (Joiner 1 = the booker, or another joiner) and how they're related (parent, legal guardian, or an adult with the parents' written permission). The database checks this on every booking and every later edit, so removing the guardian or changing them to under 18 is refused. The organizer's joiner list and copied list show each minor with their guardian. Ages are what the booker says; organizers still check IDs at the jump-off.
