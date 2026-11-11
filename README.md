@@ -48,6 +48,10 @@ python3 -m http.server 8000
 
 Then open http://localhost:8000.
 
+## Research
+
+Interview questions for organizers and joiners (to run before the pilot decision): [research/interview-guide.md](research/interview-guide.md).
+
 ## Design system
 
 All colors, type, spacing, shapes and components are defined in [DESIGN.md](DESIGN.md) (direction: Trail Map). Read it before building or restyling any UI, and update it in the same change when you add or alter a token or component.
