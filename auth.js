@@ -102,6 +102,17 @@ function todayIso() {
 }
 const isPastDate = iso => iso < todayIso();
 
+// One name for each date state, shared by the dashboard and the public pages (TP-012).
+// Stored on the server: open, closed, cancelled. Derived here: full (open, no slots left)
+// and completed (the date has passed). A cancelled date stays "cancelled" even after it passes.
+const DATE_STATES = { open: "Open", full: "Full", closed: "Closed", cancelled: "Cancelled", completed: "Completed" };
+function dateState(status, left, iso) {
+  if (status === "cancelled") return "cancelled";
+  if (isPastDate(iso)) return "completed";
+  if (status === "closed") return "closed";
+  return left > 0 ? "open" : "full";
+}
+
 // ---- Reviews written in this browser (offline demo only; online they're in Supabase) ----
 const TP_REVIEWS_KEY = "trailpeak.reviews";
 function getMyReviews() { try { return JSON.parse(localStorage.getItem(TP_REVIEWS_KEY)) || []; } catch { return []; } }

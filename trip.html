@@ -69,10 +69,15 @@
 }
 .day.open:hover { box-shadow: inset 0 0 0 1px var(--color-tertiary); }
 .day.full { text-decoration: line-through; }
+/* Closed: the organizer stopped new bookings (dashed outline). Cancelled: dashed and crossed out. */
+.day.closed, .day.cancelled { border: 1px dashed var(--color-secondary); }
+.day.cancelled { text-decoration: line-through; }
 .day[aria-pressed="true"] { background: var(--color-tertiary); color: var(--color-surface); box-shadow: none; font-weight: 700; }
 .day[aria-pressed="true"]::after { background: var(--color-surface); }
 .legend { display: flex; gap: var(--space-md); margin-top: var(--space-md); color: var(--color-secondary); font-size: 15px; }
 .legend span { display: inline-flex; align-items: center; gap: var(--space-xs); }
+.legend { flex-wrap: wrap; }
+.legend .ring { width: 14px; height: 14px; border-radius: var(--rounded-full); border: 1px dashed var(--color-secondary); }
 .legend i { width: 8px; height: 8px; border-radius: 50%; corner-shape: round; background: var(--color-tertiary); }
 
 .picked { background: var(--color-card); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-sm); }
@@ -258,7 +263,7 @@
               </div>
             </div>
             <div class="cal" id="cal" role="group" aria-label="Departure dates"></div>
-            <div class="legend"><span><i></i>Slots open</span><span><s aria-hidden="true">21</s> Crossed out: full</span></div>
+            <div class="legend"><span><i></i>Slots open</span><span><s aria-hidden="true">21</s> Crossed out: full</span><span><b class="ring" aria-hidden="true"></b>Dashed: closed</span><span><b class="ring" aria-hidden="true"></b><s aria-hidden="true">21</s> Dashed and crossed out: cancelled</span></div>
           </div>
           <div class="picked" aria-live="polite">
             <span class="label-caps" style="color:var(--color-secondary)">Your date</span>
@@ -469,8 +474,11 @@ function buildCalendar() {
   html += "<span></span>".repeat(first.getDay());
   for (let d = 1; d <= days; d++) {
     const iso = `${month}-${String(d).padStart(2, "0")}`, left = isPastDate(iso) ? undefined : T.departures[iso];
+    const st = left === undefined ? null : dateState(T.dateStatus?.[iso] || "open", left, iso);
     if (left === undefined) html += `<span class="day" aria-hidden="true">${d}</span>`;
-    else if (left === 0) html += `<button type="button" class="day full" disabled aria-label="${nice(iso)}, full">${d}</button>`;
+    else if (st === "closed") html += `<button type="button" class="day closed" disabled aria-label="${nice(iso)}, closed: the organizer isn't taking new bookings">${d}</button>`;
+    else if (st === "cancelled") html += `<button type="button" class="day cancelled" disabled aria-label="${nice(iso)}, cancelled">${d}</button>`;
+    else if (st === "full") html += `<button type="button" class="day full" disabled aria-label="${nice(iso)}, full">${d}</button>`;
     else html += `<button type="button" class="day open" data-date="${iso}" aria-pressed="${iso === picked}" aria-label="${nice(iso)}, ${left} ${left === 1 ? "slot" : "slots"} left">${d}</button>`;
   }
   $("cal").innerHTML = html;

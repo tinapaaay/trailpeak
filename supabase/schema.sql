@@ -247,6 +247,41 @@ create policy "Organizers manage their dates" on public.departures
   for all using (public.is_organizer() and exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()))
   with check (public.is_organizer() and exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()));
 
+-- Date states (TP-012). Stored: open, closed (no new bookings; existing ones stay) and
+-- cancelled (final). Derived on the page, never stored: full (open, no slots left) and
+-- completed (the date has passed).
+--
+-- Capacity guard: a date's capacity can never drop below the seats already taken
+-- (seats_taken, below). The check runs inside the UPDATE, which holds the date's row lock,
+-- the same lock book_trip and move_booking take before they count seats. So a booking and
+-- a capacity edit on the same date run one after the other, never interleaved, and the
+-- second one sees what the first did. This holds for the website, direct API calls and the
+-- SQL editor alike.
+-- Not security definer: it needs to know who is really making the change (current_user).
+create or replace function public.guard_departure()
+returns trigger language plpgsql set search_path = public as $$
+declare taken int;
+begin
+  if tg_op = 'UPDATE' then
+    if current_user in ('anon', 'authenticated') and old.status = 'cancelled' and new.status <> 'cancelled' then
+      raise exception 'This date was cancelled, so it can''t be reopened. Add it again as a new date.' using errcode = '23514';
+    end if;
+    if new.capacity < old.capacity or new.sample_booked is distinct from old.sample_booked then
+      -- seats_taken reads the stored sample seats; swap in the new value being written.
+      taken := public.seats_taken(new.trip_id, new.date) - old.sample_booked + new.sample_booked;
+      if new.capacity < taken then
+        raise exception 'Can''t lower this date to % slots: % % already taken. Choose % or more, or close the date to stop new bookings.',
+          new.capacity, taken, case when taken = 1 then 'is' else 'are' end, taken using errcode = '23514';
+      end if;
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists guard_departure on public.departures;
+create trigger guard_departure
+  before update on public.departures
+  for each row execute function public.guard_departure();
+
 -- ---------------------------------------------------------------------------
 -- Bookings
 -- ---------------------------------------------------------------------------
@@ -292,12 +327,20 @@ create policy "Joiners read their bookings, organizers read bookings on their tr
 create or replace function public.ph_today()
 returns date language sql stable as $$ select (now() at time zone 'Asia/Manila')::date $$;
 
--- Seats left on a date: capacity minus sample seats minus confirmed bookings.
+-- Seats taken on a date: everything that uses up a slot. Today that's sample seats and
+-- confirmed bookings; outside bookings (TP-008) get added here, in this one place, so the
+-- capacity guard and slots_left count them too.
+create or replace function public.seats_taken(p_trip text, p_date date)
+returns int language sql stable security definer set search_path = public as $$
+  select (coalesce((select d.sample_booked from public.departures d where d.trip_id = p_trip and d.date = p_date), 0)
+        + coalesce((select sum(b.size) from public.bookings b
+                    where b.trip_id = p_trip and b.date = p_date and b.status = 'confirmed'), 0))::int;
+$$;
+
+-- Seats left on a date: capacity minus seats taken (never below zero for display).
 create or replace function public.slots_left(p_trip text, p_date date)
 returns int language sql stable security definer set search_path = public as $$
-  select greatest(0, d.capacity - d.sample_booked - coalesce((
-    select sum(b.size) from public.bookings b
-    where b.trip_id = p_trip and b.date = p_date and b.status = 'confirmed'), 0))::int
+  select greatest(0, d.capacity - public.seats_taken(p_trip, p_date))::int
   from public.departures d where d.trip_id = p_trip and d.date = p_date;
 $$;
 
@@ -508,7 +551,8 @@ $$;
 -- Only signed-in people can call the functions that change or reveal bookings.
 revoke all on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings, public.add_review, public.update_booking_details, public.clear_old_details from public, anon;
 grant execute on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings, public.add_review, public.update_booking_details to authenticated;
-grant execute on function public.slots_left, public.all_slots, public.whos_going, public.all_reviews, public.ph_today to anon, authenticated;
+grant execute on function public.slots_left, public.all_slots, public.whos_going, public.all_reviews, public.ph_today, public.seats_taken to anon, authenticated;
+revoke all on function public.guard_departure from public, anon, authenticated;
 
 -- Organizer status: anyone signed in can apply; only the owner (SQL editor / service role) approves or revokes.
 revoke all on function public.apply_as_organizer, public.approve_organizer, public.revoke_organizer,
@@ -531,6 +575,12 @@ grant select on public.profiles to authenticated;
 grant insert (id, name, phone, org, payout) on public.profiles to authenticated;
 grant update (name, phone, org, payout) on public.profiles to authenticated;
 grant insert, update on public.trips to authenticated;
-grant insert, update, delete on public.departures to authenticated;
+-- Departures: organizers add dates and change capacity or status, nothing else. The date
+-- itself can't be edited (that would silently move joiners' bookings), and sample seats are
+-- seed data only. Deleting a date with bookings fails (bookings point at it).
+revoke insert, update on public.departures from authenticated;
+grant insert (trip_id, date, capacity, status) on public.departures to authenticated;
+grant update (capacity, status) on public.departures to authenticated;
+grant delete on public.departures to authenticated;
 grant select on public.bookings to authenticated;   -- changes go through the functions only
 grant select on public.reviews to authenticated;    -- own rows only; writes go through add_review
