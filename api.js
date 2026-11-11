@@ -210,6 +210,22 @@ TP.organizerBookings = async () => {
   if (error) throw tpErr(error);
   return data || [];
 };
+// Outside bookings (Messenger, in person, other): the organizer records them and the server
+// runs the same slot check as online bookings. requestId stays the same when one submit is
+// retried, so the booking is saved once (see add_outside_booking in supabase/schema.sql).
+TP.addOutsideBooking = async b => {
+  const { data, error } = await TP.db.rpc("add_outside_booking", {
+    p_request: b.requestId, p_trip: b.tripId, p_date: b.date, p_name: b.name, p_size: b.size,
+    p_pickup: b.pickup, p_pickup_time: b.pickupTime || null, p_source: b.source, p_phone: b.phone || null });
+  if (error) throw tpErr(error);
+  await TP.sync({ reload: false });
+  return data;
+};
+TP.outsideBookings = async () => {
+  const { data, error } = await TP.db.from("outside_bookings").select("*").eq("status", "confirmed").order("created_at");
+  if (error) throw tpErr(error);
+  return data || [];
+};
 TP.setDateStatus = async (tripId, date, status) => {
   const { error } = await TP.db.from("departures").update({ status }).eq("trip_id", tripId).eq("date", date);
   if (error) throw tpErr(error);

@@ -7,7 +7,7 @@
 --   * You can read and change only your own profile, and never your own organizer or
 --     verification status (only the owner can approve those).
 --   * Joiners see only their own bookings; organizers see bookings on their own trips.
---   * Bookings are created, moved and cancelled only through the functions below,
+--   * Bookings are created, moved and cancelled only through the f unctions below,
 --     which check slots and the cancellation policy on the server.
 --   * "Who's going" shows first name + last initial of opted-in joiners, and only
 --     to people who are booked on the same date. Phone numbers never leave the organizer.
@@ -327,14 +327,47 @@ create policy "Joiners read their bookings, organizers read bookings on their tr
 create or replace function public.ph_today()
 returns date language sql stable as $$ select (now() at time zone 'Asia/Manila')::date $$;
 
--- Seats taken on a date: everything that uses up a slot. Today that's sample seats and
--- confirmed bookings; outside bookings (TP-008) get added here, in this one place, so the
--- capacity guard and slots_left count them too.
+-- ---------------------------------------------------------------------------
+-- Outside bookings (TP-008): joiners who booked through Messenger, in person or another
+-- way, recorded by the trip's organizer so they use the same slots. They aren't accounts:
+-- just a name, group size, pick-up and source (and a mobile number if the organizer has one).
+-- Only the trip's organizer can read them, and they never appear in Who's going or the
+-- public slot list beyond the count. Recording one says nothing about payment: a DP is
+-- recorded separately (TP-010). Edit and cancel come later (TP-009).
+-- ---------------------------------------------------------------------------
+create table if not exists public.outside_bookings (
+  id           uuid primary key default gen_random_uuid(),
+  request_id   uuid not null unique,                -- one per submit, so a retry can't add it twice
+  trip_id      text not null,
+  date         date not null,
+  created_by   uuid not null references public.profiles (id) on delete cascade,
+  name         text not null check (char_length(name) between 1 and 100),
+  size         int  not null check (size between 1 and 20),
+  pickup       text not null check (char_length(pickup) between 1 and 100),
+  pickup_time  text,
+  phone        text check (phone is null or char_length(phone) <= 20),
+  source       text not null check (source in ('messenger', 'in_person', 'other')),
+  status       text not null default 'confirmed' check (status in ('confirmed', 'cancelled')),
+  created_at   timestamptz not null default now(),
+  foreign key (trip_id, date) references public.departures (trip_id, date)
+);
+alter table public.outside_bookings enable row level security;
+
+drop policy if exists "Organizers read outside bookings on their trips" on public.outside_bookings;
+create policy "Organizers read outside bookings on their trips" on public.outside_bookings
+  for select using (exists (select 1 from public.trips t where t.id = trip_id and t.organizer_id = auth.uid()));
+-- No insert/update policies: they're added only through add_outside_booking() below.
+
+-- Seats taken on a date: everything that uses up a slot: sample seats, confirmed bookings
+-- and confirmed outside bookings. The capacity guard, slots_left and every booking path
+-- count through this one function.
 create or replace function public.seats_taken(p_trip text, p_date date)
 returns int language sql stable security definer set search_path = public as $$
   select (coalesce((select d.sample_booked from public.departures d where d.trip_id = p_trip and d.date = p_date), 0)
         + coalesce((select sum(b.size) from public.bookings b
-                    where b.trip_id = p_trip and b.date = p_date and b.status = 'confirmed'), 0))::int;
+                    where b.trip_id = p_trip and b.date = p_date and b.status = 'confirmed'), 0)
+        + coalesce((select sum(o.size) from public.outside_bookings o
+                    where o.trip_id = p_trip and o.date = p_date and o.status = 'confirmed'), 0))::int;
 $$;
 
 -- Seats left on a date: capacity minus seats taken (never below zero for display).
@@ -437,6 +470,47 @@ begin
    where ref = p_ref returning * into b;
   perform public.clear_old_details();
   return b;
+end $$;
+
+-- Organizer records an outside booking. Same rules as book_trip: lock the date, check it's
+-- open, upcoming and has room, then save. p_request is a fresh id per form submit: sending
+-- the same one again (a double click, a retry after a dropped connection) returns the
+-- booking already saved instead of adding another.
+create or replace function public.add_outside_booking(
+  p_request uuid, p_trip text, p_date date, p_name text, p_size int, p_pickup text,
+  p_pickup_time text, p_source text, p_phone text default null)
+returns public.outside_bookings language plpgsql security definer set search_path = public as $$
+declare me uuid := auth.uid(); dep public.departures; o public.outside_bookings;
+begin
+  if me is null then raise exception 'Please sign in again.'; end if;
+  if p_request is null then raise exception 'Missing request id. Reload the page and try again.'; end if;
+  if not public.is_organizer() or not exists (select 1 from public.trips where id = p_trip and organizer_id = me) then
+    raise exception 'Only this trip''s organizer can add bookings to it.';
+  end if;
+  select * into dep from public.departures where trip_id = p_trip and date = p_date for update;
+  if not found then raise exception 'That date isn''t on this trip.'; end if;
+  -- Checked after the lock, so two identical submits can't both get past it.
+  select * into o from public.outside_bookings where request_id = p_request;
+  if found then
+    if o.created_by <> me or o.trip_id <> p_trip or o.date <> p_date then raise exception 'Reload the page and try again.'; end if;
+    return o;   -- already saved: nothing more to do
+  end if;
+  if dep.status = 'cancelled' then raise exception 'This date was cancelled.'; end if;
+  if dep.status = 'closed' then raise exception 'This date is closed. Reopen it first to add a booking.'; end if;
+  if p_date < public.ph_today() then raise exception 'This date has passed.'; end if;
+  if coalesce(trim(p_name), '') = '' then raise exception 'Enter the booker''s name.'; end if;
+  if p_size is null or p_size not between 1 and 20 then raise exception 'Joiners must be between 1 and 20.'; end if;
+  if coalesce(trim(p_pickup), '') = '' then raise exception 'Choose a pick-up point.'; end if;
+  if p_source not in ('messenger', 'in_person', 'other') then raise exception 'Choose how they booked.'; end if;
+  if public.slots_left(p_trip, p_date) < p_size then
+    raise exception 'Only % % left on this date.', public.slots_left(p_trip, p_date),
+      case when public.slots_left(p_trip, p_date) = 1 then 'slot' else 'slots' end;
+  end if;
+  insert into public.outside_bookings (request_id, trip_id, date, created_by, name, size, pickup, pickup_time, phone, source)
+  values (p_request, p_trip, p_date, me, left(trim(p_name), 100), p_size, left(trim(p_pickup), 100),
+          nullif(left(trim(coalesce(p_pickup_time, '')), 20), ''), nullif(left(trim(coalesce(p_phone, '')), 20), ''), p_source)
+  returning * into o;
+  return o;
 end $$;
 
 -- Move a booking: free once, only 7+ days before, to an open date with room.
@@ -553,6 +627,8 @@ revoke all on function public.book_trip, public.move_booking, public.cancel_book
 grant execute on function public.book_trip, public.move_booking, public.cancel_booking, public.organizer_bookings, public.add_review, public.update_booking_details to authenticated;
 grant execute on function public.slots_left, public.all_slots, public.whos_going, public.all_reviews, public.ph_today, public.seats_taken to anon, authenticated;
 revoke all on function public.guard_departure from public, anon, authenticated;
+revoke all on function public.add_outside_booking from public, anon;
+grant execute on function public.add_outside_booking to authenticated;
 
 -- Organizer status: anyone signed in can apply; only the owner (SQL editor / service role) approves or revokes.
 revoke all on function public.apply_as_organizer, public.approve_organizer, public.revoke_organizer,
@@ -584,3 +660,4 @@ grant update (capacity, status) on public.departures to authenticated;
 grant delete on public.departures to authenticated;
 grant select on public.bookings to authenticated;   -- changes go through the functions only
 grant select on public.reviews to authenticated;    -- own rows only; writes go through add_review
+grant select on public.outside_bookings to authenticated;   -- organizer's own trips only (RLS); writes via add_outside_booking

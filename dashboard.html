@@ -89,6 +89,20 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .joiners tfoot td { font-weight: 700; background: var(--color-neutral); }
 .joiners input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--color-primary); }
 .checkin { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+/* Outside bookings (TP-008): the add form and the source tag in the joiner list */
+.out-form { display: grid; gap: var(--space-md); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-md); margin-bottom: var(--space-md); }
+.out-form h3 { font: 700 20px/1.25 var(--font-display); }
+.out-form .hint { color: var(--color-secondary); font-size: 15px; }
+.out-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-md); }
+.out-grid .field2 { display: grid; gap: var(--space-sm); }
+.out-grid .input { width: 100%; }
+.out-src { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-lg); }
+.out-src legend { margin-bottom: var(--space-sm); padding: 0; }
+.out-src label { display: inline-flex; align-items: center; gap: var(--space-sm); min-height: 44px; }
+.out-src input { width: 20px; height: 20px; accent-color: var(--color-primary); }
+.out-form .actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
+.tag-source { display: inline-block; margin-left: var(--space-xs); background: var(--color-neutral); color: var(--color-on-surface); font: 700 14px/1.2 var(--font-body); border-radius: var(--rounded-sm); padding: var(--space-xs) var(--space-sm); }
+.joiners .foot-note td { color: var(--color-secondary); font-size: 15px; }
 .empty-list { padding: var(--space-lg); color: var(--color-secondary); }
 
 /* Payouts */
@@ -197,9 +211,11 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
           <p id="joiners-sub"></p>
         </div>
         <div class="actions" style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
+          <button type="button" class="btn btn-secondary label-caps" id="add-out" aria-expanded="false" aria-controls="out-panel">Add outside booking</button>
           <button type="button" class="btn btn-secondary label-caps" id="copy-list">Copy joiner list</button>
         </div>
       </div>
+      <div id="out-panel"></div>
       <div class="table-wrap" id="joiners-wrap"></div>
       <p class="sr" id="live" aria-live="polite"></p>
     </section>
@@ -247,14 +263,23 @@ if (!me || me.role !== "organizer") {
   start();
 }
 
+// Outside bookings (TP-008): how they booked, and a server row in the joiner-list shape.
+const SOURCES = { messenger: "Messenger", in_person: "In person", other: "Other" };
+function outsideRow(o) {
+  return { name: o.name, size: o.size, pickup: o.pickup_time ? `${o.pickup} · ${o.pickup_time}` : o.pickup,
+    phone: o.phone || "No number yet", wallet: null, checked: false, companions: [], emergency: null, source: o.source };
+}
+
 async function start() {
   // Online: the organizer's own trips and their real bookings from the database.
   // Offline: trips matching the organizer's name, or one sample trip, with sample bookings.
-  let mine, real = null;
+  let mine, real = null, outside = [];
   if (TP.online) {
     mine = TRIPS.filter(t => t.organizerId === me.id);
     try { real = (await TP.organizerBookings()).filter(b => b.status === "confirmed"); }
     catch (e) { real = []; console.warn(e); }
+    try { outside = await TP.outsideBookings(); }
+    catch (e) { outside = []; console.warn(e); }
     if (!mine.length) {
       $("trips").innerHTML = `<div class="empty-list" style="background:var(--color-card);border-radius:var(--rounded-lg)"><p style="font:700 24px/1.2 var(--font-display);color:var(--color-on-surface)">No trips yet</p><p>Post your first trip and its bookings will show up here.</p><p style="margin-top:var(--space-md)"><a class="btn btn-primary label-caps" href="organize.html">Post a trip</a></p></div>`;
     }
@@ -274,7 +299,8 @@ async function start() {
       const bookings = real.filter(b => b.trip_id === t.id && b.date === date).map(b => ({
         name: b.joiner_name || "Joiner", size: b.size, pickup: `${b.pickup} · ${b.pickup_time}`,
         phone: b.joiner_phone || "No number yet", wallet: b.wallet, checked: false,
-        companions: b.companions || [], emergency: b.emergency || null }));
+        companions: b.companions || [], emergency: b.emergency || null }))
+        .concat(outside.filter(o => o.trip_id === t.id && o.date === date).map(outsideRow));
       const taken = bookings.reduce((a, b) => a + b.size, 0) + (t.sampleBooked?.[date] || 0);
       const status = t.dateStatus?.[date] === "open" ? "open" : (t.dateStatus?.[date] || "open");
       state[t.id + "|" + date] = { trip: t, date, cap: t.capacity?.[date] || t.group, held: t.sampleBooked?.[date] || 0, status, bookings, note: "" };
@@ -301,6 +327,10 @@ async function start() {
   let selected = keys().find(k => state[k].bookings.length && !isPastDate(state[k].date)) || keys().find(k => !isPastDate(state[k].date)) || keys()[0];
 
   const bookedOf = s => s.bookings.reduce((a, b) => a + b.size, 0);
+  // Joiners who booked and paid their DP on TrailPeak. Outside bookings (b.source set) count
+  // for slots and headcount, but not for money: no DP has been recorded for them.
+  const paidOf = s => s.bookings.filter(b => !b.source).reduce((a, b) => a + b.size, 0);
+  const hasOutside = s => s.bookings.some(b => b.source);
   // Seats in use: joiners' bookings plus any sample seats. The capacity can't go below this.
   const takenOf = s => bookedOf(s) + (s.held || 0);
   const statusOf = s => dateState(s.status, s.cap - takenOf(s), s.date);
@@ -312,14 +342,15 @@ async function start() {
     const kept = keys().map(k => state[k]).filter(s => s.status !== "cancelled");
     const live = kept.filter(s => !isPastDate(s.date));
     const joiners = live.reduce((a, s) => a + bookedOf(s), 0);
-    const dp = kept.reduce((a, s) => a + bookedOf(s) * s.trip.dp, 0);
-    const balance = live.reduce((a, s) => a + bookedOf(s) * (s.trip.fee - s.trip.dp), 0);
+    const dp = kept.reduce((a, s) => a + paidOf(s) * s.trip.dp, 0);
+    const balance = live.reduce((a, s) => a + paidOf(s) * (s.trip.fee - s.trip.dp), 0);
+    const outsideNote = kept.some(hasOutside) ? " (outside bookings not included)" : "";
     const nextOpen = live.filter(s => statusOf(s) === "open").length;
     $("tiles").innerHTML = `
       <div class="tile"><span class="label-caps">Joiners booked</span><span class="value">${joiners}</span><span class="note">Across ${live.length} upcoming ${live.length === 1 ? "date" : "dates"}, ${nextOpen} still open</span></div>
-      <div class="tile"><span class="label-caps">DPs received</span><span class="value">${pesos(dp)}</span><span class="note">Paid by joiners on TrailPeak</span></div>
+      <div class="tile"><span class="label-caps">DPs received</span><span class="value">${pesos(dp)}</span><span class="note">Paid by joiners on TrailPeak${outsideNote}</span></div>
       <div class="tile money"><span class="label-caps">Sent to your ${esc(me.payout?.wallet || "wallet")}</span><span class="value">${pesos(dp * (1 - COMMISSION))}</span><span class="note">After ${pesos(dp * COMMISSION)} TrailPeak commission</span></div>
-      <div class="tile"><span class="label-caps">To collect on meetup day</span><span class="value">${pesos(balance)}</span><span class="note">Balances joiners pay you in person</span></div>`;
+      <div class="tile"><span class="label-caps">To collect on meetup day</span><span class="value">${pesos(balance)}</span><span class="note">Balances TrailPeak joiners pay you in person${outsideNote}</span></div>`;
   }
 
   // Online: trips this account published. Offline: trips published from this browser.
@@ -376,6 +407,7 @@ async function start() {
   function renderJoiners() {
     const s = state[selected];
     if (!s) return;
+    renderOutsideForm(s);
     const booked = bookedOf(s), checked = s.bookings.filter(b => b.checked).reduce((a, b) => a + b.size, 0);
     $("joiners-h").textContent = `Joiners · ${nice(s.date)}`;
     const toCome = s.bookings.reduce((a, b) => a + missingOf(b), 0);
@@ -390,15 +422,16 @@ async function start() {
       <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">Emergency contact</th><th scope="col">DP paid</th><th scope="col" class="num">Collect</th></tr></thead>
       <tbody>${s.bookings.map((b, i) => `<tr>
         <td><label class="checkin"><input type="checkbox" data-check="${i}" ${b.checked ? "checked" : ""}><span class="sr">${esc(b.name)} checked in</span></label></td>
-        <td><strong>${esc(b.name)}</strong>${groupList(b)}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${b.phone}</td>
+        <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b)}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
         <td>${b.emergency ? `<div class="em"><span>${esc(b.emergency.name)}${b.emergency.relation ? ` (${esc(b.emergency.relation)})` : ""}</span><span class="data">${esc(b.emergency.phone)}</span></div>` : "Not added yet"}</td>
-        <td>${pesos(s.trip.dp * b.size)} · ${b.wallet}</td><td class="num">${pesos(balance * b.size)}</td></tr>`).join("")}</tbody>
-      <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td></td><td>${pesos(s.trip.dp * booked)}</td><td class="num">${pesos(balance * booked)}</td></tr></tfoot>
+        ${b.source ? `<td>Not recorded</td><td class="num"><span aria-hidden="true">—</span><span class="sr">Not worked out</span></td>` : `<td>${pesos(s.trip.dp * b.size)} · ${b.wallet}</td><td class="num">${pesos(balance * b.size)}</td>`}</tr>`).join("")}</tbody>
+      <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td></td><td>${pesos(s.trip.dp * paidOf(s))}</td><td class="num">${pesos(balance * paidOf(s))}</td></tr>
+      ${hasOutside(s) ? `<tr class="foot-note"><td></td><td colspan="7">Outside bookings count for slots but not in the DP and collect totals: no DP has been recorded for them.</td></tr>` : ""}</tfoot>
     </table>`;
   }
 
   // Everyone in a booking after the booker: name, under-18 flag, mobile; and names still to come.
-  const missingOf = b => Math.max(0, b.size - 1 - (b.companions || []).length);
+  const missingOf = b => b.source ? 0 : Math.max(0, b.size - 1 - (b.companions || []).length);
   function groupList(b) {
     if (b.size < 2) return "";
     const items = (b.companions || []).map(c => `<li>${esc(c.name)}${c.age === "minor" ? ' <span class="minor">under 18</span>' : ""}${c.phone ? ` <span class="data meta">${esc(c.phone)}</span>` : ""}</li>`);
@@ -407,12 +440,49 @@ async function start() {
     return `<ul class="group">${items.join("")}</ul>`;
   }
 
+  // Add outside booking: a panel above the joiner list for the selected date. One request id
+  // per submit (kept for retries) so a double click or a resend saves it only once.
+  function renderOutsideForm(s) {
+    const open = statusOf(s) === "open", left = s.cap - takenOf(s);
+    $("add-out").setAttribute("aria-expanded", String(!!s.adding));
+    $("add-out").textContent = s.adding ? "Close the form" : "Add outside booking";
+    if (!s.adding) { $("out-panel").innerHTML = ""; return; }
+    if (!open) {
+      $("out-panel").innerHTML = `<div class="out-form" role="status"><p><strong>You can't add a booking to ${nice(s.date)}.</strong> It's ${DATE_STATES[statusOf(s)].toLowerCase()}${statusOf(s) === "closed" ? ": reopen it first" : statusOf(s) === "full" ? ": change its slots first" : ""}.</p></div>`;
+      return;
+    }
+    const v = s.draft || {};
+    $("out-panel").innerHTML = `<form class="out-form" id="out-form" novalidate aria-labelledby="out-h">
+      <h3 id="out-h">Add an outside booking · ${nice(s.date)}</h3>
+      <p class="hint">For joiners who booked through Messenger, in person or another way. It uses slots right away (${left} left). It doesn't record a DP.</p>
+      <div class="out-grid">
+        <div class="field2"><label class="field-label" for="out-name">Booker's name</label><input class="input" id="out-name" autocomplete="off" value="${esc(v.name || "")}" placeholder="e.g. Ana Reyes"></div>
+        <div class="field2"><label class="field-label" for="out-size">Joiners</label><input class="input data" type="number" id="out-size" min="1" max="${Math.min(20, left)}" value="${v.size || 1}"></div>
+        <div class="field2"><label class="field-label" for="out-pick">Pick-up</label><select class="input" id="out-pick">${s.trip.pickups.map((p, i) => `<option value="${i}"${String(i) === v.pick ? " selected" : ""}>${esc(p.place)} · ${esc(p.time)}</option>`).join("")}</select></div>
+        <div class="field2"><label class="field-label" for="out-phone">Mobile (optional)</label><input class="input data" type="tel" id="out-phone" autocomplete="off" value="${esc(v.phone || "")}" placeholder="+63 917 123 4567"></div>
+      </div>
+      <fieldset class="out-src"><legend class="field-label">Booked through</legend>
+        ${Object.entries(SOURCES).map(([k, l]) => `<label><input type="radio" name="out-src" value="${k}"${(v.source || "messenger") === k ? " checked" : ""}>${l}</label>`).join("")}
+      </fieldset>
+      <p class="error" id="out-err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+      <div class="actions"><button type="submit" class="btn btn-primary label-caps" id="out-save"${s.saving ? " disabled" : ""}>${s.saving ? "Adding…" : "Add booking"}</button><button type="button" class="link-btn" id="out-cancel">Cancel</button></div>
+    </form>`;
+  }
+  const readOutside = () => ({ name: $("out-name").value.trim(), size: Number($("out-size").value), pick: $("out-pick").value,
+    phone: $("out-phone").value.trim(), source: document.querySelector('input[name="out-src"]:checked')?.value || "messenger" });
+  const outFail = (msg, input) => {
+    const e = $("out-err"); e.hidden = false; e.querySelector("span").textContent = msg;
+    document.querySelectorAll("#out-form .input").forEach(i => i.removeAttribute("aria-invalid"));
+    if (input) { input.setAttribute("aria-invalid", "true"); input.setAttribute("aria-describedby", "out-err"); input.focus(); }
+    say(msg);
+  };
+
   function renderPayouts() {
     const w = me.payout?.wallet || "GCash", num = me.payout?.number || "your wallet";
-    const paid = keys().map(k => state[k]).filter(s => s.bookings.length && s.status !== "cancelled").slice(0, 3);
+    const paid = keys().map(k => state[k]).filter(s => paidOf(s) && s.status !== "cancelled").slice(0, 3);
     $("payouts").innerHTML = paid.map(s => {
-      const dp = bookedOf(s) * s.trip.dp;
-      return `<li><span>${esc(s.trip.title)}, ${nice(s.date)}: ${bookedOf(s)} DPs<br><span class="meta">Sent to ${w} ${esc(num)} the next working day</span></span><span class="data">${pesos(dp * (1 - COMMISSION))}</span></li>`;
+      const dp = paidOf(s) * s.trip.dp;
+      return `<li><span>${esc(s.trip.title)}, ${nice(s.date)}: ${paidOf(s)} DPs<br><span class="meta">Sent to ${w} ${esc(num)} the next working day</span></span><span class="data">${pesos(dp * (1 - COMMISSION))}</span></li>`;
     }).join("") || `<li><span class="meta">No payouts yet.</span></li>`;
   }
 
@@ -430,6 +500,11 @@ async function start() {
       try { await TP.setDateStatus(s.trip.id, s.date, to); } catch (err) { say(err.message); return; }
     }
     if (d.close) { const s = state[d.close]; s.status = s.status === "closed" ? "open" : "closed"; s.note = s.status === "closed" ? "Closed: joiners can't book this date any more. Existing bookings stay." : ""; renderAll(); say(`${nice(s.date)} ${s.status === "closed" ? "closed" : "reopened"}.`); }
+    if (t.id === "add-out") {
+      const s = state[selected]; s.adding = !s.adding; renderJoiners();
+      if (s.adding) ($("out-name") || $("out-panel").firstElementChild)?.focus?.(); else $("add-out").focus();
+    }
+    if (t.id === "out-cancel") { const s = state[selected]; s.adding = false; s.draft = null; s.requestId = null; renderJoiners(); $("add-out").focus(); }
     if (d.slots) {
       const s = state[d.slots]; s.editing = !s.editing; renderTrips();
       if (s.editing) document.getElementById("cap-in-" + d.slots.replace(/\W/g, "")).focus();
@@ -458,7 +533,9 @@ async function start() {
       const s = state[selected];
       // One line per hiker for registration at the jump-off, grouped by booking.
       const text = `${s.trip.title} · ${nice(s.date)} · meetup ${s.trip.meet}\n` + s.bookings.map((b, i) => [
-        `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} ${b.size === 1 ? "joiner" : "joiners"} · collect ${pesos((s.trip.fee - s.trip.dp) * b.size)}`,
+        b.source
+          ? `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} ${b.size === 1 ? "joiner" : "joiners"} · ${SOURCES[b.source]} booking · DP not recorded`
+          : `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} ${b.size === 1 ? "joiner" : "joiners"} · collect ${pesos((s.trip.fee - s.trip.dp) * b.size)}`,
         ...(b.companions || []).map(c => `   - ${c.name}${c.age === "minor" ? " (under 18)" : ""}${c.phone ? ` · ${c.phone}` : ""}`),
         ...Array.from({ length: missingOf(b) }, () => "   - (name to follow)"),
         b.emergency ? `   Emergency: ${b.emergency.name}${b.emergency.relation ? ` (${b.emergency.relation})` : ""} · ${b.emergency.phone}` : "   Emergency: not added yet",
@@ -472,6 +549,31 @@ async function start() {
     const s = state[selected], checked = s.bookings.filter(b => b.checked).reduce((a, b) => a + b.size, 0);
     $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${bookedOf(s)} joiners · ${checked} checked in`;
   });
+  document.addEventListener("submit", async e => {
+    if (e.target.id !== "out-form") return;
+    e.preventDefault();
+    const s = state[selected];
+    if (s.saving) return;                                   // a second click while the first is still saving
+    const v = readOutside(), left = s.cap - takenOf(s), p = s.trip.pickups[Number(v.pick)];
+    s.draft = v;
+    if (!v.name) return outFail("Enter the booker's name.", $("out-name"));
+    if (!Number.isInteger(v.size) || v.size < 1) return outFail("Enter how many joiners, 1 or more.", $("out-size"));
+    if (v.size > left) return outFail(`Only ${left} ${left === 1 ? "slot" : "slots"} left on this date.`, $("out-size"));
+    if (!p) return outFail("Choose a pick-up point.", $("out-pick"));
+    s.requestId = s.requestId || (crypto.randomUUID ? crypto.randomUUID() : null);
+    s.saving = true; $("out-save").disabled = true; $("out-save").textContent = "Adding…";
+    let row = { name: v.name, size: v.size, pickup: p.place, pickup_time: p.time, phone: v.phone, source: v.source };
+    if (TP.online) {
+      try { row = await TP.addOutsideBooking({ requestId: s.requestId, tripId: s.trip.id, date: s.date, name: v.name, size: v.size, pickup: p.place, pickupTime: p.time, source: v.source, phone: v.phone }); }
+      catch (err) { s.saving = false; renderJoiners(); return outFail(err.message, $("out-size")); }
+    }
+    s.saving = false; s.adding = false; s.draft = null; s.requestId = null;
+    s.bookings.push(outsideRow(row));
+    const nowLeft = s.cap - takenOf(s);
+    s.note = `Added ${row.name}, ${row.size} ${row.size === 1 ? "joiner" : "joiners"} (${SOURCES[row.source]}). ${nowLeft} ${nowLeft === 1 ? "slot" : "slots"} left. No DP recorded.`;
+    renderAll(); say(s.note); $("add-out").focus();
+  });
+
   // Change slots: checked here for a quick answer, and again by the database, which has the
   // final word (someone may have booked a moment ago).
   document.addEventListener("submit", async e => {

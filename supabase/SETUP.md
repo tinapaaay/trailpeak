@@ -73,7 +73,7 @@ Google's screen will say "continue to fjssjgefufwuadrltvjf.supabase.co". Showing
 
 ## After an update
 
-When `schema.sql` changes (for example, the November 2026 updates added reviews, Manila-time date rules, joiner names with an emergency contact, organizer approval, and the slots guard), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Run it right after pulling the update: the website and the database functions change together, so until you do, new features (and after the joiner-details update, new bookings) won't work.
+When `schema.sql` changes (for example, the November 2026 updates added reviews, Manila-time date rules, joiner names with an emergency contact, organizer approval, the slots guard, and outside bookings), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Run it right after pulling the update: the website and the database functions change together, so until you do, new features (and after the joiner-details update, new bookings) won't work.
 
 ## Dates, slots and closing
 
@@ -87,6 +87,16 @@ from departures d where d.capacity < seats_taken(d.trip_id, d.date);
 ```
 
 Those dates show 0 slots left. The organizer can raise them, or leave them as they are.
+
+## Outside bookings
+
+Joiners who book through Messenger, in person or another way can be added by the trip's organizer on the dashboard (**Add outside booking**). They use slots straight away, through the same check as online bookings, so the public slot count, the slots guard and online bookings all see them. Only the trip's organizer can add or see them; their names and numbers never appear in Who's going. Adding one doesn't record a DP (that's a separate step, coming in issue #5). Each form submit carries a one-time id, so a double click or a retry saves it once. Editing and cancelling them comes later (TP-009).
+
+To see them in the SQL editor:
+
+```sql
+select trip_id, date, name, size, pickup, source, created_at from outside_bookings order by date, created_at;
+```
 
 ## What's real and what's still simulated
 
