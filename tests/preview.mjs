@@ -25,6 +25,10 @@ values ('TP-LOCAL','receipt-test','2099-01-01','${joiner}',2,'Cubao','2 AM',1000
        ('TP-LATE','receipt-test','2099-01-01','${joiner}',1,'Cubao','2 AM',500,999,'GCash','synthetic',now() - interval '1 hour');
 insert into bookings(ref,trip_id,date,user_id,size,pickup,pickup_time,dp,balance,wallet,wallet_number,companions,emergency)
 values ('TP-PART','receipt-test','2099-01-01','${joiner}',3,'Greenfield','2 AM',1500,2997,'GCash','synthetic','[{"name":"Ben Cruz","age":"adult"}]','{"name":"Mom","phone":"+63 917 000 0000"}');
+-- a trip 31 days ago: its joiner details are deleted when the page runs expire_holds (TP-017)
+insert into departures(trip_id,date,capacity) values ('receipt-test',ph_today()-31,10);
+insert into bookings(ref,trip_id,date,user_id,size,pickup,pickup_time,dp,balance,wallet,wallet_number,dp_sent_at,companions,emergency,names)
+values ('TP-OLD','receipt-test',ph_today()-31,'${joiner}',2,'Cubao','2 AM',1000,1998,'GCash','synthetic',now(),'[{"name":"Old Friend","age":"adult"}]','{"name":"Dad","phone":"+63 917 000 0000"}','Old Friend');
 -- the synthetic trip is decades away, so make its details "due" to show the overdue state
 update app_settings set value = 40000 where key = 'details_due_days';
 insert into outside_bookings(request_id,trip_id,date,created_by,name,size,pickup,pickup_time,source)

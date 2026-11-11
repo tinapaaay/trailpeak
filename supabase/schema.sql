@@ -543,11 +543,15 @@ begin
   return out;
 end $$;
 
--- Joiner and emergency details are kept only while they help: cleared 30 days after the trip.
+-- Joiner and emergency details are kept only while they help: cleared 30 days after the trip
+-- (the trip date + 30 is the last day they're kept). names is the plain-text copy of the
+-- joiners' names, so it goes too. Runs every 5 minutes from expire_holds (TP-017), and on
+-- each booking or edit.
 create or replace function public.clear_old_details()
 returns void language sql security definer set search_path = public as $$
-  update public.bookings set companions = '[]'::jsonb, emergency = null
-   where date < public.ph_today() - 30 and (emergency is not null or companions <> '[]'::jsonb);
+  update public.bookings set companions = '[]'::jsonb, emergency = null, names = null
+   where date < public.ph_today() - 30
+     and (emergency is not null or companions <> '[]'::jsonb or names is not null);
 $$;
 
 -- Reserve: checks the date is open and has room, then records the booking.
@@ -1160,6 +1164,7 @@ begin
      and b.dp_sent_at <= now() - public.app_setting('dp_reminder_hours')::float8 * interval '1 hour'
      and not exists (select 1 from public.dp_receipts r where r.booking_ref = b.ref);
   perform public.flag_overdue_details();
+  perform public.clear_old_details();   -- 30-day deletion (TP-017)
   return n;
 end $$;
 
