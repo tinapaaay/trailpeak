@@ -255,3 +255,14 @@ Every hiker under 18, the booker included, needs a parent or guardian 18 or olde
 ## Overdue joiner details (TP-016, ADR-008)
 
 From the details due date (3 days before the trip), a booking that still misses a joiner's name, the emergency contact or a guardian for an under-18 is **overdue**. The organizer gets one Activity alert per booking (no texts), and the booking shows "Details overdue" with what's missing in the joiner list. The booker sees exactly what to add in My trips. Nothing is released automatically: the organizer can use **Release slots** to let go of just the unnamed slots (keeping the named joiners) or the whole booking, with a reason the joiner sees. Recorded DPs are never changed; refunds follow the trip's policy outside TrailPeak.
+
+
+## Last-slot safety test (TP-013, ADR-009)
+
+`tests/race.test.mjs` fires competing requests at the same time on separate database connections: two groups for the last seats (online, outside and mixed), the same submit sent twice, booking against a capacity change or a date being closed, a hold lapsing while someone else books, two receipt saves at once, rebooking a late payer, and bursts of 12 mixed requests into 10 seats. After each, it counts the seats actually held and checks they never exceed capacity. It needs a disposable Postgres:
+
+```bash
+DATABASE_URL=postgres://user:pass@host:5432/throwaway npm test --prefix tests
+```
+
+It rebuilds the schema from scratch, so **never point it at the Supabase project**. GitHub runs it on every pull request with its own Postgres; without `DATABASE_URL` it skips.

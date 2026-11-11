@@ -266,7 +266,10 @@ function start() {
     $("paying").querySelector("span").textContent = TP.online ? "Reserving your slots…" : `Demo: waiting for ${wallet} approval…`;
     if (TP.online) {
       // The server checks slots again and sets the DP and balance; payment itself is still simulated.
-      TP.book({ tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time, wallet,
+      // One id per reservation attempt, kept with the pending booking: a double click or a retry
+      // after a dropped connection returns the same booking instead of a second one (TP-013).
+      if (!p.requestId && crypto.randomUUID) { p.requestId = crypto.randomUUID(); setPending(p); }
+      TP.book({ tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time, wallet, requestId: p.requestId,
         walletNumber: pretty($("wnum").value), listed: $("listme").checked, companions: jd.companions, emergency: jd.emergency, booker: jd.booker })
         .then(b => { setPending(null); showDone(b); })
         .catch(e2 => { err(e2.message); $("pay-btn").disabled = false; $("paying").hidden = true; });

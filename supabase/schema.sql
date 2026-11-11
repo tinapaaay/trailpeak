@@ -461,6 +461,8 @@ $$;
 -- joiner number of an adult in the booking, 1 = the booker) and `relation` when under 18.
 -- Bookings made before this have no booker age and count as 18 or older.
 alter table public.bookings add column if not exists booker jsonb not null default '{"age":"adult"}'::jsonb;
+-- One online booking per submit (TP-013): the page sends a fresh id per Reserve; retries reuse it.
+alter table public.bookings add column if not exists request_id uuid unique;
 
 -- Every under-18 hiker needs a parent or guardian 18 or older in the same booking. Checks the
 -- booker and the companions together (people = the cleaned companions, joiners 2+) and returns
@@ -552,10 +554,12 @@ $$;
 -- The DP and balance come from the trip on the server, not from the browser.
 drop function if exists public.book_trip(text, date, int, text, text, text, text, text, boolean);
 drop function if exists public.book_trip(text, date, int, text, text, text, text, text, boolean, jsonb, jsonb);
+drop function if exists public.book_trip(text, date, int, text, text, text, text, text, boolean, jsonb, jsonb, jsonb);
 create or replace function public.book_trip(
   p_trip text, p_date date, p_size int, p_pickup text, p_pickup_time text,
   p_wallet text, p_wallet_number text, p_names text, p_listed boolean,
-  p_companions jsonb default '[]'::jsonb, p_emergency jsonb default null, p_booker jsonb default null)
+  p_companions jsonb default '[]'::jsonb, p_emergency jsonb default null, p_booker jsonb default null,
+  p_request uuid default null)
 returns public.bookings language plpgsql security definer set search_path = public as $$
 declare
   bk jsonb;
@@ -579,13 +583,23 @@ begin
   perform public.expire_holds();
   select * into dep from public.departures where trip_id = p_trip and date = p_date for update;
   if not found or dep.status <> 'open' then raise exception 'This date is not open for booking.'; end if;
+  -- One booking per submit (TP-013): the same request id again (a double click, a retry after a
+  -- dropped connection) returns the booking already made. Checked after the date lock, so two
+  -- identical requests at once can't both get past it.
+  if p_request is not null then
+    select * into b from public.bookings where request_id = p_request;
+    if found then
+      if b.user_id <> me or b.trip_id <> p_trip or b.date <> p_date then raise exception 'Reload the page and try again.'; end if;
+      return b;
+    end if;
+  end if;
   if p_date < public.ph_today() then raise exception 'This date has passed.'; end if;
   if public.slots_left(p_trip, p_date) < p_size then raise exception 'Not enough slots left on this date.'; end if;
   select * into t from public.trips where id = p_trip;
   if t.organizer_id is null then raise exception 'This is a demo trip. Try the separate demo; no live reservation or payment is created.'; end if;
   select * into who from public.profiles where id = me;
   insert into public.bookings (ref, trip_id, date, user_id, size, pickup, pickup_time, dp, balance,
-                               wallet, wallet_number, names, listed, display_name, companions, emergency, hold_until, booker)
+                               wallet, wallet_number, names, listed, display_name, companions, emergency, hold_until, booker, request_id)
   values ('TP-' || upper(substr(md5(random()::text), 1, 6)), p_trip, p_date, me, p_size, p_pickup, p_pickup_time,
           (t.details ->> 'dp')::int * p_size,
           ((t.details ->> 'fee')::int - (t.details ->> 'dp')::int) * p_size,
@@ -599,7 +613,7 @@ begin
           people,
           jsonb_build_object('name', left(trim(p_emergency ->> 'name'), 100), 'relation', left(trim(coalesce(p_emergency ->> 'relation', '')), 40),
                              'phone', left(trim(p_emergency ->> 'phone'), 20)),
-          public.dp_hold_until(p_date), bk)
+          public.dp_hold_until(p_date), bk, p_request)
   returning * into b;
   return b;
 end $$;
@@ -1111,9 +1125,15 @@ returns public.bookings language plpgsql security definer set search_path = publ
 declare b public.bookings; r text := trim(coalesce(p_reference, ''));
 begin
   if auth.uid() is null then raise exception 'Please sign in again.'; end if;
+  -- Lock the date first, then the booking: the same order as every booking path (TP-013), so a
+  -- reference can't land while someone else is taking the seats this hold just freed.
+  perform 1 from public.departures d join public.bookings x on x.trip_id = d.trip_id and x.date = d.date
+   where x.ref = p_ref and x.user_id = auth.uid() for update of d;
   select * into b from public.bookings where ref = p_ref and user_id = auth.uid() for update;
   if not found or b.status = 'cancelled' then raise exception 'Booking not found.'; end if;
-  if b.status = 'expired' or not public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at) then
+  -- clock_timestamp(), not now(): a slow connection may have started its transaction before the
+  -- deadline, but what counts is when the reference actually arrives.
+  if b.status = 'expired' or (b.status = 'confirmed' and b.dp_sent_at is null and b.hold_until is not null and b.hold_until <= clock_timestamp()) then
     raise exception 'This reservation expired: the DP wasn''t sent in time, so its slots were released. Book again if slots remain, or contact the organizer.';
   end if;
   if r = '' then raise exception 'Enter the reference number from your GCash or Maya receipt.'; end if;
@@ -1149,14 +1169,16 @@ create or replace function public.rebook_expired(p_ref text)
 returns public.bookings language plpgsql security definer set search_path = public as $$
 declare b public.bookings; dep public.departures; left_now int;
 begin
-  select * into b from public.bookings where ref = p_ref for update;
+  select * into b from public.bookings where ref = p_ref;
   if not found or not public.is_organizer()
      or not exists (select 1 from public.trips where id = b.trip_id and organizer_id = auth.uid()) then
     raise exception 'Only this trip''s organizer can rebook it.';
   end if;
+  -- Date first, then the booking (ADR-009).
+  select * into dep from public.departures where trip_id = b.trip_id and date = b.date for update;
+  select * into b from public.bookings where ref = p_ref for update;
   if b.status = 'confirmed' then return b; end if;  -- already rebooked
   if b.status <> 'expired' then raise exception 'Only an expired booking can be rebooked.'; end if;
-  select * into dep from public.departures where trip_id = b.trip_id and date = b.date for update;
   if b.date < public.ph_today() then raise exception 'This date has passed.'; end if;
   if dep.status <> 'open' then raise exception 'This date is %. Reopen it first, or refund the DP.', dep.status; end if;
   left_now := public.slots_left(b.trip_id, b.date);
