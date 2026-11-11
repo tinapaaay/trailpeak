@@ -73,7 +73,20 @@ Google's screen will say "continue to fjssjgefufwuadrltvjf.supabase.co". Showing
 
 ## After an update
 
-When `schema.sql` changes (for example, the November 2026 updates added reviews, Manila-time date rules, joiner names with an emergency contact, and organizer approval), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Run it right after pulling the update: the website and the database functions change together, so until you do, new features (and after the joiner-details update, new bookings) won't work.
+When `schema.sql` changes (for example, the November 2026 updates added reviews, Manila-time date rules, joiner names with an emergency contact, organizer approval, and the slots guard), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Run it right after pulling the update: the website and the database functions change together, so until you do, new features (and after the joiner-details update, new bookings) won't work.
+
+## Dates, slots and closing
+
+Organizers change a date's slots on the dashboard (**Change slots**). The database refuses any number below the slots already taken (bookings plus sample seats), with a message that says the lowest number allowed. This holds for the website, direct API calls and the SQL editor. **Close** stops new bookings but keeps existing ones; **Reopen** makes the date bookable again if slots remain. **Cancel for weather** is final: a cancelled date can't be reopened, so add it again as a new date if plans change. Organizers can't move a date or change sample seats.
+
+The November 2026 update (issue #3) doesn't change any existing date. To see dates that were set below their bookings before it, run:
+
+```sql
+select d.trip_id, d.date, d.capacity, seats_taken(d.trip_id, d.date) as taken
+from departures d where d.capacity < seats_taken(d.trip_id, d.date);
+```
+
+Those dates show 0 slots left. The organizer can raise them, or leave them as they are.
 
 ## What's real and what's still simulated
 

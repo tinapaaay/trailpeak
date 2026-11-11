@@ -215,6 +215,13 @@ TP.setDateStatus = async (tripId, date, status) => {
   if (error) throw tpErr(error);
   await TP.sync({ reload: false });
 };
+// The database refuses a capacity below the seats already taken, with a message that says
+// the lowest number allowed (see guard_departure in supabase/schema.sql).
+TP.setCapacity = async (tripId, date, capacity) => {
+  const { error } = await TP.db.from("departures").update({ capacity }).eq("trip_id", tripId).eq("date", date);
+  if (error) throw tpErr(error);
+  await TP.sync({ reload: false });
+};
 TP.addDate = async (tripId, date, capacity) => {
   const { error } = await TP.db.from("departures").insert({ trip_id: tripId, date, capacity });
   if (error) throw tpErr(error);
