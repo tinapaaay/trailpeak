@@ -211,7 +211,7 @@ function card(b) {
     : "";
   if (open[b.ref] === "details") {
     panel = `<form class="inline" data-details-form="${b.ref}" novalidate>
-      ${joinerFieldsHtml(dp, b.size, b.companions || [], b.emergency, { you: user.name, date: b.date, overdue: detailsRequired(b.date) })}
+      ${joinerFieldsHtml(dp, b.size, b.companions || [], b.emergency, { you: user.name, date: b.date, overdue: detailsRequired(b.date), booker: b.booker })}
       <div class="row"><button type="submit" class="btn btn-primary label-caps">Save details</button><button type="button" class="link-btn" data-close="${b.ref}">Cancel</button></div>
     </form>`;
   }
@@ -317,10 +317,10 @@ document.addEventListener("submit", e => {
   const done = () => { delete open[ref]; render(); $("live").textContent = "Joiner details saved. The organizer can see them now."; };
   if (TP.online) {
     const btn = f.querySelector('button[type="submit"]'); btn.disabled = true;
-    TP.updateDetails(ref, jd.companions, jd.emergency).then(done).catch(err => { btn.disabled = false; alertPanel(err.message, f); });
+    TP.updateDetails(ref, jd.companions, jd.emergency, jd.booker).then(done).catch(err => { btn.disabled = false; alertPanel(err.message, f); });
     return;
   }
-  update(ref, x => { x.companions = jd.companions; x.emergency = jd.emergency; x.names = jd.companions.map(c => c.name).join(", "); });
+  update(ref, x => { x.companions = jd.companions; x.emergency = jd.emergency; x.booker = jd.booker; x.names = jd.companions.map(c => c.name).join(", "); });
   $("live").textContent = "Joiner details saved.";
 });
 // Stars: light up every star up to the one picked (the radios themselves stay the source of truth).

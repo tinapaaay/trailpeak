@@ -184,8 +184,25 @@ const phMobile = v => { const d = jdLocal(v); return /^9\d{9}$/.test(d) ? jdPhon
 const PH_MOBILE_HINT = "must be a Philippine mobile number: 10 digits starting with 9, like 0917 123 4567.";
 function missingJoiners(b) { return b.status === "confirmed" ? Math.max(0, b.size - 1 - (b.companions || []).length) : 0; }
 
+// Under-18 hikers (TP-015, ADR-007): each needs a parent or guardian 18 or older in the same
+// booking. The guardian is a joiner number (1 = the booker); the database checks the same rule.
+const RELATIONS = { parent: "Parent", guardian: "Legal guardian", permitted_adult: "Adult with the parents' written permission" };
+function guardianHtml(p, n, size, who, minor) {
+  const opts = Array.from({ length: size }, (_, k) => k + 1).filter(k => k !== n)
+    .map(k => `<option value="${k}"${String(who.guardian) === String(k) ? " selected" : ""}>Joiner ${k}${k === 1 ? " (you)" : ""}</option>`).join("");
+  return `<div class="jd-row jd-guard" id="${p}-gbox${n}"${minor ? "" : " hidden"}>
+      <div class="jd-field"><label class="field-label" for="${p}-g${n}">Parent or guardian (18+)</label><select class="input" id="${p}-g${n}"><option value="">Choose who</option>${opts}</select></div>
+      <div class="jd-field"><label class="field-label" for="${p}-r${n}">They are the</label><select class="input" id="${p}-r${n}"><option value="">Choose</option>${Object.entries(RELATIONS).map(([k, l]) => `<option value="${k}"${who.relation === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+    </div>`;
+}
+// Show the guardian fields when someone is marked under 18.
+document.addEventListener("change", e => {
+  const m = /^(.+)-a(\d+)$/.exec(e.target.id || ""); if (!m) return;
+  const box = document.getElementById(`${m[1]}-gbox${m[2]}`); if (box) box.hidden = e.target.value !== "minor";
+});
+
 // p: id prefix (several forms can be on one page); size: joiners in the booking.
-function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = "", allowLater = true, date = null, overdue = false } = {}) {
+function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = "", allowLater = true, date = null, overdue = false, booker = { age: "adult" } } = {}) {
   const e = emergency || {};
   const rows = Array.from({ length: Math.max(0, size - 1) }, (_, k) => {
     const n = k + 2, c = companions[k] || {};
@@ -196,16 +213,21 @@ function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = ""
         <div class="jd-field"><label class="field-label" for="${p}-a${n}">Age</label><select class="input" id="${p}-a${n}"><option value="adult"${c.age !== "minor" ? " selected" : ""}>18 or older</option><option value="minor"${c.age === "minor" ? " selected" : ""}>Under 18</option></select></div>
         <div class="jd-field"><label class="field-label" for="${p}-m${n}">Mobile <span class="jd-opt">optional</span></label><div class="jd-prefix"><span aria-hidden="true">+63</span><input class="input data" id="${p}-m${n}" type="tel" inputmode="numeric" value="${jdLocal(c.phone)}" placeholder="917 123 4567"></div></div>
       </div>
+      ${guardianHtml(p, n, size, c, c.age === "minor")}
     </div>`;
   }).join("");
-  const who = size > 1 ? `<fieldset class="jd">
+  const b1 = booker || { age: "adult" };
+  const youRow = `<div class="jd-joiner"><p class="jd-you"><span class="jd-h">Joiner 1</span> You${you ? `, ${escapeHtml(you)}` : ""}</p>
+      <div class="jd-row"><div class="jd-field"><label class="field-label" for="${p}-a1">Your age</label><select class="input" id="${p}-a1"><option value="adult"${b1.age !== "minor" ? " selected" : ""}>18 or older</option><option value="minor"${b1.age === "minor" ? " selected" : ""}>Under 18</option></select></div></div>
+      ${guardianHtml(p, 1, size, b1, b1.age === "minor")}</div>`;
+  const who = `<fieldset class="jd">
       <legend>Who's joining</legend>
       <p class="jd-hint">Organizers register every hiker at the jump-off, so use names as they appear on an ID. Under 18 needs a parent or guardian on the trip.</p>
-      <p class="jd-you"><span class="jd-h">Joiner 1</span> You${you ? `, ${escapeHtml(you)}` : ""}</p>
+      ${youRow}
       <div id="${p}-rows" class="jd-rows">${rows}</div>
       ${allowLater ? `<label class="check"><input type="checkbox" id="${p}-later"><span>${overdue ? "Some names still aren't ready. I'll add them as soon as I can." : `Some names aren't ready yet. I'll add them in My trips before ${date ? niceShort(dueDate(date)) : "the due date"}.`}</span></label>`
-        : `<p class="jd-hint"><strong>This trip is ${detailsDueDays()} days away or less, so add every joiner's full name now.</strong></p>`}
-    </fieldset>` : "";
+        : (size > 1 ? `<p class="jd-hint"><strong>This trip is ${detailsDueDays()} days away or less, so add every joiner's full name now.</strong></p>` : "")}
+    </fieldset>`;
   return who + `<fieldset class="jd">
       <legend>Emergency contact</legend>
       <p class="jd-hint">Someone who isn't on this hike. The organizer calls them only if something happens on the trail.</p>
@@ -231,12 +253,25 @@ function readJoinerFields(p, size) {
     if (!name && later) continue;
     if (!name) return bad($j("n" + n), $j("later") ? `Enter joiner ${n}'s full name, or tick "Some names aren't ready yet".` : `Enter joiner ${n}'s full name: this trip is too soon to add names later.`);
     if (mob && !/^9\d{9}$/.test(jdLocal(mob))) return bad($j("m" + n), `Joiner ${n}'s mobile should be 10 digits starting with 9, or leave it blank.`);
-    companions.push({ name, age: $j("a" + n).value, phone: mob ? jdPhone(mob) : null });
+    const age = $j("a" + n).value;
+    companions.push({ name, age, phone: mob ? jdPhone(mob) : null, ...(age === "minor" ? { guardian: Number($j("g" + n).value) || null, relation: $j("r" + n).value || null, n } : { n }) });
   }
+  // Every under-18 hiker needs a parent or guardian 18+ in this booking (same rule as check_guardians()).
+  const booker = { age: $j("a1")?.value || "adult" };
+  if (booker.age === "minor") { booker.guardian = Number($j("g1").value) || null; booker.relation = $j("r1").value || null; }
+  const adults = [...(booker.age === "adult" ? [1] : []), ...companions.filter(c => c.age === "adult").map(c => c.n)];
+  const needs = [...(booker.age === "minor" ? [{ n: 1, ...booker, name: "you" }] : []), ...companions.filter(c => c.age === "minor")];
+  for (const k of needs) {
+    if (!adults.includes(k.guardian)) return bad($j("g" + k.n), k.n === 1
+      ? (adults.length ? "You're under 18: choose your parent or guardian from this booking." : "You're under 18, so a parent or guardian 18 or older needs to be in this booking. Add them as a joiner and choose them here.")
+      : `${k.name} is under 18: choose their parent or guardian (18 or older) from this booking.`);
+    if (!k.relation) return bad($j("r" + k.n), k.n === 1 ? "Choose how your guardian is related to you." : `Choose how ${k.name} is related to their guardian.`);
+  }
+  companions.forEach(c => delete c.n);
   const en = $j("en").value.trim(), er = $j("er").value.trim(), em = $j("em").value.trim();
   if (!en) return bad($j("en"), "Add an emergency contact: someone who isn't on this hike.");
   if (!/^9\d{9}$/.test(jdLocal(em))) return bad($j("em"), "Enter the emergency contact's 10-digit mobile number that starts with 9.");
-  return { companions, emergency: { name: en, relation: er, phone: jdPhone(em) } };
+  return { companions, emergency: { name: en, relation: er, phone: jdPhone(em) }, booker };
 }
 // Joiner details cut-off (TP-014, ADR-006), the same rule as details_required() in the database:
 // names are due `details_due_days` (3) days before the trip on the Manila calendar, and from that

@@ -456,6 +456,53 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- Checks and tidies joiner details. Fewer names than joiners is fine (they can be added later).
+-- Under-18 hikers (TP-015, ADR-007). `booker` records the booker's own age group and, if they
+-- are under 18, who in the booking is their guardian. Companions carry the same `guardian` (the
+-- joiner number of an adult in the booking, 1 = the booker) and `relation` when under 18.
+-- Bookings made before this have no booker age and count as 18 or older.
+alter table public.bookings add column if not exists booker jsonb not null default '{"age":"adult"}'::jsonb;
+
+-- Every under-18 hiker needs a parent or guardian 18 or older in the same booking. Checks the
+-- booker and the companions together (people = the cleaned companions, joiners 2+) and returns
+-- the tidied booker value. Used when booking and on every later edit of names.
+create or replace function public.check_guardians(p_booker jsonb, people jsonb)
+returns jsonb language plpgsql immutable as $$
+declare bk jsonb := coalesce(nullif(p_booker, 'null'::jsonb), '{"age":"adult"}'::jsonb);
+        adults int[] := '{}'; c jsonb; i int := 1; g int; rel text;
+        rels text[] := array['parent', 'guardian', 'permitted_adult'];
+begin
+  if coalesce(bk ->> 'age', 'adult') not in ('adult', 'minor') then raise exception 'Choose 18 or older, or under 18, for yourself.'; end if;
+  if coalesce(bk ->> 'age', 'adult') = 'adult' then adults := adults || 1; end if;
+  for c in select * from jsonb_array_elements(people) loop
+    i := i + 1;
+    if c ->> 'age' = 'adult' then adults := adults || i; end if;
+  end loop;
+  if bk ->> 'age' = 'minor' then
+    g := case when coalesce(bk ->> 'guardian', '') ~ '^[0-9]+$' then (bk ->> 'guardian')::int end;
+    if g is null or g = 1 or not g = any (adults) then
+      raise exception 'You''re under 18, so a parent or guardian 18 or older needs to be in this booking. Add them as a joiner and choose them as your guardian.';
+    end if;
+    rel := bk ->> 'relation';
+    if rel is null or not rel = any (rels) then raise exception 'Choose how your guardian is related to you.'; end if;
+  end if;
+  i := 1;
+  for c in select * from jsonb_array_elements(people) loop
+    i := i + 1;
+    if c ->> 'age' = 'minor' then
+      g := case when coalesce(c ->> 'guardian', '') ~ '^[0-9]+$' then (c ->> 'guardian')::int end;
+      if g is null or g = i or not g = any (adults) then
+        raise exception '% is under 18, so choose their parent or guardian (18 or older) from this booking.', coalesce(nullif(c ->> 'name', ''), 'Joiner ' || i);
+      end if;
+      if coalesce(c ->> 'relation', '') <> all (rels) then
+        raise exception 'Choose how % is related to their guardian.', coalesce(nullif(c ->> 'name', ''), 'joiner ' || i);
+      end if;
+    end if;
+  end loop;
+  return case when bk ->> 'age' = 'minor'
+    then jsonb_build_object('age', 'minor', 'guardian', (bk ->> 'guardian')::int, 'relation', bk ->> 'relation')
+    else '{"age":"adult"}'::jsonb end;
+end $$;
+
 -- A Philippine mobile number, tidied to "+63 917 123 4567". Accepts 0917..., 917... or +63 917...
 -- with any spaces or dashes; anything else (too long, too short, not starting with 9) is
 -- refused with a message that names the field. Blank means "no number" (null).
@@ -483,6 +530,8 @@ begin
     if coalesce(c ->> 'age', '') not in ('adult', 'minor') then raise exception 'Choose 18 or older, or under 18, for each joiner.'; end if;
     n := n + 1;
     out := out || jsonb_build_array(jsonb_build_object('name', left(trim(c ->> 'name'), 100), 'age', c ->> 'age',
+                                                        'guardian', case when c ->> 'age' = 'minor' then c -> 'guardian' end,
+                                                        'relation', case when c ->> 'age' = 'minor' then c ->> 'relation' end,
                                                         'phone', public.ph_mobile(c ->> 'phone', 'Joiner ' || n || '''s mobile')));
   end loop;
   if p_emergency is null or coalesce(trim(p_emergency ->> 'name'), '') = '' or coalesce(trim(p_emergency ->> 'phone'), '') = '' then
@@ -502,12 +551,14 @@ $$;
 -- Reserve: checks the date is open and has room, then records the booking.
 -- The DP and balance come from the trip on the server, not from the browser.
 drop function if exists public.book_trip(text, date, int, text, text, text, text, text, boolean);
+drop function if exists public.book_trip(text, date, int, text, text, text, text, text, boolean, jsonb, jsonb);
 create or replace function public.book_trip(
   p_trip text, p_date date, p_size int, p_pickup text, p_pickup_time text,
   p_wallet text, p_wallet_number text, p_names text, p_listed boolean,
-  p_companions jsonb default '[]'::jsonb, p_emergency jsonb default null)
+  p_companions jsonb default '[]'::jsonb, p_emergency jsonb default null, p_booker jsonb default null)
 returns public.bookings language plpgsql security definer set search_path = public as $$
 declare
+  bk jsonb;
   me uuid := auth.uid();
   dep public.departures;
   t public.trips;
@@ -517,6 +568,7 @@ declare
 begin
   if me is null then raise exception 'Sign in to reserve.'; end if;
   people := public.clean_details(p_companions, p_size, p_emergency);
+  bk := public.check_guardians(p_booker, people);
   -- Joiner details rule (TP-014, ADR-006): from the due date on, every joiner's full name is
   -- needed before the booking confirms. Earlier bookings may add names later in My trips.
   if public.details_required(p_date) and jsonb_array_length(people) < p_size - 1 then
@@ -533,7 +585,7 @@ begin
   if t.organizer_id is null then raise exception 'This is a demo trip. Try the separate demo; no live reservation or payment is created.'; end if;
   select * into who from public.profiles where id = me;
   insert into public.bookings (ref, trip_id, date, user_id, size, pickup, pickup_time, dp, balance,
-                               wallet, wallet_number, names, listed, display_name, companions, emergency, hold_until)
+                               wallet, wallet_number, names, listed, display_name, companions, emergency, hold_until, booker)
   values ('TP-' || upper(substr(md5(random()::text), 1, 6)), p_trip, p_date, me, p_size, p_pickup, p_pickup_time,
           (t.details ->> 'dp')::int * p_size,
           ((t.details ->> 'fee')::int - (t.details ->> 'dp')::int) * p_size,
@@ -547,21 +599,24 @@ begin
           people,
           jsonb_build_object('name', left(trim(p_emergency ->> 'name'), 100), 'relation', left(trim(coalesce(p_emergency ->> 'relation', '')), 40),
                              'phone', left(trim(p_emergency ->> 'phone'), 20)),
-          public.dp_hold_until(p_date))
+          public.dp_hold_until(p_date), bk)
   returning * into b;
   return b;
 end $$;
 
 -- Add or change joiner names and the emergency contact, any time before the trip date.
-create or replace function public.update_booking_details(p_ref text, p_companions jsonb, p_emergency jsonb)
+drop function if exists public.update_booking_details(text, jsonb, jsonb);
+create or replace function public.update_booking_details(p_ref text, p_companions jsonb, p_emergency jsonb, p_booker jsonb default null)
 returns public.bookings language plpgsql security definer set search_path = public as $$
-declare b public.bookings; people jsonb;
+declare b public.bookings; people jsonb; bk jsonb;
 begin
   select * into b from public.bookings where ref = p_ref and user_id = auth.uid() and status = 'confirmed' for update;
   if not found then raise exception 'Booking not found.'; end if;
   if b.date < public.ph_today() then raise exception 'This trip date has passed.'; end if;
   people := public.clean_details(p_companions, b.size, p_emergency);
-  update public.bookings set companions = people,
+  -- No booker value sent (an older page): keep the one on record, and check it still holds.
+  bk := public.check_guardians(coalesce(p_booker, b.booker), people);
+  update public.bookings set companions = people, booker = bk,
          names = nullif((select string_agg(x ->> 'name', ', ') from jsonb_array_elements(people) x), ''),
          emergency = jsonb_build_object('name', left(trim(p_emergency ->> 'name'), 100), 'relation', left(trim(coalesce(p_emergency ->> 'relation', '')), 40),
                                         'phone', left(trim(p_emergency ->> 'phone'), 20))
@@ -673,13 +728,13 @@ create or replace function public.organizer_bookings()
 returns table (ref text, trip_id text, date date, size int, pickup text, pickup_time text, dp int, balance int,
                wallet text, joiner_name text, joiner_phone text, status text, created_at timestamptz,
                companions jsonb, emergency jsonb, hold_until timestamptz, dp_reference text, dp_sent_at timestamptz,
-               expired_at timestamptz)
+               expired_at timestamptz, booker jsonb)
 language sql stable security definer set search_path = public as $$
   select b.ref, b.trip_id, b.date, b.size, b.pickup, b.pickup_time, b.dp, b.balance, b.wallet,
          p.name, p.phone, b.status, b.created_at,
          case when b.date >= public.ph_today() - 30 then b.companions else '[]'::jsonb end,
          case when b.date >= public.ph_today() - 30 then b.emergency end,
-         b.hold_until, b.dp_reference, b.dp_sent_at, b.expired_at
+         b.hold_until, b.dp_reference, b.dp_sent_at, b.expired_at, b.booker
   from public.bookings b
   join public.trips t on t.id = b.trip_id and t.organizer_id = auth.uid()
   join public.profiles p on p.id = b.user_id
