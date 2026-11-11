@@ -150,25 +150,44 @@ from profiles where organizer_status = 'pending' order by applied_at;
 
 `application` shows which ID they chose and whether they have business documents. The ID photos never leave their phone, so check the ID yourself (for example on a video call) before you mark it verified.
 
-**2. Approve.** Copy their `id` and run one of these (safe to run again to change the result):
+**2. Go through the pilot checklist** (on a short video call is easiest). Approve only when every item is true:
+
+| Key | Check |
+| --- | --- |
+| `id_checked` | Saw their government ID on a video call; the name matches their TrailPeak profile |
+| `payout_matches` | Their GCash or Maya account name matches that ID |
+| `track_record` | They have run joiner trips before (posts, reviews or a reference you checked) |
+| `permits_known` | They know the registration and permit steps for the mountains they will post |
+| `safety_plan` | They have a guide ratio and an emergency plan (who to call, nearest hospital) |
+| `pilot_rules` | They agreed to the pilot rules: outside bookings within 1 hour, confirm DPs within 24 hours, check the list 2 days before |
+
+**3. Approve.** Copy their `id`, put your name as the approver, and run:
 
 ```sql
-select approve_organizer('paste-the-id-here');                     -- can post trips, no ID badge yet
-select approve_organizer('paste-the-id-here', true);               -- can post trips + ID verified badge
-select approve_organizer('paste-the-id-here', true, 'verified');   -- + Business verified
+select approve_organizer('paste-the-id-here', p_approver => 'Christine',
+  p_checklist => '{"id_checked":true,"payout_matches":true,"track_record":true,"permits_known":true,"safety_plan":true,"pilot_rules":true}',
+  p_note => 'Video call Nov 12');
 ```
 
-They see the Dashboard and Post a trip the next time they open the site. The verified seal on their trips follows their profile automatically; organizers can't set it themselves.
+If an item is missing (or not exactly `true`), nothing changes and the message lists what's left. Add `true` after the id to give the ID verified badge (`approve_organizer('id', true, p_approver => …)`), or `true, 'verified'` for Business verified too. Changing those labels later doesn't need the checklist again. They see the Dashboard and Post a trip the next time they open the site. The verified seal on their trips follows their profile automatically; organizers can't set it themselves.
 
-**3. Turn access off (if needed).**
+**4. Turn access off (if needed).**
 
 ```sql
-select revoke_organizer('paste-the-id-here');
+select revoke_organizer('paste-the-id-here', p_approver => 'Christine', p_note => 'why');
 -- Their trips stay up. To hide them too:
 update trips set published = false where organizer_id = 'paste-the-id-here';
 ```
 
-A revoked account can't post, edit its trips or change dates, and can't re-apply on its own; run `approve_organizer` again to restore it.
+A revoked account can't post, edit its trips or change dates, and can't re-apply on its own. To restore it, run `approve_organizer` again with the full checklist.
+
+**Approval record.** Every approval, label change and revoke is kept, with who did it, the checklist and the note:
+
+```sql
+select a.at, p.name, p.org, a.action, a.approver, a.note from organizer_approvals a join profiles p on p.id = a.user_id order by a.at desc;
+```
+
+Organizers approved before this checklist existed stay approved; their record starts with the next change.
 
 These two functions only work in the SQL editor (or with the service role). The website's keys can't call them.
 
