@@ -137,8 +137,10 @@ const user = getUser();
 const open = {}; // which booking has its move/cancel/review panel open
 const draft = {}; // stars picked in an open review form
 
+// Organizer mobile numbers for booked trips (TP-018), filled in once loaded.
+let contacts = {};
 if (!user) { rememberNext("mytrips.html"); location.replace("signin.html"); }
-else { if (!TP.online) $("mt-note").textContent = "Prototype: bookings are kept in this browser only. Moving or cancelling doesn't contact anyone."; render(); }
+else { if (TP.online) TP.bookingContacts().then(c => { contacts = c; render(); }).catch(() => {}); if (!TP.online) $("mt-note").textContent = "Prototype: bookings are kept in this browser only. Moving or cancelling doesn't contact anyone."; render(); }
 
 function render() {
   const all = getBookings();
@@ -239,6 +241,7 @@ function card(b) {
       <dl class="facts">
         <div><dt>Date</dt><dd>${nice(b.date)}</dd></div>
         <div><dt>Meetup</dt><dd>${b.pickupTime} · ${esc(b.pickup)}</dd></div>
+        ${!cancelled && !isPast && (T.contact || contacts[b.tripId]) ? `<div><dt>Organizer</dt><dd><a class="data" href="tel:${esc((T.contact || contacts[b.tripId]).replace(/\s/g, ""))}">${esc(T.contact || contacts[b.tripId])}</a></dd></div>` : ""}
         <div><dt>Joiners</dt><dd>${b.size}${b.size > 1 && !cancelled ? `<span class="group"> · ${esc(group)}</span>` : ""}</dd></div>
         <div><dt>${isDemo ? "Demo booking" : TP.online ? "DP record" : "Demo DP"}</dt><dd>${isDemo ? "Sample only · no DP due" : TP.online ? (b.paymentsReady ? `${peso(b.receivedDp)} / ${peso(b.expectedDp)} · ${DP_STATES[pay]}` : "Unavailable: refresh after the database update") : `${peso(b.dp)} · ${b.wallet}`}</dd></div>
         ${cancelled || isPast ? "" : `<div><dt>Bring for balance</dt><dd>${isDemo ? "Sample amount only" : b.balance === null ? "Unavailable" : peso(b.balance)}</dd></div>`}

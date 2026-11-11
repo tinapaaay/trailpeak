@@ -12,7 +12,7 @@ create function auth.uid() returns uuid language sql stable as $$select nullif(c
 grant usage on schema auth to anon,authenticated;grant execute on function auth.uid() to anon,authenticated;`);
 await db.exec(readFileSync(path.join(root,'supabase/schema.sql'),'utf8'));
 await db.query('insert into auth.users(id) values ($1),($2)',[org,joiner]);
-await db.query("update profiles set role='organizer',organizer_status='approved',name='Test Organizer',org='Local Trail Test' where id=$1",[org]);
+await db.query("update profiles set role='organizer',organizer_status='approved',name='Test Organizer',org='Local Trail Test',phone='+63 917 000 1111' where id=$1",[org]);
 await db.query("update profiles set name='Test Joiner',phone='synthetic' where id=$1",[joiner]);
 // Reuse real trip content; only identity/date/price in this fixture are synthetic.
 const {execFileSync}=await import('node:child_process');
@@ -40,7 +40,7 @@ const server=http.createServer(async(req,res)=>{try{
   const task=async()=>{await db.exec('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[q.user]);try{
    let result;
    if(q.name){
-    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired','edit_outside_booking','cancel_outside_booking'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
+    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired','edit_outside_booking','cancel_outside_booking','my_booking_contacts'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
     const args=Object.entries(q.args||{});result=await db.query(`select * from ${q.name}(${args.map(([k],i)=>k+'=> $'+(i+1)).join(',')})`,args.map(([,v])=>v));
    }else{
     if(!['profiles','trips','departures','bookings','reviews','outside_bookings','dp_receipts','organizer_activity','app_settings','outside_booking_changes'].includes(q.table))throw Error('Unexpected table');

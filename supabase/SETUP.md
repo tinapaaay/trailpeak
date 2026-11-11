@@ -218,3 +218,8 @@ For a synthetic browser fixture, run `node tests/preview.mjs` after installing t
 ## Edit and cancel outside bookings (TP-009)
 
 On the dashboard, each outside booking has **Edit** and **Cancel** (owning organizer only). Adding joiners needs free slots; removing joiners or cancelling opens them again, exactly once. Every change needs a reason and is kept in `outside_booking_changes` (who, when, why, before/after). Recorded DPs are never changed or refunded by an edit or a cancel.
+
+
+## Organizer contact and booking help (TP-018)
+
+Post a trip now asks for a **mobile number for joiners**, shown on the trip page under Ask the organizer. Trips posted before that have none on the page; joiners who book one see the organizer's profile mobile in My trips instead (`my_booking_contacts()`, only for trips they booked). To add a number to an older trip, open it with **Edit trip** on the dashboard and save. The trip and reserve pages explain the booking steps (hold, paying the organizer directly, the reference, rain, cancelling, contact).
