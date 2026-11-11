@@ -253,6 +253,12 @@ components:
     typography: "{typography.data-md}"
     rounded: "{rounded.sm}"
     padding: "{spacing.xs}"
+  tag-overdue:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.error}"
+    typography: "{typography.label-chip}"
+    rounded: "{rounded.sm}"
+    padding: "{spacing.xs}"
   tag-new:
     backgroundColor: "{colors.tertiary-tint}"
     textColor: "{colors.tertiary}"
@@ -644,3 +650,8 @@ Dates for this rule are always Manila calendar days. On the reserve page, a book
 ## Under-18 hikers (TP-015)
 
 Joiner 1 ("You") now has a "Your age" select like every other joiner (18 or older / Under 18). Choosing Under 18 for anyone reveals, right under that joiner, an indented row (2px `border` rule on the left) with two selects: "Parent or guardian (18+)" listing the other joiners as "Joiner 1 (you)", "Joiner 2"…, and "They are the" (Parent, Legal guardian, Adult with the parents' written permission). The row stacks on phones. Errors name the person: "Kid Cruz is under 18: choose their parent or guardian (18 or older) from this booking." and focus the field. On the dashboard each minor shows the `minor` tag followed by a `text-meta` "· with Ana Reyes (parent)"; a minor booker gets a "booker under 18" tag on its own line. The copied joiner list writes "(under 18, with Ana Reyes)".
+
+
+## Overdue joiner details (TP-016)
+
+On the dashboard, a booking past its details due date that still misses something gets a `tag-overdue` under the joiner's name ("Details overdue": `surface` fill, `error` text and a 1px `error` ring, 14px bold sentence case, 12px corners: the same treatment as a Cancelled pill, because it asks the organizer to act), then a `text-meta` "missing 1 joiner's name, the emergency contact" and a red "Release slots" text button. That opens the same inline panel as Add outside booking, with an `error` border: a heading "Release slots on Ana's booking?", a `text-meta` paragraph saying what was due and is missing, that recorded DPs stay on record and refunds follow the organizer's policy outside TrailPeak, and that the joiner sees the reason; two radios, "The 1 unnamed slot only (keep Ana and the named joiners)" (disabled with a one-line explanation when the emergency contact or a guardian is missing) and "The whole booking"; a required "Reason"; a red "Release slots" and "Keep the booking". In My trips the `due` line becomes "Details were due Wed, Nov 11. Still missing: 1 joiner's name, the emergency contact." and a released booking shows the organizer's note with the reason.

@@ -250,3 +250,8 @@ Joiner names are due **3 days before the trip** (Manila calendar). A booking mad
 ## Under-18 hikers (TP-015, ADR-007)
 
 Every hiker under 18, the booker included, needs a parent or guardian 18 or older **in the same booking**. On the reserve page and in My trips, choosing "Under 18" shows two more fields: who their parent or guardian is (Joiner 1 = the booker, or another joiner) and how they're related (parent, legal guardian, or an adult with the parents' written permission). The database checks this on every booking and every later edit, so removing the guardian or changing them to under 18 is refused. The organizer's joiner list and copied list show each minor with their guardian. Ages are what the booker says; organizers still check IDs at the jump-off.
+
+
+## Overdue joiner details (TP-016, ADR-008)
+
+From the details due date (3 days before the trip), a booking that still misses a joiner's name, the emergency contact or a guardian for an under-18 is **overdue**. The organizer gets one Activity alert per booking (no texts), and the booking shows "Details overdue" with what's missing in the joiner list. The booker sees exactly what to add in My trips. Nothing is released automatically: the organizer can use **Release slots** to let go of just the unnamed slots (keeping the named joiners) or the whole booking, with a reason the joiner sees. Recorded DPs are never changed; refunds follow the trip's policy outside TrailPeak.

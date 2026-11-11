@@ -89,6 +89,11 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .joiners tfoot td { font-weight: 700; background: var(--color-neutral); }
 .joiners input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--color-primary); }
 .checkin { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+/* Overdue joiner details (TP-016) */
+.overdue { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); margin-top: var(--space-xs); }
+.overdue .link-btn { padding: 0; min-height: 44px; }
+.tag-overdue { display: inline-block; background: var(--color-surface); color: var(--color-error); box-shadow: inset 0 0 0 1px var(--color-error); font: 700 14px/1.2 var(--font-body); border-radius: var(--rounded-sm); padding: var(--space-xs) var(--space-sm); }
+
 /* Edit / Cancel on outside bookings in the joiner list (TP-009) */
 .out-actions { display: flex; flex-wrap: wrap; gap: 0 var(--space-sm); margin-top: var(--space-xs); }
 .out-actions .link-btn { padding: 0; min-height: 44px; }
@@ -311,7 +316,7 @@ function outsideRow(o) {
 async function start() {
   // Online: the organizer's own trips and their real bookings from the database.
   // Offline: trips matching the organizer's name, or one sample trip, with sample bookings.
-  let mine, real = null, outside = [], receipts = null, activity = null;
+  let mine, real = null, outside = [], receipts = null, activity = null, overdue = {};
   if (TP.online) {
     mine = TRIPS.filter(t => t.organizerId === me.id);
     try { real = (await TP.organizerBookings()).filter(b => b.status === "confirmed" || b.status === "expired"); }
@@ -320,6 +325,7 @@ async function start() {
     // else's trip as a joiner can read that receipt too, but it isn't their money.
     try { receipts = (await TP.receiptHistory()).filter(r => mine.some(t => t.id === r.trip_id)); } catch (e) { $("dash-note").textContent = e.message; }
     try { activity = await TP.activity(); } catch (e) { activity = null; console.warn(e); }
+    try { overdue = await TP.organizerOverdue(); } catch { overdue = {}; }
     try { outside = await TP.outsideBookings(); }
     catch (e) { outside = []; console.warn(e); }
     if (!mine.length) {
@@ -484,7 +490,7 @@ async function start() {
       <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">Emergency contact</th><th scope="col">DP record</th><th scope="col" class="num">Collect</th></tr></thead>
       <tbody>${s.bookings.map((b, i) => `<tr>
         <td><label class="checkin"><input type="checkbox" data-check="${i}" ${b.checked ? "checked" : ""}><span class="sr">${esc(b.name)} checked in</span></label></td>
-        <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b)}${b.outsideId && TP.online && statusOf(s) !== "completed" && statusOf(s) !== "cancelled" ? `<div class="out-actions"><button type="button" class="link-btn" data-out-edit="${i}">Edit<span class="sr"> ${esc(b.name)}'s booking</span></button><button type="button" class="link-btn danger" data-out-cancel="${i}">Cancel<span class="sr"> ${esc(b.name)}'s booking</span></button></div>` : ""}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
+        <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b)}${b.outsideId && TP.online && statusOf(s) !== "completed" && statusOf(s) !== "cancelled" ? `<div class="out-actions"><button type="button" class="link-btn" data-out-edit="${i}">Edit<span class="sr"> ${esc(b.name)}'s booking</span></button><button type="button" class="link-btn danger" data-out-cancel="${i}">Cancel<span class="sr"> ${esc(b.name)}'s booking</span></button></div>` : ""}${b.bookingRef && overdue[b.bookingRef] ? `<div class="overdue"><span class="tag-overdue">Details overdue</span> <span class="meta">missing ${missingText(overdue[b.bookingRef].missing)}</span><button type="button" class="link-btn danger" data-release="${i}">Release slots<span class="sr"> for ${esc(b.name)}</span></button></div>` : ""}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
         <td>${b.emergency ? `<div class="em"><span>${esc(b.emergency.name)}${b.emergency.relation ? ` (${esc(b.emergency.relation)})` : ""}</span><span class="data">${esc(b.emergency.phone)}</span></div>` : "Not added yet"}</td>
         <td>${TP.online && receipts === null ? "Unavailable" : `${pesos(receivedOf(b, s))} / ${pesos(expectedOf(b, s))}<br>${(st => DP_STATES[st] + (st === "sent" ? ` · ref ${esc(b.dpReference || "")}` : st === "held" ? ` · held until ${holdTime(b.holdUntil)}` : ""))(dpState(b, receivedOf(b, s), expectedOf(b, s)))}`}
           ${TP.online && receipts !== null ? `<br><button type="button" class="link-btn" data-receipt="${i}" aria-controls="receipt-panel">${receiptOf(b) ? "Correct DP / history" : "Record DP"}<span class="sr"> for ${esc(b.name)}</span></button>` : ""}</td>
@@ -514,6 +520,27 @@ async function start() {
     return `<div class="expired-holds"><h3>Cancelled outside bookings</h3><ul>${s.outsideCancelled.map(o => `<li><span><strong>${esc(o.name)}</strong> · ${o.size} ${o.size === 1 ? "joiner" : "joiners"} · ${SOURCES[o.source]} · cancelled ${holdTime(o.cancelled_at)}: ${esc(o.cancel_reason || "")}</span></li>`).join("")}</ul></div>`;
   }
   // Edit or cancel an outside booking (TP-009): the panel above the joiner list, like Add.
+  // Release slots on an overdue booking (TP-016): unnamed slots only, or the whole booking.
+  function renderRelease(s) {
+    const b = s.bookings[s.release?.index], od = b && overdue[b.bookingRef];
+    if (!b || !od) return false;
+    const unnamed = (od.missing.find(m => m.item === "names") || {}).count || 0;
+    const partialOk = unnamed > 0 && !od.missing.some(m => m.item !== "names");
+    const v = s.release.draft || { whole: !partialOk, reason: "" };
+    $("out-panel").innerHTML = `<form class="out-form confirm-out" id="release-form" novalidate aria-labelledby="rl-h">
+      <h3 id="rl-h">Release slots on ${esc(b.name)}'s booking?</h3>
+      <p class="hint">Details were due ${nice(od.due)} and ${missingText(od.missing)} ${od.missing.length === 1 && unnamed === 1 ? "is" : "are"} still missing. This follows your cancellation policy: any DP you recorded stays on record, and a refund (if your policy gives one) happens outside TrailPeak. ${esc(b.name)} sees the reason in My trips.</p>
+      <fieldset class="out-src"><legend class="field-label">What to release</legend>
+        <label><input type="radio" name="rl-what" value="partial"${!v.whole ? " checked" : ""}${partialOk ? "" : " disabled"}>The ${unnamed || ""} unnamed ${unnamed === 1 ? "slot" : "slots"} only (keep ${esc(b.name)} and the named joiners)</label>
+        <label><input type="radio" name="rl-what" value="whole"${v.whole ? " checked" : ""}>The whole booking (${b.size} ${b.size === 1 ? "slot" : "slots"})</label>
+      </fieldset>
+      ${partialOk ? "" : `<p class="hint">Only the whole booking can be released: the emergency contact or a guardian is missing too.</p>`}
+      <div class="field2"><label class="field-label" for="rl-reason">Reason</label><input class="input" id="rl-reason" maxlength="300" autocomplete="off" value="${esc(v.reason || "")}" placeholder="e.g. No reply on Messenger since Monday"></div>
+      ${s.release.error ? `<p class="error" id="out-err" role="alert"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>${esc(s.release.error)}</span></p>` : ""}
+      <div class="actions"><button type="submit" class="btn btn-danger label-caps"${s.release.saving ? " disabled" : ""}>${s.release.saving ? "Releasing…" : "Release slots"}</button><button type="button" class="link-btn" id="rl-keep">Keep the booking</button></div>
+    </form>`;
+    return true;
+  }
   function renderOutsideChange(s) {
     const b = s.bookings[s.outChange?.index];
     if (!b) return false;
@@ -554,6 +581,7 @@ async function start() {
     return true;
   }
   function renderOutsideForm(s) {
+    if (renderRelease(s)) return;
     if (renderOutsideChange(s)) return;
     const open = statusOf(s) === "open", left = s.cap - takenOf(s);
     $("add-out").setAttribute("aria-expanded", String(!!s.adding));
@@ -670,6 +698,11 @@ async function start() {
       try { await TP.setDateStatus(s.trip.id, s.date, to); } catch (err) { say(err.message); return; }
     }
     if (d.close) { const s = state[d.close]; s.status = s.status === "closed" ? "open" : "closed"; s.note = s.status === "closed" ? "Closed: joiners can't book this date any more. Existing bookings stay." : ""; renderAll(); say(`${nice(s.date)} ${s.status === "closed" ? "closed" : "reopened"}.`); }
+    if (d.release !== undefined) {
+      const s = state[selected]; s.adding = false; s.outChange = null; s.release = { index: Number(d.release) };
+      renderJoiners(); document.querySelector('input[name="rl-what"]:checked')?.focus(); return;
+    }
+    if (t.id === "rl-keep") { const s = state[selected], i = s.release?.index; s.release = null; renderJoiners(); document.querySelector(`[data-release="${i}"]`)?.focus(); return; }
     if (d.rebook !== undefined) {
       const s = state[selected], b = s.expired[Number(d.rebook)];
       if (!b || t.disabled) return;
@@ -803,6 +836,23 @@ async function start() {
   // Save an edit or a cancel of an outside booking. The server re-checks everything and keeps
   // the history; on any error the booking stays as it was and the form keeps what was typed.
   document.addEventListener("submit", async e => {
+    if (e.target.id === "release-form") {
+      e.preventDefault();
+      const s = state[selected], rl = s.release, b = s.bookings[rl?.index];
+      if (!b || rl.saving) return;
+      const whole = document.querySelector('input[name="rl-what"]:checked')?.value !== "partial", reason = $("rl-reason").value.trim();
+      rl.draft = { whole, reason };
+      if (!reason) { rl.error = "Add a short reason. The joiner sees it in My trips."; renderOutsideForm(s); $("rl-reason").setAttribute("aria-invalid", "true"); $("rl-reason").focus(); return; }
+      rl.saving = true; rl.error = ""; renderOutsideForm(s);
+      let row;
+      try { row = await TP.releaseOverdue(b.bookingRef, reason, whole); }
+      catch (err) { rl.saving = false; rl.error = err.message; renderOutsideForm(s); $("out-err")?.focus(); say(err.message); return; }
+      const freed = whole ? b.size : b.size - row.size;
+      if (whole) s.bookings.splice(rl.index, 1); else { b.size = row.size; b.expectedDp = row.dp; b.totalFee = row.dp + row.balance; }
+      delete overdue[b.bookingRef]; s.release = null;
+      s.note = `Released ${freed} ${freed === 1 ? "slot" : "slots"} from ${b.name}'s booking. ${s.cap - takenOf(s)} open now.`;
+      renderAll(); say(s.note); $("add-out").focus(); return;
+    }
     if (e.target.id !== "out-edit-form" && e.target.id !== "out-cancel-form") return;
     e.preventDefault();
     const s = state[selected], ch = s.outChange, b = s.bookings[ch?.index];

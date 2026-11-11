@@ -281,4 +281,16 @@ const isoAddDays = (iso, n) => { const d = new Date(iso + "T00:00:00Z"); d.setUT
 function detailsDueDays() { try { return Number(typeof tpReadCache === "function" && tpReadCache().settings?.details_due_days) || 3; } catch { return 3; } }
 function dueDate(iso) { return isoAddDays(iso, -detailsDueDays()); }
 function detailsRequired(iso) { return manilaToday() >= dueDate(iso); }
+// What's still missing on a booking (same rule as booking_details_missing() in the database):
+// joiners' names, the emergency contact, a guardian for someone under 18.
+function missingDetails(b) {
+  const out = [], n = (b.size || 1) - 1 - (b.companions || []).length;
+  if (n > 0) out.push({ item: "names", count: n });
+  if (!b.emergency || !b.emergency.name || !b.emergency.phone) out.push({ item: "emergency" });
+  const adults = [...((b.booker?.age || "adult") === "adult" ? [1] : []), ...(b.companions || []).map((c, i) => c.age === "adult" ? i + 2 : 0).filter(Boolean)];
+  const minors = [...(b.booker?.age === "minor" ? [b.booker] : []), ...(b.companions || []).filter(c => c.age === "minor")];
+  if (minors.some(m => !adults.includes(Number(m.guardian)) || !m.relation)) out.push({ item: "guardian" });
+  return out;
+}
+const missingText = list => list.map(m => m.item === "names" ? `${m.count} joiner${m.count === 1 ? "'s name" : "s' names"}` : m.item === "emergency" ? "the emergency contact" : "a guardian for someone under 18").join(", ");
 const niceShort = iso => new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
