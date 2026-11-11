@@ -89,6 +89,19 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .joiners tfoot td { font-weight: 700; background: var(--color-neutral); }
 .joiners input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--color-primary); }
 .checkin { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+/* Activity: what joiners did on your trips (new bookings, cancellations, moves) */
+.activity { margin-bottom: var(--space-xl); }
+.activity-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-sm); }
+.activity-list { list-style: none; padding: 0; margin: 0; background: var(--color-card); border-radius: var(--rounded-lg); }
+.activity-list li { display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-md); align-items: center; justify-content: space-between; padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--color-hairline); }
+.activity-list li:last-child { border-bottom: 0; }
+.activity-list li > div { flex: 1 1 260px; display: grid; gap: 2px; }
+.activity-list .meta { color: var(--color-secondary); font-size: 15px; }
+.activity-list li.unread p:first-child { font-weight: 700; }
+.activity-list .empty-list { padding: var(--space-lg); }
+.tag-new { display: inline-block; background: var(--color-tertiary-tint); color: var(--color-tertiary); font: 700 14px/1.2 var(--font-body); border-radius: var(--rounded-sm); padding: var(--space-xs) var(--space-sm); }
+.activity-banner { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; background: var(--color-tertiary-tint); color: var(--color-on-surface); border-radius: var(--rounded-md); padding: var(--space-sm) var(--space-md); margin-bottom: var(--space-sm); }
+
 /* Outside bookings (TP-008): the add form and the source tag in the joiner list */
 .out-form { display: grid; gap: var(--space-md); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-md); margin-bottom: var(--space-md); }
 .out-form details { overflow-wrap: anywhere; }
@@ -195,6 +208,15 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
       </div>
     </div>
 
+    <section class="activity" id="activity-sec" aria-labelledby="activity-h" hidden>
+      <div class="activity-head">
+        <h2 class="section-title" id="activity-h">Activity</h2>
+        <button type="button" class="link-btn" id="mark-read" hidden>Mark all as read</button>
+      </div>
+      <p class="activity-banner" id="activity-banner" role="status" hidden></p>
+      <ol class="activity-list" id="activity-list"></ol>
+    </section>
+
     <section aria-labelledby="money-h">
       <h2 class="sr" id="money-h">This month</h2>
       <div class="tiles" id="tiles"></div>
@@ -268,13 +290,13 @@ if (!me || me.role !== "organizer") {
 const SOURCES = { messenger: "Messenger", in_person: "In person", other: "Other" };
 function outsideRow(o) {
   return { outsideId: o.id, expectedDp: o.expected_dp, totalFee: o.total_fee, name: o.name, size: o.size, pickup: o.pickup_time ? `${o.pickup} · ${o.pickup_time}` : o.pickup,
-    phone: o.phone || "No number yet", wallet: null, checked: false, companions: [], emergency: null, source: o.source };
+    phone: !o.phone ? "No number yet" : phMobile(o.phone) ? o.phone : `${o.phone} (check this number)`, wallet: null, checked: false, companions: [], emergency: null, source: o.source };
 }
 
 async function start() {
   // Online: the organizer's own trips and their real bookings from the database.
   // Offline: trips matching the organizer's name, or one sample trip, with sample bookings.
-  let mine, real = null, outside = [], receipts = null;
+  let mine, real = null, outside = [], receipts = null, activity = null;
   if (TP.online) {
     mine = TRIPS.filter(t => t.organizerId === me.id);
     try { real = (await TP.organizerBookings()).filter(b => b.status === "confirmed"); }
@@ -282,6 +304,7 @@ async function start() {
     // Only receipts on this organizer's own trips: an organizer who also booked someone
     // else's trip as a joiner can read that receipt too, but it isn't their money.
     try { receipts = (await TP.receiptHistory()).filter(r => mine.some(t => t.id === r.trip_id)); } catch (e) { $("dash-note").textContent = e.message; }
+    try { activity = await TP.activity(); } catch (e) { activity = null; console.warn(e); }
     try { outside = await TP.outsideBookings(); }
     catch (e) { outside = []; console.warn(e); }
     if (!mine.length) {
@@ -504,18 +527,51 @@ async function start() {
       <div class="out-grid">
         <div class="field2"><label for="receipt-amount">Total DP received (₱)</label><input class="input" type="number" step="1" min="0" max="${expectedOf(b,s)}" id="receipt-amount" required value="${esc(v.amount ?? latest?.amount ?? expectedOf(b,s))}" aria-describedby="receipt-help"></div>
         <div class="field2"><label for="receipt-method">Method</label><select class="input" id="receipt-method">${["GCash","Maya","Cash","Bank transfer"].map(m => `<option${m === (v.method || latest?.method) ? " selected" : ""}>${m}</option>`).join("")}</select></div>
+        <div class="field2"><label for="receipt-ref">Transaction reference (optional)</label><input class="input data" id="receipt-ref" maxlength="40" autocomplete="off" value="${esc(v.reference ?? latest?.reference ?? "")}" placeholder="e.g. GCash ref no. 1012 345 678"></div>
         <div class="field2"><label for="receipt-time">Received at (Philippine time)</label><input class="input" type="datetime-local" id="receipt-time" required value="${esc(v.time || receiptInputTime(latest?.received_at || new Date()))}"></div>
       </div>
       <label for="receipt-reason">${latest ? "Reason for correction" : "Receipt note"}</label><input class="input" id="receipt-reason" maxlength="300" required value="${esc(v.reason || "")}" placeholder="e.g. Checked the transfer in my wallet">
       <p class="hint">You are recording a direct payment. TrailPeak does not verify it or send a payout. Partial DPs are supported; meetup balance payments are not recorded here.</p>
       <p class="error" id="receipt-error" role="alert"${s.receiptError ? "" : " hidden"}>${esc(s.receiptError || "")}</p>
       <div class="actions"><button class="btn btn-primary label-caps" id="receipt-save"${s.receiptSaving ? " disabled" : ""}>${s.receiptSaving ? "Saving…" : "Save DP record"}</button><button type="button" class="link-btn" id="receipt-close"${s.receiptSaving ? " disabled" : ""}>Cancel</button></div>
-      <details><summary>Receipt history (${historyOf(b).length})</summary><ol>${historyOf(b).map(h => `<li>${pesos(h.amount)}${h.method ? ` · ${esc(h.method)} · received ${receiptTime(h.received_at)}` : " · DP reset to pending"}. Recorded ${receiptTime(h.recorded_at)} by ${esc(h.recorded_by === me.id ? me.name : h.recorded_by)}. ${esc(h.reason)}</li>`).join("") || "<li>No receipt recorded.</li>"}</ol></details>
+      <details><summary>Receipt history (${historyOf(b).length})</summary><ol>${historyOf(b).map(h => `<li>${pesos(h.amount)}${h.method ? ` · ${esc(h.method)}${h.reference ? ` · ref ${esc(h.reference)}` : ""} · received ${receiptTime(h.received_at)}` : " · DP reset to pending"}. Recorded ${receiptTime(h.recorded_at)} by ${esc(h.recorded_by === me.id ? me.name : h.recorded_by)}. ${esc(h.reason)}</li>`).join("") || "<li>No receipt recorded.</li>"}</ol></details>
     </form>`;
   }
 
-  const renderAll = () => { renderTiles(); renderTrips(); renderJoiners(); renderPayouts(); };
+  // Activity feed (online only). Unread items say "New"; each links to that date's joiners.
+  const unreadOf = () => (activity || []).filter(a => !a.read_at).length;
+  const activityTime = v => new Date(v).toLocaleString("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  function setBadge(n) {
+    try { const u = getUser(); if (u) localStorage.setItem(TP_USER_KEY, JSON.stringify({ ...u, unread: n })); } catch { /* storage blocked */ }
+    const link = document.querySelector(".dash-link");
+    if (link) link.innerHTML = `Dashboard${n ? `<span class="count" aria-hidden="true">${n > 99 ? "99+" : n}</span><span class="sr">, ${n} new</span>` : ""}`;
+    document.title = `${n ? `(${n}) ` : ""}Dashboard · TrailPeak`;
+  }
+  function renderActivity() {
+    if (!TP.online || activity === null) { $("activity-sec").hidden = true; return; }
+    $("activity-sec").hidden = false;
+    const n = unreadOf();
+    $("mark-read").hidden = !n;
+    $("activity-h").textContent = n ? `Activity · ${n} new` : "Activity";
+    $("activity-list").innerHTML = activity.length ? activity.slice(0, 10).map(a => {
+      const key = a.trip_id + "|" + a.date;
+      return `<li class="${a.read_at ? "" : "unread"}"><div><p>${esc(a.summary)}</p><p class="meta">${a.read_at ? "" : '<span class="tag-new">New</span> '}${activityTime(a.created_at)}</p></div>${state[key] ? `<button type="button" class="btn btn-secondary label-caps" data-view="${esc(key)}">View joiners<span class="sr"> for ${esc(nice(a.date))}</span></button>` : ""}</li>`;
+    }).join("") : `<li class="empty-list">No activity yet. New bookings, cancellations and date moves on your trips show up here.</li>`;
+    setBadge(n);
+  }
+  const renderAll = () => { renderActivity(); renderTiles(); renderTrips(); renderJoiners(); renderPayouts(); };
   renderAll();
+  // While the dashboard is open, check for new activity every minute. New bookings change
+  // slots and the joiner list too, so the banner offers a refresh instead of redrawing them.
+  if (TP.online && activity !== null) setInterval(async () => {
+    if (document.visibilityState !== "visible") return;
+    let latest; try { latest = await TP.activity(); } catch { return; }
+    const known = new Set(activity.map(a => a.id)), fresh = latest.filter(a => !known.has(a.id));
+    if (!fresh.length) return;
+    activity = latest; renderActivity();
+    $("activity-banner").hidden = false;
+    $("activity-banner").innerHTML = `<span><strong>${fresh.length} new:</strong> ${esc(fresh[0].summary)}</span><button type="button" class="btn btn-secondary label-caps" id="activity-refresh">Refresh bookings</button>`;
+  }, 60000);
 
   // ---- Actions ------------------------------------------------------------
   const say = msg => { $("live").textContent = msg; };
@@ -535,6 +591,12 @@ async function start() {
       try { await TP.setDateStatus(s.trip.id, s.date, to); } catch (err) { say(err.message); return; }
     }
     if (d.close) { const s = state[d.close]; s.status = s.status === "closed" ? "open" : "closed"; s.note = s.status === "closed" ? "Closed: joiners can't book this date any more. Existing bookings stay." : ""; renderAll(); say(`${nice(s.date)} ${s.status === "closed" ? "closed" : "reopened"}.`); }
+    if (t.id === "mark-read") {
+      try { await TP.markActivityRead(); } catch (err) { say(err.message); return; }
+      activity.forEach(a => { a.read_at = a.read_at || new Date().toISOString(); });
+      renderActivity(); $("activity-h").tabIndex = -1; $("activity-h").focus(); say("All activity marked as read.");
+    }
+    if (t.id === "activity-refresh") location.reload();
     if (t.id === "add-out") {
       const s = state[selected]; s.adding = !s.adding; renderJoiners();
       if (s.adding) ($("out-name") || $("out-panel").firstElementChild)?.focus?.(); else $("add-out").focus();
@@ -593,6 +655,8 @@ async function start() {
     if (!Number.isInteger(v.size) || v.size < 1) return outFail("Enter how many joiners, 1 or more.", $("out-size"));
     if (v.size > left) return outFail(`Only ${left} ${left === 1 ? "slot" : "slots"} left on this date.`, $("out-size"));
     if (!p) return outFail("Choose a pick-up point.", $("out-pick"));
+    if (v.phone && !phMobile(v.phone)) return outFail(`The mobile number ${PH_MOBILE_HINT}`, $("out-phone"));
+    if (v.phone) v.phone = phMobile(v.phone);
     s.requestId = s.requestId || (crypto.randomUUID ? crypto.randomUUID() : null);
     s.saving = true; $("out-save").disabled = true; $("out-save").textContent = "Adding…";
     let row = { name: v.name, size: v.size, pickup: p.place, pickup_time: p.time, phone: v.phone, source: v.source };
@@ -612,14 +676,14 @@ async function start() {
     e.preventDefault();
     const s = state[selected], b = s.bookings[s.receiptIndex];
     if (s.receiptSaving) return;
-    const v = { amount: $("receipt-amount").value, method: $("receipt-method").value, time: $("receipt-time").value, reason: $("receipt-reason").value.trim() };
+    const v = { amount: $("receipt-amount").value, method: $("receipt-method").value, time: $("receipt-time").value, reason: $("receipt-reason").value.trim(), reference: $("receipt-ref").value.trim() };
     const signature = JSON.stringify(v);
     if (s.receiptSignature !== signature) { s.receiptRequest = crypto.randomUUID(); s.receiptSignature = signature; }
     s.receiptDraft = v; s.receiptSaving = true; s.receiptError = ""; renderReceiptForm(s);
     try {
       const row = await TP.recordReceipt({ requestId: s.receiptRequest, bookingRef: b.bookingRef, outsideId: b.outsideId,
         previousId: s.receiptPrevious, amount: Number(v.amount), method: v.method,
-        receivedAt: Number(v.amount) ? new Date(v.time + ":00+08:00").toISOString() : null, reason: v.reason });
+        receivedAt: Number(v.amount) ? new Date(v.time + ":00+08:00").toISOString() : null, reason: v.reason, reference: v.reference });
       receipts = [row, ...receipts.filter(h => h.id !== row.id)].sort((a,b) => Number(b.revision) - Number(a.revision));
       s.receiptSaving = false; s.receiptIndex = null; s.receiptRequest = null; renderAll();
       say(`Saved ${pesos(row.amount)} DP recorded for ${b.name}. No money moved.`);

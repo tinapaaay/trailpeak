@@ -386,21 +386,39 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- Checks and tidies joiner details. Fewer names than joiners is fine (they can be added later).
+-- A Philippine mobile number, tidied to "+63 917 123 4567". Accepts 0917..., 917... or +63 917...
+-- with any spaces or dashes; anything else (too long, too short, not starting with 9) is
+-- refused with a message that names the field. Blank means "no number" (null).
+create or replace function public.ph_mobile(p_value text, p_label text)
+returns text language plpgsql immutable as $$
+declare d text := regexp_replace(coalesce(p_value, ''), '\D', '', 'g');
+begin
+  if trim(coalesce(p_value, '')) = '' then return null; end if;
+  if length(d) = 12 and left(d, 2) = '63' then d := substr(d, 3); end if;
+  if length(d) = 11 and left(d, 1) = '0' then d := substr(d, 2); end if;
+  if d !~ '^9[0-9]{9}$' then
+    raise exception '% must be a Philippine mobile number: 10 digits starting with 9, like 0917 123 4567.', p_label;
+  end if;
+  return '+63 ' || substr(d, 1, 3) || ' ' || substr(d, 4, 3) || ' ' || substr(d, 7);
+end $$;
+
 create or replace function public.clean_details(p_companions jsonb, p_size int, p_emergency jsonb)
 returns jsonb language plpgsql immutable as $$
-declare c jsonb; out jsonb := '[]'::jsonb;
+declare c jsonb; out jsonb := '[]'::jsonb; n int := 1;
 begin
   if p_companions is null or jsonb_typeof(p_companions) <> 'array' then p_companions := '[]'::jsonb; end if;
   if jsonb_array_length(p_companions) > p_size - 1 then raise exception 'More names than joiners in this booking.'; end if;
   for c in select * from jsonb_array_elements(p_companions) loop
     if coalesce(trim(c ->> 'name'), '') = '' then raise exception 'Enter each joiner''s full name, or add them later.'; end if;
     if coalesce(c ->> 'age', '') not in ('adult', 'minor') then raise exception 'Choose 18 or older, or under 18, for each joiner.'; end if;
+    n := n + 1;
     out := out || jsonb_build_array(jsonb_build_object('name', left(trim(c ->> 'name'), 100), 'age', c ->> 'age',
-                                                        'phone', nullif(left(trim(coalesce(c ->> 'phone', '')), 20), '')));
+                                                        'phone', public.ph_mobile(c ->> 'phone', 'Joiner ' || n || '''s mobile')));
   end loop;
   if p_emergency is null or coalesce(trim(p_emergency ->> 'name'), '') = '' or coalesce(trim(p_emergency ->> 'phone'), '') = '' then
     raise exception 'Add an emergency contact: someone not on the hike, with a mobile number.';
   end if;
+  perform public.ph_mobile(p_emergency ->> 'phone', 'The emergency contact''s mobile');
   return out;
 end $$;
 
@@ -510,7 +528,7 @@ begin
   end if;
   insert into public.outside_bookings (request_id, trip_id, date, created_by, name, size, pickup, pickup_time, phone, source)
   values (p_request, p_trip, p_date, me, left(trim(p_name), 100), p_size, left(trim(p_pickup), 100),
-          nullif(left(trim(coalesce(p_pickup_time, '')), 20), ''), nullif(left(trim(coalesce(p_phone, '')), 20), ''), p_source)
+          nullif(left(trim(coalesce(p_pickup_time, '')), 20), ''), public.ph_mobile(p_phone, 'The mobile number'), p_source)
   returning * into o;
   return o;
 end $$;
@@ -709,6 +727,10 @@ create table if not exists public.dp_receipts (
   check ((amount = 0 and method is null and received_at is null)
       or (amount > 0 and method is not null and received_at is not null))
 );
+-- Transaction reference (added Nov 2026): the GCash / Maya / bank reference number the
+-- organizer sees on the transfer, so both sides can match the payment. Optional.
+alter table public.dp_receipts add column if not exists reference text
+  check (reference is null or char_length(reference) between 1 and 40);
 create index if not exists dp_receipts_booking on public.dp_receipts(booking_ref, revision desc);
 create index if not exists dp_receipts_outside on public.dp_receipts(outside_id, revision desc);
 alter table public.dp_receipts enable row level security;
@@ -722,13 +744,17 @@ for select using (
 revoke all on public.dp_receipts from anon, authenticated;
 grant select on public.dp_receipts to authenticated;
 
+-- The reference is a new last argument, so drop the old 8-argument version first (two
+-- versions would make the website's call ambiguous).
+drop function if exists public.record_dp_receipt(uuid, text, uuid, uuid, int, text, timestamptz, text);
 create or replace function public.record_dp_receipt(
   p_request uuid, p_booking text, p_outside uuid, p_previous uuid,
-  p_amount int, p_method text, p_received timestamptz, p_reason text)
+  p_amount int, p_method text, p_received timestamptz, p_reason text, p_reference text default null)
 returns public.dp_receipts language plpgsql security definer set search_path = public as $$
 declare
   me uuid := auth.uid(); trip text; due int; latest public.dp_receipts;
   saved public.dp_receipts; why text := trim(p_reason);
+  v_ref text := case when coalesce(p_amount, 0) > 0 then nullif(trim(coalesce(p_reference, '')), '') end;
 begin
   if me is null or not public.is_organizer() then raise exception 'Only the trip organizer can record a DP.'; end if;
   if p_request is null or num_nonnulls(p_booking, p_outside) <> 1 then raise exception 'Choose one booking and reload the receipt form.'; end if;
@@ -747,7 +773,8 @@ begin
     if saved.booking_ref is distinct from p_booking or saved.outside_id is distinct from p_outside
        or saved.recorded_by <> me or saved.amount is distinct from p_amount
        or saved.method is distinct from p_method or saved.received_at is distinct from p_received
-       or saved.reason is distinct from why or saved.previous_id is distinct from p_previous then
+       or saved.reason is distinct from why or saved.previous_id is distinct from p_previous
+       or saved.reference is distinct from v_ref then
       raise exception 'This request was already used. Reload the receipt form.';
     end if;
     return saved;
@@ -770,11 +797,78 @@ begin
   if p_amount = 0 and (p_method is not null or p_received is not null) then
     raise exception 'A zero receipt must have no payment method or received time.';
   end if;
+  if v_ref is not null and char_length(v_ref) > 40 then raise exception 'The transaction reference can be up to 40 characters.'; end if;
   insert into public.dp_receipts(request_id, booking_ref, outside_id, trip_id, previous_id,
-    amount, method, received_at, recorded_by, reason)
-  values(p_request, p_booking, p_outside, trip, p_previous, p_amount, p_method, p_received, me, why)
+    amount, method, received_at, recorded_by, reason, reference)
+  values(p_request, p_booking, p_outside, trip, p_previous, p_amount, p_method, p_received, me, why, v_ref)
   returning * into saved;
   return saved;
 end $$;
 revoke all on function public.record_dp_receipt from public, anon;
 grant execute on function public.record_dp_receipt to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Organizer activity (added Nov 2026): a short feed of what joiners did on an organizer's
+-- trips (booked, cancelled, moved a date), so the organizer can follow up quickly, for
+-- example to send payment details for a new booking's DP. Written by triggers on bookings,
+-- never by the website; the organizer can only read their own feed and mark it read.
+-- Demo trips (no organizer) get no activity.
+-- ---------------------------------------------------------------------------
+create table if not exists public.organizer_activity (
+  id            bigint generated always as identity primary key,
+  organizer_id  uuid not null references public.profiles (id) on delete cascade,
+  trip_id       text not null,
+  date          date,
+  booking_ref   text,
+  kind          text not null check (kind in ('booked', 'cancelled', 'moved')),
+  summary       text not null,
+  created_at    timestamptz not null default now(),
+  read_at       timestamptz
+);
+create index if not exists organizer_activity_feed on public.organizer_activity (organizer_id, created_at desc);
+alter table public.organizer_activity enable row level security;
+drop policy if exists "Organizers read their own activity" on public.organizer_activity;
+create policy "Organizers read their own activity" on public.organizer_activity
+  for select using (organizer_id = auth.uid());
+revoke all on public.organizer_activity from anon, authenticated;
+grant select on public.organizer_activity to authenticated;
+
+create or replace function public.log_booking_activity()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare org uuid; title text; who text := coalesce(nullif(new.display_name, ''), 'A joiner');
+        n text := new.size || case when new.size = 1 then ' joiner' else ' joiners' end;
+begin
+  select t.organizer_id, coalesce(t.details ->> 'title', t.id) into org, title from public.trips t where t.id = new.trip_id;
+  if org is null then return new; end if;
+  if tg_op = 'INSERT' then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'booked',
+      who || ' booked ' || n || ' on ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD')
+      || '. DP of ₱' || to_char(new.dp, 'FM999,999') || ' pending: send your payment details.');
+  elsif new.status = 'cancelled' and old.status <> 'cancelled' then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'cancelled',
+      who || ' cancelled ' || n || ' on ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD') || '. Their slots are open again.');
+  elsif new.date <> old.date then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'moved',
+      who || ' moved ' || n || ' on ' || title || ' from ' || to_char(old.date, 'Dy, Mon FMDD') || ' to ' || to_char(new.date, 'Dy, Mon FMDD') || '.');
+  end if;
+  return new;
+end $$;
+drop trigger if exists log_booking_activity on public.bookings;
+create trigger log_booking_activity
+  after insert or update on public.bookings
+  for each row execute function public.log_booking_activity();
+
+-- Mark the signed-in organizer's activity as read: all of it, or only the ids given.
+create or replace function public.mark_activity_read(p_ids bigint[] default null)
+returns int language sql security definer set search_path = public as $$
+  with done as (
+    update public.organizer_activity set read_at = now()
+     where organizer_id = auth.uid() and read_at is null and (p_ids is null or id = any (p_ids))
+    returning 1)
+  select count(*)::int from done;
+$$;
+revoke all on function public.log_booking_activity, public.mark_activity_read from public, anon, authenticated;
+grant execute on function public.mark_activity_read to authenticated;
