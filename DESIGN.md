@@ -634,3 +634,8 @@ In the joiner list each outside booking has two text buttons under its name: "Ed
 **Booking panel.** The breakdown's last line reads "DP to reserve" and the button just "Reserve": nothing is paid on TrailPeak. Under it, one `fine` line: "You send the DP directly to (organizer) by GCash or Maya." with a link to How booking works (offline demo: "Demo: no money moves.").
 
 **Organizer contact.** Post a trip has a step "Contact for joiners" (step 5): one mobile field, prefilled from the organizer's profile, checked with the shared Philippine-mobile rule and its `error` line. It appears under Ask the organizer on the trip page ("Mobile: +63 917 123 4567" with Copy number); a trip without one says "Shared in My trips after you reserve". In My trips, an upcoming booking lists "Organizer" with the number as a tap-to-call link (`data` font).
+
+
+## Joiner details due date (TP-014)
+
+Dates for this rule are always Manila calendar days. On the reserve page, a booking before the due date keeps the "Some names aren't ready yet. I'll add them in My trips before Wed, Nov 18." checkbox (the date is written out). From the due date on, the checkbox is replaced by one bold `jd-hint` line, "This trip is 3 days away or less, so add every joiner's full name now.", and a missing name gets the `error` line "Enter joiner 3's full name: this trip is too soon to add names later." In My trips, the `due` line says "Add 2 joiners' details before Wed, Nov 18." and, once the due date has passed, "1 joiner's details were due Wed, Nov 11. Add them now: the organizer needs every name to register your group."

@@ -185,7 +185,7 @@ const PH_MOBILE_HINT = "must be a Philippine mobile number: 10 digits starting w
 function missingJoiners(b) { return b.status === "confirmed" ? Math.max(0, b.size - 1 - (b.companions || []).length) : 0; }
 
 // p: id prefix (several forms can be on one page); size: joiners in the booking.
-function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = "", allowLater = true } = {}) {
+function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = "", allowLater = true, date = null, overdue = false } = {}) {
   const e = emergency || {};
   const rows = Array.from({ length: Math.max(0, size - 1) }, (_, k) => {
     const n = k + 2, c = companions[k] || {};
@@ -203,7 +203,8 @@ function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = ""
       <p class="jd-hint">Organizers register every hiker at the jump-off, so use names as they appear on an ID. Under 18 needs a parent or guardian on the trip.</p>
       <p class="jd-you"><span class="jd-h">Joiner 1</span> You${you ? `, ${escapeHtml(you)}` : ""}</p>
       <div id="${p}-rows" class="jd-rows">${rows}</div>
-      ${allowLater ? `<label class="check"><input type="checkbox" id="${p}-later"><span>Some names aren't ready yet. I'll add them in My trips, at least 3 days before the trip.</span></label>` : ""}
+      ${allowLater ? `<label class="check"><input type="checkbox" id="${p}-later"><span>${overdue ? "Some names still aren't ready. I'll add them as soon as I can." : `Some names aren't ready yet. I'll add them in My trips before ${date ? niceShort(dueDate(date)) : "the due date"}.`}</span></label>`
+        : `<p class="jd-hint"><strong>This trip is ${detailsDueDays()} days away or less, so add every joiner's full name now.</strong></p>`}
     </fieldset>` : "";
   return who + `<fieldset class="jd">
       <legend>Emergency contact</legend>
@@ -228,7 +229,7 @@ function readJoinerFields(p, size) {
   for (let n = 2; n <= size; n++) {
     const name = $j("n" + n).value.trim(), mob = $j("m" + n).value.trim();
     if (!name && later) continue;
-    if (!name) return bad($j("n" + n), `Enter joiner ${n}'s full name, or tick "Some names aren't ready yet".`);
+    if (!name) return bad($j("n" + n), $j("later") ? `Enter joiner ${n}'s full name, or tick "Some names aren't ready yet".` : `Enter joiner ${n}'s full name: this trip is too soon to add names later.`);
     if (mob && !/^9\d{9}$/.test(jdLocal(mob))) return bad($j("m" + n), `Joiner ${n}'s mobile should be 10 digits starting with 9, or leave it blank.`);
     companions.push({ name, age: $j("a" + n).value, phone: mob ? jdPhone(mob) : null });
   }
@@ -237,5 +238,12 @@ function readJoinerFields(p, size) {
   if (!/^9\d{9}$/.test(jdLocal(em))) return bad($j("em"), "Enter the emergency contact's 10-digit mobile number that starts with 9.");
   return { companions, emergency: { name: en, relation: er, phone: jdPhone(em) } };
 }
-// Joiner names are due 3 days before the trip date.
-function dueDate(iso) { const d = new Date(iso + "T00:00"); d.setDate(d.getDate() - 3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+// Joiner details cut-off (TP-014, ADR-006), the same rule as details_required() in the database:
+// names are due `details_due_days` (3) days before the trip on the Manila calendar, and from that
+// day on a new booking needs every name. Dates are worked out in Manila time, not the phone's.
+const manilaToday = () => new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+const isoAddDays = (iso, n) => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+function detailsDueDays() { try { return Number(typeof tpReadCache === "function" && tpReadCache().settings?.details_due_days) || 3; } catch { return 3; } }
+function dueDate(iso) { return isoAddDays(iso, -detailsDueDays()); }
+function detailsRequired(iso) { return manilaToday() >= dueDate(iso); }
+const niceShort = iso => new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });

@@ -240,3 +240,8 @@ Post a trip now asks for a **mobile number for joiners**, shown on the trip page
 | Organizer's mobile | for trips they booked | same | same | – | – | denied |
 
 **Self-name:** in Who's going you always see your own name, even if you didn't opt in; nobody else does. You see other names only while your own booking on that date still holds its seat: a cancelled, expired or lapsed unpaid hold sees counts only. Who's going never returns contacts, emergency details or wallet numbers. Run `npm test --prefix tests` to repeat the check.
+
+
+## Joiner details cut-off (TP-014, ADR-006)
+
+Joiner names are due **3 days before the trip** (Manila calendar). A booking made earlier can leave names for later; My trips shows "Add N joiners' details before {date}". From that due date on, a new booking needs every joiner's full name and the emergency contact before it confirms (the reserve page stops offering "add later", and the database refuses an incomplete booking). Bookings already missing names after the due date show "details were due {date}. Add them now". Change the number with `update app_settings set value = 4 where key = 'details_due_days';`.
