@@ -217,6 +217,12 @@ function start() {
   if (user.phone) $("wnum").value = digits(user.phone).slice(2);
   if (TP.online) {
     $("pay-lead").textContent = `Reserve ${size} joiners for ${nice(p.date)}, then pay the ${peso(dp)} DP directly to ${T.org}. Your DP stays pending until the organizer records it.`;
+    // Tell joiners the hold rule before they book (TP-011), from the same settings the server uses.
+    TP.holdSettings().then(h => {
+      if (!h.dp_hold_hours) return;
+      const soon = Math.round((new Date(p.date + "T00:00+08:00") - new Date(todayIso() + "T00:00+08:00")) / 864e5) <= h.dp_hold_soon_days;
+      $("pay-lead").textContent += ` Your slots are held for ${soon ? h.dp_hold_hours_soon : h.dp_hold_hours} hours while you send it${soon ? " (shorter because the trip is soon)" : ""}; enter the GCash or Maya reference in My trips to keep them.`;
+    }).catch(() => {});
     $("pay-btn").textContent = "Reserve slots · DP pending";
     $("wallet-l").textContent = "Preferred direct-payment method";
     document.querySelectorAll(".choices .choice span").forEach(el => el.textContent = "Pay the organizer directly");
@@ -271,7 +277,7 @@ function start() {
     $("ref").textContent = b.ref;
     const tick = '<svg width="20" height="20" aria-hidden="true"><use href="#i-tick"/></svg>';
     $("next").innerHTML = [
-      [TP.online ? `DP pending · ${peso(b.dp)} due` : `Demo DP: ${peso(b.dp)} with ${b.wallet}`, TP.online ? `Pay ${T.org} directly. Only the organizer can record receipt; no payment was taken here.` : "Simulated only: no money moved."],
+      [TP.online ? `DP pending · send ${peso(b.dp)} to ${T.org}${b.holdUntil ? ` by ${holdTime(b.holdUntil)}` : ""}` : `Demo DP: ${peso(b.dp)} with ${b.wallet}`, TP.online ? `Your slots are held until then. After paying, open My trips and enter the GCash or Maya reference: that keeps your slots while the organizer checks. With no reference by the deadline, the slots are released. No payment was taken here.` : "Simulated only: no money moved."],
       [`Meetup ${nice(b.date)} · ${b.pickupTime} at ${b.pickup}`, "Be there 15 minutes early. The van leaves on time."],
       [TP.online ? "Check your balance in My trips" : `Bring ${peso(b.balance)} for the balance`, TP.online ? "The full fee remains outstanding until the organizer records your DP." : "Demo amounts only."],
       [`Contact ${T.org} before departure`, "Ask for the coordinator and van details. Automated texts are not connected."],

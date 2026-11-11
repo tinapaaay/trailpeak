@@ -89,6 +89,13 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .joiners tfoot td { font-weight: 700; background: var(--color-neutral); }
 .joiners input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--color-primary); }
 .checkin { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
+/* Expired DP holds under the joiner list (TP-011) */
+.expired-holds { padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--color-border); display: grid; gap: var(--space-sm); }
+.expired-holds h3 { font: 700 17px/1.3 var(--font-body); }
+.expired-holds .hint { color: var(--color-secondary); font-size: 15px; }
+.expired-holds ul { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-sm); }
+.expired-holds li { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; justify-content: space-between; color: var(--color-secondary); }
+
 /* Activity: what joiners did on your trips (new bookings, cancellations, moves) */
 .activity { margin-bottom: var(--space-xl); }
 .activity-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-sm); }
@@ -299,7 +306,7 @@ async function start() {
   let mine, real = null, outside = [], receipts = null, activity = null;
   if (TP.online) {
     mine = TRIPS.filter(t => t.organizerId === me.id);
-    try { real = (await TP.organizerBookings()).filter(b => b.status === "confirmed"); }
+    try { real = (await TP.organizerBookings()).filter(b => b.status === "confirmed" || b.status === "expired"); }
     catch (e) { real = []; console.warn(e); }
     // Only receipts on this organizer's own trips: an organizer who also booked someone
     // else's trip as a joiner can read that receipt too, but it isn't their money.
@@ -325,12 +332,16 @@ async function start() {
     if (real) {
       const bookings = real.filter(b => b.trip_id === t.id && b.date === date).map(b => ({
         bookingRef: b.ref, expectedDp: b.dp, totalFee: b.dp + b.balance, name: b.joiner_name || "Joiner", size: b.size, pickup: `${b.pickup} · ${b.pickup_time}`,
+        status: b.status, holdUntil: b.hold_until, dpReference: b.dp_reference, dpSentAt: b.dp_sent_at, expiredAt: b.expired_at,
         phone: b.joiner_phone || "No number yet", wallet: b.wallet, checked: false,
         companions: b.companions || [], emergency: b.emergency || null }))
         .concat(outside.filter(o => o.trip_id === t.id && o.date === date).map(outsideRow));
       const taken = bookings.reduce((a, b) => a + b.size, 0) + (t.sampleBooked?.[date] || 0);
       const status = t.dateStatus?.[date] === "open" ? "open" : (t.dateStatus?.[date] || "open");
-      state[t.id + "|" + date] = { trip: t, date, cap: t.capacity?.[date] || t.group, held: t.sampleBooked?.[date] || 0, status, bookings, note: "" };
+      // Expired DP holds (TP-011) no longer use slots: listed apart, with Rebook for late payers.
+      const expired = bookings.filter(b => !b.source && dpState(b, 0) === "expired");
+      state[t.id + "|" + date] = { trip: t, date, cap: t.capacity?.[date] || t.group, held: t.sampleBooked?.[date] || 0, status,
+        bookings: bookings.filter(b => !expired.includes(b)), expired, note: "" };
       return;
     }
     const booked = t.group - left, bookings = [];
@@ -435,6 +446,16 @@ async function start() {
     }).join("");
   }
 
+  // Bookings whose DP hold ran out with no reference. Their slots are already free. If the
+  // joiner paid late, Rebook brings them back when the date still has room; otherwise refund.
+  function expiredList(s) {
+    if (!s.expired?.length) return "";
+    return `<div class="expired-holds"><h3>Expired holds · DP not sent</h3>
+      <p class="hint">Their slots were released. Paid after the deadline? Rebook if slots remain; otherwise refund the DP under your policy.</p>
+      <ul>${s.expired.map((b, i) => `<li><span><strong>${esc(b.name)}</strong> · ${b.size} ${b.size === 1 ? "joiner" : "joiners"} · expired ${holdTime(b.expiredAt || b.holdUntil)}</span>
+        <button type="button" class="btn btn-secondary label-caps" data-rebook="${i}">Rebook<span class="sr"> ${esc(b.name)}</span></button></li>`).join("")}</ul>
+      <p class="error" id="rebook-err" role="alert" hidden></p></div>`;
+  }
   function renderJoiners() {
     const s = state[selected];
     if (!s) return;
@@ -445,7 +466,7 @@ async function start() {
     const toCome = s.bookings.reduce((a, b) => a + missingOf(b), 0);
     $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${booked} joiners · ${checked} checked in${toCome ? ` · ${toCome} ${toCome === 1 ? "name" : "names"} still to come` : ""}`;
     if (!s.bookings.length) {
-      $("joiners-wrap").innerHTML = `<p class="empty-list">No bookings yet for this date. Copy the Facebook text above and post it in your groups.</p>`;
+      $("joiners-wrap").innerHTML = `<p class="empty-list">No bookings yet for this date. Copy the Facebook text above and post it in your groups.</p>${expiredList(s)}`;
       return;
     }
     const balance = s.trip.fee - s.trip.dp;
@@ -456,11 +477,11 @@ async function start() {
         <td><label class="checkin"><input type="checkbox" data-check="${i}" ${b.checked ? "checked" : ""}><span class="sr">${esc(b.name)} checked in</span></label></td>
         <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b)}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
         <td>${b.emergency ? `<div class="em"><span>${esc(b.emergency.name)}${b.emergency.relation ? ` (${esc(b.emergency.relation)})` : ""}</span><span class="data">${esc(b.emergency.phone)}</span></div>` : "Not added yet"}</td>
-        <td>${TP.online && receipts === null ? "Unavailable" : `${pesos(receivedOf(b, s))} / ${pesos(expectedOf(b, s))}<br>${receivedOf(b, s) >= expectedOf(b, s) ? "DP received" : receivedOf(b, s) ? "Partial DP" : "DP pending"}`}
+        <td>${TP.online && receipts === null ? "Unavailable" : `${pesos(receivedOf(b, s))} / ${pesos(expectedOf(b, s))}<br>${(st => DP_STATES[st] + (st === "sent" ? ` · ref ${esc(b.dpReference || "")}` : st === "held" ? ` · held until ${holdTime(b.holdUntil)}` : ""))(dpState(b, receivedOf(b, s), expectedOf(b, s)))}`}
           ${TP.online && receipts !== null ? `<br><button type="button" class="link-btn" data-receipt="${i}" aria-controls="receipt-panel">${receiptOf(b) ? "Correct DP / history" : "Record DP"}<span class="sr"> for ${esc(b.name)}</span></button>` : ""}</td>
         <td class="num">${TP.online && receipts === null ? "Unavailable" : pesos(balanceOf(b, s))}</td></tr>`).join("")}</tbody>
       <tfoot><tr><td></td><td>Total</td><td class="num">${booked}</td><td></td><td></td><td></td><td>${TP.online && receipts === null ? "Unavailable" : pesos(s.bookings.reduce((n,b) => n + receivedOf(b,s),0))}</td><td class="num">${TP.online && receipts === null ? "Unavailable" : pesos(s.bookings.reduce((n,b) => n + balanceOf(b,s),0))}</td></tr></tfoot>
-    </table>`;
+    </table>${expiredList(s)}`;
   }
 
   // Everyone in a booking after the booker: name, under-18 flag, mobile; and names still to come.
@@ -591,6 +612,16 @@ async function start() {
       try { await TP.setDateStatus(s.trip.id, s.date, to); } catch (err) { say(err.message); return; }
     }
     if (d.close) { const s = state[d.close]; s.status = s.status === "closed" ? "open" : "closed"; s.note = s.status === "closed" ? "Closed: joiners can't book this date any more. Existing bookings stay." : ""; renderAll(); say(`${nice(s.date)} ${s.status === "closed" ? "closed" : "reopened"}.`); }
+    if (d.rebook !== undefined) {
+      const s = state[selected], b = s.expired[Number(d.rebook)];
+      if (!b || t.disabled) return;
+      t.disabled = true;
+      try { await TP.rebookExpired(b.bookingRef); }
+      catch (err) { t.disabled = false; const e2 = $("rebook-err"); e2.hidden = false; e2.textContent = err.message; say(err.message); return; }
+      s.expired = s.expired.filter(x => x !== b); b.status = "confirmed"; b.holdUntil = null; s.bookings.push(b);
+      s.note = `Rebooked ${b.name} (${b.size} ${b.size === 1 ? "joiner" : "joiners"}). Record their DP when you've checked it.`;
+      renderAll(); say(s.note);
+    }
     if (t.id === "mark-read") {
       try { await TP.markActivityRead(); } catch (err) { say(err.message); return; }
       activity.forEach(a => { a.read_at = a.read_at || new Date().toISOString(); });

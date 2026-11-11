@@ -109,6 +109,21 @@ select trip_id, date, name, phone from outside_bookings
 where phone is not null and regexp_replace(phone, '\D', '', 'g') !~ '^(63|0)?9[0-9]{9}$';
 ```
 
+## DP hold and expiry (TP-011)
+
+A new booking holds its slots for **6 hours**, or **2 hours** when the trip is within 3 days (Manila time). The joiner sends the DP to the organizer and enters the GCash or Maya reference in My trips: the booking shows **DP sent, waiting for organizer**, the clock stops and the slots stay held. With no reference by the deadline, the slots are free again at once and the booking shows **Expired: DP not sent**. If the organizer hasn't recorded a sent DP after 24 hours, their dashboard Activity reminds them. A joiner who paid after their hold expired can be brought back with **Rebook** on the dashboard if the date still has room; otherwise the organizer refunds the DP under the trip's policy. Bookings made before this update have no deadline and never expire.
+
+The four numbers live in one table, so you can change them after the interviews without touching code:
+
+```sql
+select * from app_settings;
+update app_settings set value = 8 where key = 'dp_hold_hours';        -- hold for 8 hours instead of 6
+```
+
+Re-running `schema.sql` never resets a value you changed.
+
+**The expiry job.** `schema.sql` turns on Supabase's **pg_cron** extension and schedules `expire_holds()` every 5 minutes. If the SQL editor shows a notice that pg_cron isn't set up, open **Database → Extensions**, turn on **pg_cron**, and run `schema.sql` again. Even without it, slots are released on time; only the "Expired" label waits until the next booking or page load. To check the job: `select jobname, schedule from cron.job;`
+
 ## What's real and what's still simulated
 
 | Real now | Still simulated |
