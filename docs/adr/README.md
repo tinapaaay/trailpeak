@@ -10,6 +10,7 @@ One short file per technical decision: the context, the options, why one won, an
 | [006](006-joiner-details-cutoff.md) | One Manila-date cut-off for joiner details, decided in the database | Accepted (3 days to confirm) |
 | [007](007-guardian-in-booking.md) | Under-18 hikers name a guardian from the same booking; the booker states their own age | Accepted for the pilot |
 | [008](008-overdue-details-release.md) | Overdue joiner details alert the organizer in-app; slots are released only by the organizer | Accepted for the pilot |
+| [009](009-concurrency-rules.md) | Concurrency rules for seats: one lock order, real-clock deadlines, one request id per submit | Accepted |
 
 Planned: 004 payment gateway (TP-026) · 005 booking, payment and refund states (TP-027) · map provider (parked).
 

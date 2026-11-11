@@ -168,7 +168,7 @@ const tpErr = e => {
 TP.book = async p => {
   const base = { p_trip: p.tripId, p_date: p.date, p_size: p.size, p_pickup: p.pickup, p_pickup_time: p.pickupTime,
     p_wallet: p.wallet, p_wallet_number: p.walletNumber, p_listed: !!p.listed };
-  let { data, error } = await TP.db.rpc("book_trip", { ...base, p_names: "", p_companions: p.companions || [], p_emergency: p.emergency || null, p_booker: p.booker || null });
+  let { data, error } = await TP.db.rpc("book_trip", { ...base, p_names: "", p_companions: p.companions || [], p_emergency: p.emergency || null, p_booker: p.booker || null, p_request: p.requestId || null });
   // Database not updated yet (schema.sql not re-run): book the old way, with names as plain text.
   if (error && error.code === "PGRST202") {
     ({ data, error } = await TP.db.rpc("book_trip", { ...base, p_names: (p.companions || []).map(c => c.name).join(", ") }));
