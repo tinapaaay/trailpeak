@@ -48,6 +48,10 @@ python3 -m http.server 8000
 
 Then open http://localhost:8000.
 
+## Architecture decisions
+
+Why TrailPeak is built the way it is: [docs/adr/](docs/adr/README.md), starting with ADR-002 (how unpaid DP holds expire).
+
 ## Research
 
 Interview questions for organizers and joiners (to run before the pilot decision): [research/interview-guide.md](research/interview-guide.md).
