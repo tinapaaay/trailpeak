@@ -373,11 +373,14 @@ $("step-profile").addEventListener("submit", e => {
   e.preventDefault();
   const first = $("first").value.trim(), last = $("last").value.trim();
   const phone = $("profile-phone-row").hidden ? contact : ($("pphone").value ? prettyPhone($("pphone").value) : "");
-  let msg = "";
-  if (!first || !last) msg = "Enter your first and last name.";
-  else if (!$("profile-phone-row").hidden && !validPhone($("pphone").value)) msg = "Enter a 10-digit mobile number that starts with 9.";
-  else if (!$("agree").checked) msg = "Tick the box to agree to the Terms and Privacy Notice.";
+  let msg = "", bad = null;
+  if (!first || !last) { msg = "Enter your first and last name."; bad = first ? $("last") : $("first"); }
+  else if (!$("profile-phone-row").hidden && !validPhone($("pphone").value)) { msg = "Enter a 10-digit mobile number that starts with 9."; bad = $("pphone"); }
+  else if (!$("agree").checked) { msg = "Tick the box to agree to the Terms and Privacy Notice."; bad = $("agree"); }
   $("profile-err").hidden = !msg; $("profile-err-text").textContent = msg;
+  // Mark and focus the field to fix, so keyboard and screen reader users land on it (TP-019).
+  ["first", "last", "pphone", "agree"].forEach(id => { $(id).removeAttribute("aria-invalid"); $(id).removeAttribute("aria-describedby"); });
+  if (bad) { bad.setAttribute("aria-invalid", "true"); bad.setAttribute("aria-describedby", "profile-err-text"); bad.focus(); }
   if (msg) return;
   if (TP.online) {
     TP.saveProfile({ name: `${first} ${last}`, phone }).then(() => { location.href = takeNext("index.html"); })
