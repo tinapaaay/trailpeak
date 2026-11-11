@@ -1062,3 +1062,128 @@ begin
 exception when others then
   raise notice 'pg_cron not set up (%). Turn it on under Database > Extensions, then run this file again.', sqlerrm;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Edit and cancel outside bookings (TP-009, Nov 2026). Only the trip's organizer, and only
+-- through the two functions below. Each locks the date first and then the booking (the same
+-- order as add_outside_booking and book_trip), so changes and new bookings on one date run one
+-- at a time. `revision` goes up with every change: an edit sent from an out-of-date screen is
+-- refused instead of overwriting someone else's change. Every change keeps who, when, why and
+-- the before/after values. DP receipts are never touched: a size change rescales the expected
+-- DP and fee, and a cancel leaves any recorded DP as it is (refunds are handled outside).
+-- ---------------------------------------------------------------------------
+alter table public.outside_bookings add column if not exists revision int not null default 1;
+alter table public.outside_bookings add column if not exists updated_at timestamptz;
+alter table public.outside_bookings add column if not exists cancelled_at timestamptz;
+alter table public.outside_bookings add column if not exists cancel_reason text;
+
+create table if not exists public.outside_booking_changes (
+  id           bigint generated always as identity primary key,
+  outside_id   uuid not null references public.outside_bookings (id) on delete cascade,
+  action       text not null check (action in ('edit', 'cancel')),
+  reason       text not null check (char_length(reason) between 1 and 300),
+  before       jsonb not null,
+  after        jsonb not null,
+  changed_by   uuid not null references public.profiles (id),
+  changed_at   timestamptz not null default now()
+);
+create index if not exists outside_booking_changes_by_booking on public.outside_booking_changes (outside_id, id);
+alter table public.outside_booking_changes enable row level security;
+drop policy if exists "Organizers read changes on their trips" on public.outside_booking_changes;
+create policy "Organizers read changes on their trips" on public.outside_booking_changes
+  for select using (exists (select 1 from public.outside_bookings o join public.trips t on t.id = o.trip_id
+                            where o.id = outside_id and t.organizer_id = auth.uid()));
+revoke all on public.outside_booking_changes from anon, authenticated;
+grant select on public.outside_booking_changes to authenticated;
+
+-- The fields people can change, as one value for the history.
+create or replace function public.outside_snapshot(o public.outside_bookings)
+returns jsonb language sql immutable as $$
+  select jsonb_build_object('name', o.name, 'size', o.size, 'pickup', o.pickup, 'pickup_time', o.pickup_time,
+                            'phone', o.phone, 'source', o.source, 'status', o.status,
+                            'expected_dp', o.expected_dp, 'total_fee', o.total_fee);
+$$;
+
+-- Check the caller owns the trip, then lock the date and then the booking (locks last until the
+-- end of the calling function's transaction). Anything else gets the same "only the organizer"
+-- message, so an id never reveals whether someone else's booking exists.
+drop function if exists public.lock_outside_booking(uuid);
+create or replace function public.lock_outside_booking(p_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare t text; d date;
+begin
+  if auth.uid() is null then raise exception 'Please sign in again.'; end if;
+  select trip_id, date into t, d from public.outside_bookings where id = p_id;
+  if t is null or not public.is_organizer() or not exists (select 1 from public.trips where id = t and organizer_id = auth.uid()) then
+    raise exception 'Only this trip''s organizer can change this booking.';
+  end if;
+  perform 1 from public.departures where trip_id = t and date = d for update;
+  perform 1 from public.outside_bookings where id = p_id for update;
+end $$;
+
+create or replace function public.edit_outside_booking(
+  p_id uuid, p_revision int, p_name text, p_size int, p_pickup text, p_pickup_time text,
+  p_source text, p_phone text, p_reason text)
+returns public.outside_bookings language plpgsql security definer set search_path = public as $$
+declare o public.outside_bookings; dep public.departures; before jsonb; why text := trim(coalesce(p_reason, ''));
+        nm text := left(trim(coalesce(p_name, '')), 100); pk text := left(trim(coalesce(p_pickup, '')), 100);
+        pt text := nullif(left(trim(coalesce(p_pickup_time, '')), 20), ''); ph text; per_dp int; per_fee int; free int;
+begin
+  perform public.lock_outside_booking(p_id);
+  select * into o from public.outside_bookings where id = p_id;
+  select * into dep from public.departures where trip_id = o.trip_id and date = o.date;
+  if o.status <> 'confirmed' then raise exception 'This booking was cancelled, so it can''t be edited.'; end if;
+  ph := public.ph_mobile(p_phone, 'The mobile number');
+  -- The same values again (a double click, a retry): nothing changes, nothing is logged.
+  if o.name = nm and o.size = p_size and o.pickup = pk and o.pickup_time is not distinct from pt
+     and o.phone is not distinct from ph and o.source = p_source then return o; end if;
+  if p_revision is distinct from o.revision then
+    raise exception 'This booking was changed since you opened it. Refresh and try again.';
+  end if;
+  if dep.date < public.ph_today() then raise exception 'This date has passed.'; end if;
+  if nm = '' then raise exception 'Enter the booker''s name.'; end if;
+  if p_size is null or p_size not between 1 and 20 then raise exception 'Joiners must be between 1 and 20.'; end if;
+  if pk = '' then raise exception 'Choose a pick-up point.'; end if;
+  if p_source not in ('messenger', 'in_person', 'other') then raise exception 'Choose how they booked.'; end if;
+  if why = '' or char_length(why) > 300 then raise exception 'Add a short reason for the change (up to 300 characters).'; end if;
+  if p_size > o.size then
+    if dep.status <> 'open' then raise exception 'This date is %, so no joiners can be added. Reopen it first.', dep.status; end if;
+    free := public.slots_left(o.trip_id, o.date);
+    if free < p_size - o.size then
+      raise exception 'Only % % left, so this booking can''t grow by %.', free, case when free = 1 then 'slot is' else 'slots are' end, p_size - o.size;
+    end if;
+  end if;
+  before := public.outside_snapshot(o);
+  per_dp := o.expected_dp / o.size; per_fee := o.total_fee / o.size;
+  update public.outside_bookings
+     set name = nm, size = p_size, pickup = pk, pickup_time = pt, phone = ph, source = p_source,
+         expected_dp = per_dp * p_size, total_fee = per_fee * p_size, revision = revision + 1, updated_at = now()
+   where id = p_id returning * into o;
+  insert into public.outside_booking_changes (outside_id, action, reason, before, after, changed_by)
+  values (p_id, 'edit', why, before, public.outside_snapshot(o), auth.uid());
+  return o;
+end $$;
+
+-- Cancelling releases the booking's slots (seats_taken counts confirmed ones only). Cancelling
+-- again returns the cancelled booking unchanged: nothing is released or logged twice.
+create or replace function public.cancel_outside_booking(p_id uuid, p_reason text)
+returns public.outside_bookings language plpgsql security definer set search_path = public as $$
+declare o public.outside_bookings; dep public.departures; before jsonb; why text := trim(coalesce(p_reason, ''));
+begin
+  perform public.lock_outside_booking(p_id);
+  select * into o from public.outside_bookings where id = p_id;
+  select * into dep from public.departures where trip_id = o.trip_id and date = o.date;
+  if o.status = 'cancelled' then return o; end if;
+  if why = '' or char_length(why) > 300 then raise exception 'Add a short reason for cancelling (up to 300 characters).'; end if;
+  before := public.outside_snapshot(o);
+  update public.outside_bookings
+     set status = 'cancelled', cancelled_at = now(), cancel_reason = why, revision = revision + 1, updated_at = now()
+   where id = p_id returning * into o;
+  insert into public.outside_booking_changes (outside_id, action, reason, before, after, changed_by)
+  values (p_id, 'cancel', why, before, public.outside_snapshot(o), auth.uid());
+  return o;
+end $$;
+
+revoke all on function public.lock_outside_booking, public.edit_outside_booking, public.cancel_outside_booking from public, anon;
+revoke all on function public.lock_outside_booking from authenticated;
+grant execute on function public.edit_outside_booking, public.cancel_outside_booking to authenticated;
