@@ -27,7 +27,7 @@ TP.applyTo = function (trips) {
   trips.length = 0;
   for (const row of c.trips) {
     // `saved` keeps the stored details as they are, so editing a trip never saves page-only fields back.
-    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, status: row.status || "published", archived_at: row.archived_at || null, bookingMode: row.organizer_id ? "pilot" : "demo", saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
+    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, status: row.status || "published", archived_at: row.archived_at || null, createdAt: row.created_at || null, bookingMode: row.organizer_id ? "pilot" : "demo", saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
     for (const s of (c.slots || []).filter(s => s.trip_id === row.id)) {
       t.departures[s.date] = s.status === "open" ? s.left_count : 0;
       t.sampleBooked[s.date] = s.sample_booked || 0;

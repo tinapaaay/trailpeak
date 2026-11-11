@@ -675,7 +675,7 @@ function facebookText(t, tripId) {
   const dates = t.departures.filter(([d, s]) => d && s > 0).sort((a, b) => a[0].localeCompare(b[0]))
     .map(([d, s]) => `- ${niceDate(d)}: ${s} ${s === 1 ? "slot" : "slots"}`).join("\n");
   const pick = t.pickupTimes.filter(([p, tm]) => p && tm).map(([p, tm]) => `- ${p}, ${to12(tm)}`).join("\n");
-  return `LOOKING FOR JOINERS: ${t.title.toUpperCase()} (${t.type.toLowerCase()})
+  return `LOOKING FOR JOINERS: ${tripLabel(t, t.departures.filter(([d, s]) => d && s > 0).map(([d]) => d)).toUpperCase()} (${t.type.toLowerCase()})
 ${t.place} · ${t.masl.toLocaleString()} MASL · Difficulty ${t.score}/9
 
 Dates:
