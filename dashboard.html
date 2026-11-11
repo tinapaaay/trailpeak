@@ -94,6 +94,8 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 .overdue .link-btn { padding: 0; min-height: 44px; }
 .tag-overdue { display: inline-block; background: var(--color-surface); color: var(--color-error); box-shadow: inset 0 0 0 1px var(--color-error); font: 700 14px/1.2 var(--font-body); border-radius: var(--rounded-sm); padding: var(--space-xs) var(--space-sm); }
 
+/* Handling note for exported joiner lists (TP-017) */
+.list-note { display: block; max-width: 72ch; margin: 0 0 var(--space-md); }
 /* Edit / Cancel on outside bookings in the joiner list (TP-009) */
 .out-actions { display: flex; flex-wrap: wrap; gap: 0 var(--space-sm); margin-top: var(--space-xs); }
 .out-actions .link-btn { padding: 0; min-height: 44px; }
@@ -258,6 +260,7 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
           <button type="button" class="btn btn-secondary label-caps" id="copy-list">Copy joiner list</button>
         </div>
       </div>
+      <p class="meta list-note" id="list-note">The copied list has joiners' mobiles and emergency contacts. Share it only with your guides and the jump-off registration, don't post it in group chats, and delete your copy 30 days after the trip, when TrailPeak deletes these details too.</p>
       <div id="out-panel"></div>
       <div id="receipt-panel"></div>
       <div class="table-wrap" id="joiners-wrap"></div>
@@ -478,7 +481,7 @@ async function start() {
     renderReceiptForm(s);
     const booked = bookedOf(s), checked = s.bookings.filter(b => b.checked).reduce((a, b) => a + b.size, 0);
     $("joiners-h").textContent = `Joiners · ${nice(s.date)}`;
-    const toCome = s.bookings.reduce((a, b) => a + missingOf(b), 0);
+    const toCome = detailsGone(s.date) ? 0 : s.bookings.reduce((a, b) => a + missingOf(b), 0);
     $("joiners-sub").textContent = `${s.trip.title} · meetup ${s.trip.meet} · ${booked} joiners · ${checked} checked in${toCome ? ` · ${toCome} ${toCome === 1 ? "name" : "names"} still to come` : ""}`;
     if (!s.bookings.length) {
       $("joiners-wrap").innerHTML = `<p class="empty-list">No bookings yet for this date. Copy the Facebook text above and post it in your groups.</p>${expiredList(s)}${cancelledOutsideList(s)}`;
@@ -490,8 +493,8 @@ async function start() {
       <thead><tr><th scope="col">Checked in</th><th scope="col">Name</th><th scope="col" class="num">Joiners</th><th scope="col">Pick-up</th><th scope="col">Mobile</th><th scope="col">Emergency contact</th><th scope="col">DP record</th><th scope="col" class="num">Collect</th></tr></thead>
       <tbody>${s.bookings.map((b, i) => `<tr>
         <td><label class="checkin"><input type="checkbox" data-check="${i}" ${b.checked ? "checked" : ""}><span class="sr">${esc(b.name)} checked in</span></label></td>
-        <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b)}${b.outsideId && TP.online && statusOf(s) !== "completed" && statusOf(s) !== "cancelled" ? `<div class="out-actions"><button type="button" class="link-btn" data-out-edit="${i}">Edit<span class="sr"> ${esc(b.name)}'s booking</span></button><button type="button" class="link-btn danger" data-out-cancel="${i}">Cancel<span class="sr"> ${esc(b.name)}'s booking</span></button></div>` : ""}${b.bookingRef && overdue[b.bookingRef] ? `<div class="overdue"><span class="tag-overdue">Details overdue</span> <span class="meta">missing ${missingText(overdue[b.bookingRef].missing)}</span><button type="button" class="link-btn danger" data-release="${i}">Release slots<span class="sr"> for ${esc(b.name)}</span></button></div>` : ""}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
-        <td>${b.emergency ? `<div class="em"><span>${esc(b.emergency.name)}${b.emergency.relation ? ` (${esc(b.emergency.relation)})` : ""}</span><span class="data">${esc(b.emergency.phone)}</span></div>` : "Not added yet"}</td>
+        <td><strong>${esc(b.name)}</strong>${b.source ? ` <span class="tag-source">${SOURCES[b.source]}</span>` : ""}${groupList(b, s.date)}${b.outsideId && TP.online && statusOf(s) !== "completed" && statusOf(s) !== "cancelled" ? `<div class="out-actions"><button type="button" class="link-btn" data-out-edit="${i}">Edit<span class="sr"> ${esc(b.name)}'s booking</span></button><button type="button" class="link-btn danger" data-out-cancel="${i}">Cancel<span class="sr"> ${esc(b.name)}'s booking</span></button></div>` : ""}${b.bookingRef && overdue[b.bookingRef] ? `<div class="overdue"><span class="tag-overdue">Details overdue</span> <span class="meta">missing ${missingText(overdue[b.bookingRef].missing)}</span><button type="button" class="link-btn danger" data-release="${i}">Release slots<span class="sr"> for ${esc(b.name)}</span></button></div>` : ""}</td><td class="num">${b.size}</td><td>${esc(b.pickup)}</td><td class="data">${esc(b.phone)}</td>
+        <td>${detailsGone(s.date) && !b.source ? "Deleted after 30 days" : b.emergency ? `<div class="em"><span>${esc(b.emergency.name)}${b.emergency.relation ? ` (${esc(b.emergency.relation)})` : ""}</span><span class="data">${esc(b.emergency.phone)}</span></div>` : "Not added yet"}</td>
         <td>${TP.online && receipts === null ? "Unavailable" : `${pesos(receivedOf(b, s))} / ${pesos(expectedOf(b, s))}<br>${(st => DP_STATES[st] + (st === "sent" ? ` · ref ${esc(b.dpReference || "")}` : st === "held" ? ` · held until ${holdTime(b.holdUntil)}` : ""))(dpState(b, receivedOf(b, s), expectedOf(b, s)))}`}
           ${TP.online && receipts !== null ? `<br><button type="button" class="link-btn" data-receipt="${i}" aria-controls="receipt-panel">${receiptOf(b) ? "Correct DP / history" : "Record DP"}<span class="sr"> for ${esc(b.name)}</span></button>` : ""}</td>
         <td class="num">${TP.online && receipts === null ? "Unavailable" : pesos(balanceOf(b, s))}</td></tr>`).join("")}</tbody>
@@ -499,16 +502,24 @@ async function start() {
     </table>${expiredList(s)}${cancelledOutsideList(s)}`;
   }
 
-  // Everyone in a booking after the booker: name, under-18 flag, mobile; and names still to come.
+  // One line per hiker (TP-017): everyone in a booking after the booker, by name when we have
+  // it. Names still to come, outside bookings (only the booker's name is recorded) and dates past
+  // the 30-day deletion still get a line each, so the count of lines matches the headcount.
   const missingOf = b => b.source ? 0 : Math.max(0, b.size - 1 - (b.companions || []).length);
-  function groupList(b) {
+  const detailsGone = date => date < isoAddDays(manilaToday(), -30);
+  function restLines(b, date) {
+    const n = Math.max(0, b.size - 1 - (b.companions || []).length);
+    const label = b.source ? "name not recorded, outside booking" : detailsGone(date) ? "name deleted 30 days after the trip" : "name to follow";
+    return Array.from({ length: n }, () => label);
+  }
+  const guardOf = (b, g) => g.guardian === 1 ? b.name : b.companions?.[g.guardian - 2]?.name || "joiner " + g.guardian;
+  function groupList(b, date) {
     if (b.size < 2 && b.booker?.age !== "minor") return "";
     // Under 18: who in the booking is responsible for them (TP-015).
-    const guard = g => g.guardian ? ` · with ${g.guardian === 1 ? esc(b.name) : esc(b.companions?.[g.guardian - 2]?.name || "joiner " + g.guardian)} (${{ parent: "parent", guardian: "legal guardian", permitted_adult: "adult with parents' permission" }[g.relation] || "guardian"})` : "";
+    const guard = g => g.guardian ? ` · with ${esc(guardOf(b, g))} (${{ parent: "parent", guardian: "legal guardian", permitted_adult: "adult with parents' permission" }[g.relation] || "guardian"})` : "";
     const items = (b.companions || []).map(c => `<li>${esc(c.name)}${c.age === "minor" ? ` <span class="minor">under 18</span><span class="meta">${guard(c)}</span>` : ""}${c.phone ? ` <span class="data meta">${esc(c.phone)}</span>` : ""}</li>`);
     if (b.booker?.age === "minor") items.unshift(`<li><span class="minor">booker under 18</span><span class="meta">${guard(b.booker)}</span></li>`);
-    const miss = missingOf(b);
-    if (miss) items.push(`<li class="meta">${miss === 1 ? "1 name" : `${miss} names`} still to come</li>`);
+    items.push(...restLines(b, date).map(t => `<li class="meta">${t[0].toUpperCase() + t.slice(1)}</li>`));
     return `<ul class="group">${items.join("")}</ul>`;
   }
 
@@ -767,14 +778,15 @@ async function start() {
     }
     if (t.id === "copy-list") {
       const s = state[selected];
-      // One line per hiker for registration at the jump-off, grouped by booking.
+      // One line per hiker for registration at the jump-off, grouped by booking (TP-017).
+      const gone = detailsGone(s.date);
       const text = `${s.trip.title} · ${nice(s.date)} · meetup ${s.trip.meet}\n` + s.bookings.map((b, i) => [
-        `${i + 1}. ${b.name} · ${b.phone} · ${b.pickup} · ${b.size} joiners${b.source ? ` · ${SOURCES[b.source]}` : ""} · ${receipts === null && TP.online ? "DP unavailable" : `DP recorded ${pesos(receivedOf(b,s))} · remaining ${pesos(balanceOf(b,s))}`}`,
-        ...(b.booker?.age === "minor" ? [`   (booker is under 18, with ${b.companions?.[b.booker.guardian - 2]?.name || "joiner " + b.booker.guardian})`] : []),
-        ...(b.companions || []).map(c => `   - ${c.name}${c.age === "minor" ? ` (under 18, with ${c.guardian === 1 ? b.name : b.companions?.[c.guardian - 2]?.name || "joiner " + c.guardian})` : ""}${c.phone ? ` · ${c.phone}` : ""}`),
-        ...Array.from({ length: missingOf(b) }, () => "   - (name to follow)"),
-        b.emergency ? `   Emergency: ${b.emergency.name}${b.emergency.relation ? ` (${b.emergency.relation})` : ""} · ${b.emergency.phone}` : "   Emergency: not added yet",
-      ].join("\n")).join("\n");
+        `${i + 1}. ${b.name}${b.booker?.age === "minor" ? ` (under 18, with ${guardOf(b, b.booker)})` : ""} · ${b.phone} · ${b.pickup} · ${b.size} ${b.size === 1 ? "joiner" : "joiners"}${b.source ? ` · ${SOURCES[b.source]}` : ""} · ${receipts === null && TP.online ? "DP unavailable" : `DP recorded ${pesos(receivedOf(b,s))} · remaining ${pesos(balanceOf(b,s))}`}`,
+        ...(b.companions || []).map(c => `   - ${c.name}${c.age === "minor" ? ` (under 18, with ${guardOf(b, c)})` : ""}${c.phone ? ` · ${c.phone}` : ""}`),
+        ...restLines(b, s.date).map(t => `   - (${t})`),
+        ...(b.source ? [] : [gone ? "   Emergency: deleted 30 days after the trip" : b.emergency ? `   Emergency: ${b.emergency.name}${b.emergency.relation ? ` (${b.emergency.relation})` : ""} · ${b.emergency.phone}` : "   Emergency: not added yet"]),
+      ].join("\n")).join("\n")
+        + "\n\nPrivate: joiners' contacts and emergency details. Share only with the trip's guides and registration, and delete your copy 30 days after the trip.";
       await copy(text, t, "Copy joiner list");
     }
   });
