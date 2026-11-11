@@ -1235,3 +1235,21 @@ end $$;
 revoke all on function public.lock_outside_booking, public.edit_outside_booking, public.cancel_outside_booking from public, anon;
 revoke all on function public.lock_outside_booking from authenticated;
 grant execute on function public.edit_outside_booking, public.cancel_outside_booking to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Organizer contact for booked joiners (TP-018, Nov 2026). A trip page shows the mobile number
+-- the organizer typed in Post a trip (details.contact). Trips posted before that field existed
+-- have none, so a joiner who has booked one sees the organizer's profile mobile in My trips.
+-- Only for trips the caller has a booking on; never the organizer's other details.
+-- ---------------------------------------------------------------------------
+create or replace function public.my_booking_contacts()
+returns table (trip_id text, org_name text, phone text)
+language sql stable security definer set search_path = public as $$
+  select distinct t.id, t.org_name, coalesce(nullif(t.details ->> 'contact', ''), p.phone)
+  from public.bookings b
+  join public.trips t on t.id = b.trip_id and t.organizer_id is not null
+  join public.profiles p on p.id = t.organizer_id
+  where b.user_id = auth.uid();
+$$;
+revoke all on function public.my_booking_contacts from public, anon;
+grant execute on function public.my_booking_contacts to authenticated;

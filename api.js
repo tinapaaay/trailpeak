@@ -275,6 +275,12 @@ TP.holdSettings = async () => {
   const { data } = await TP.db.from("app_settings").select("key, value");
   return Object.fromEntries((data || []).map(r => [r.key, Number(r.value)]));
 };
+// Organizer mobile numbers for trips the signed-in joiner has booked (TP-018).
+TP.bookingContacts = async () => {
+  const { data, error } = await TP.db.rpc("my_booking_contacts");
+  if (error) return {};
+  return Object.fromEntries((data || []).map(r => [r.trip_id, r.phone]));
+};
 TP.recordReceipt = async r => {
   const { data, error } = await TP.db.rpc("record_dp_receipt", {
     p_request: r.requestId, p_booking: r.bookingRef || null, p_outside: r.outsideId || null,
