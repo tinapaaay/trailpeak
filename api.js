@@ -323,6 +323,18 @@ TP.outsideChanges = async id => {
   if (error) throw tpErr(error);
   return data || [];
 };
+// Reconciliation and incident log (TP-020): oldest first. null when the schema isn't updated yet.
+TP.departureChecks = async () => {
+  const { data, error } = await TP.db.from("departure_checks").select("*").order("id");
+  if (error) { console.warn(error); return null; }
+  return data || [];
+};
+TP.logDepartureCheck = async c => {
+  const { data, error } = await TP.db.rpc("log_departure_check", { p_trip: c.tripId, p_date: c.date, p_kind: c.kind, p_checked_by: c.checkedBy,
+    p_note: c.note || null, p_trail: c.trail || null, p_source: c.source || null, p_outside_entered: c.outsideEntered ?? null });
+  if (error) throw tpErr(error);
+  return Array.isArray(data) ? data[0] : data;
+};
 TP.setDateStatus = async (tripId, date, status) => {
   const { error } = await TP.db.from("departures").update({ status }).eq("trip_id", tripId).eq("date", date);
   if (error) throw tpErr(error);

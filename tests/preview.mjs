@@ -48,10 +48,10 @@ const server=http.createServer(async(req,res)=>{try{
   const task=async()=>{await db.exec('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[q.user]);try{
    let result;
    if(q.name){
-    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired','edit_outside_booking','cancel_outside_booking','my_booking_contacts','organizer_overdue','release_overdue_booking'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
+    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired','edit_outside_booking','cancel_outside_booking','my_booking_contacts','organizer_overdue','release_overdue_booking','log_departure_check'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
     const args=Object.entries(q.args||{});result=await db.query(`select * from ${q.name}(${args.map(([k],i)=>k+'=> $'+(i+1)).join(',')})`,args.map(([,v])=>v));
    }else{
-    if(!['profiles','trips','departures','bookings','reviews','outside_bookings','dp_receipts','organizer_activity','app_settings','outside_booking_changes'].includes(q.table))throw Error('Unexpected table');
+    if(!['profiles','trips','departures','bookings','reviews','outside_bookings','dp_receipts','organizer_activity','app_settings','outside_booking_changes','departure_checks'].includes(q.table))throw Error('Unexpected table');
     const filters=q.filters||[];for(const[k]of filters)if(!['id','user_id','status','outside_id'].includes(k))throw Error('Unexpected filter');
     const order=q.order;if(order&&!['revision','created_at','date','id'].includes(order))throw Error('Unexpected order');
     result=await db.query('select * from '+q.table+(filters.length?' where '+filters.map(([k],i)=>k+'=$'+(i+1)).join(' and '):'')+(order?' order by '+order+(q.desc?' desc':''):' '),filters.map(([,v])=>v));
