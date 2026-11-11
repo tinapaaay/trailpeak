@@ -101,6 +101,11 @@
 .fs.invalid .input:invalid, .input[aria-invalid="true"] { border-color: var(--color-error); }
 
 /* Preview column */
+/* Duplicate-trip note and empty preview (TP-054) */
+.dup-note:empty { display: none; }
+.dup-note { display: grid; gap: var(--space-xs); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: var(--space-md); }
+.dup-note a { color: var(--color-primary); font-weight: 700; }
+.preview-empty { display: grid; justify-items: center; gap: var(--space-sm); padding: var(--space-xl) var(--space-lg); text-align: center; color: var(--color-secondary); }
 .preview { position: sticky; top: 88px; display: grid; gap: var(--space-md); }
 .preview > .label-caps { color: var(--color-secondary); }
 .done .field-label { margin-bottom: calc(var(--space-sm) - var(--space-md)); }
@@ -177,13 +182,15 @@
         <div class="grid2">
           <div class="field2">
             <label class="field-label" for="mountain">Mountain</label>
-            <select class="input" id="mountain"></select>
+            <select class="input" id="mountain" aria-describedby="dup-note"></select>
           </div>
           <div class="field2">
             <label class="field-label" for="hours">Hike time</label>
             <input class="input" id="hours" value="5–6 hrs" placeholder="e.g. 5–6 hrs">
           </div>
         </div>
+        <p class="error" id="f-mountain-e"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span>Choose the mountain for this trip.</span></p>
+        <div class="dup-note" id="dup-note" aria-live="polite"></div>
         <div class="facts-strip" id="facts" aria-live="polite"></div>
         <div class="field2">
           <span class="field-label">Trip type</span>
@@ -363,7 +370,8 @@ const tick = '<svg width="16" height="16" aria-hidden="true"><use href="#i-tick"
 const xBtn = label => `<button type="button" class="remove" aria-label="Remove ${label}"><svg width="18" height="18" aria-hidden="true"><use href="#i-x"/></svg></button>`;
 
 // Mountain list
-$("mountain").innerHTML = mountains.map((m, i) => `<option value="${i}">${m.name}</option>`).join("");
+// No default mountain (TP-054): every quick test used to create another Mt. Batulao.
+$("mountain").innerHTML = `<option value="">Choose a mountain</option>` + mountains.map((m, i) => `<option value="${i}">${m.name}</option>`).join("");
 
 // Chips
 function drawChips(key) {
@@ -419,8 +427,12 @@ document.querySelectorAll('input[name="policy"]').forEach(r => r.addEventListene
 
 // Read the form into a trip
 const to12 = t => { if (!t) return ""; let [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return `${h}:${String(m).padStart(2, "0")} ${ap}`; };
+// Until a mountain is chosen the trip has no mountain facts; the preview shows a placeholder.
+const NO_MOUNTAIN = { name: "", place: "", masl: 0, score: 1, photo: null };
+// Editing a trip whose mountain isn't on the list: keep its own mountain rather than none.
+const chosenMountain = () => mountains[$("mountain").value] || (ownTrip ? { name: E.title, place: E.place, masl: E.masl, score: E.score, photo: E.photo } : NO_MOUNTAIN);
 function readTrip() {
-  const m = mountains[$("mountain").value];
+  const m = chosenMountain();
   const type = document.querySelector('input[name="type"]:checked').value;
   const group = Number($("group").value) || 0;
   // Editing: dates aren't in the form (they change on the dashboard), so use the trip's upcoming ones.
@@ -437,8 +449,24 @@ function readTrip() {
   };
 }
 
+// Duplicate check (TP-054): this organizer's own active trips on the same mountain.
+const myTrips = () => TRIPS.filter(t => t.status !== "archived" && (TP.online ? t.organizerId === me?.id : t.org === ORG));
+function renderDuplicate(m) {
+  const same = ownTrip || !m ? [] : myTrips().filter(t => t.title === m.name);
+  $("dup-note").innerHTML = same.length ? `<p><strong>You already have ${escapeHtml(m.name)}${same.length > 1 ? ` (${same.length} trips)` : ""}.</strong> Add dates to it instead?
+    ${same.map(t => { const next = Object.keys(t.departures).filter(d => !isPastDate(d)).sort()[0];
+      return `<a href="dashboard.html#add-${encodeURIComponent(t.id)}">Add a date to ${escapeHtml(t.title)}${next ? ` (next: ${niceDate(next)})` : ""}${t.status === "draft" ? " (draft)" : ""}</a>`; }).join(" · ")}</p>
+    <p class="hint">Posting a separate trip is fine if it's different on purpose, like another route or price.</p>` : "";
+}
 function update() {
-  const t = readTrip(), m = mountains[$("mountain").value];
+  const t = readTrip(), m = mountains[$("mountain").value] || (ownTrip ? chosenMountain() : null);
+  renderDuplicate(mountains[$("mountain").value]);
+  if (m && $("f-mountain").classList.contains("invalid")) { check("f-mountain", true); $("mountain").removeAttribute("aria-invalid"); }
+  if (!m) {
+    $("facts").innerHTML = `<span class="src">Choose a mountain to fill in its height and difficulty.</span>`;
+    $("preview").innerHTML = `<div class="card preview-empty"><svg width="40" height="40" aria-hidden="true"><use href="#i-mountain"/></svg><p>Choose a mountain to see how your trip card will look.</p></div>`;
+    return;
+  }
   $("facts").innerHTML = `<span class="data">${m.masl.toLocaleString()} MASL</span><span class="data">${m.score}/9 · ${levels[t.level].label}</span><span>${m.place}</span><span class="src">From TrailPeak's mountain list</span>`;
   const bal = t.fee - t.dp;
   $("money-summary").innerHTML = t.fee > 0 && t.dp > 0 && bal >= 0
@@ -504,6 +532,8 @@ document.getElementById("form").addEventListener("submit", e => {
   }
   const t = readTrip();
   const results = [
+    check("f-mountain", ownTrip || !!mountains[$("mountain").value]),
+    void $("mountain").setAttribute("aria-invalid", !ownTrip && !mountains[$("mountain").value]) || true,
     void [...$("dates").querySelectorAll('input[type="number"]')].forEach(i => i.setAttribute("aria-invalid", Number(i.value) < 1 || Number(i.value) > t.group)) || true,
     check("f-dates", ownTrip || (t.departures.some(([d, s]) => d && s > 0) && t.departures.every(([d, s]) => !d || (s > 0 && s <= t.group && !isPastDate(d))))),
     check("f-pickups", t.pickupTimes.some(([p, tm]) => p && tm)),
@@ -587,7 +617,7 @@ function saveEdit(t) {
 }
 
 function toPublishedTrip(t) {
-  const m = mountains[$("mountain").value];
+  const m = chosenMountain();
   const id = t.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Math.random().toString(36).slice(2, 6);
   return {
     id, title: t.title, place: t.place, province: t.place.split(", ").pop(),
