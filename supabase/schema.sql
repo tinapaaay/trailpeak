@@ -965,7 +965,7 @@ create table if not exists public.organizer_activity (
 );
 alter table public.organizer_activity drop constraint if exists organizer_activity_kind_check;
 alter table public.organizer_activity add constraint organizer_activity_kind_check
-  check (kind in ('booked', 'cancelled', 'moved', 'dp_sent', 'reminder', 'expired', 'rebooked'));
+  check (kind in ('booked', 'cancelled', 'moved', 'dp_sent', 'reminder', 'expired', 'rebooked', 'details_overdue', 'released'));
 create index if not exists organizer_activity_feed on public.organizer_activity (organizer_id, created_at desc);
 alter table public.organizer_activity enable row level security;
 drop policy if exists "Organizers read their own activity" on public.organizer_activity;
@@ -1002,6 +1002,17 @@ begin
       who || case when old.dp_reference is null then ' sent the ₱' else ' changed the reference for the ₱' end
       || to_char(new.dp, 'FM999,999') || ' DP for ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD')
       || ' (ref ' || new.dp_reference || '). Check your wallet and record it.');
+  elsif new.details_alerted_at is not null and old.details_alerted_at is null then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'details_overdue',
+      who || '''s booking on ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD') || ' is missing '
+      || public.missing_details_text(public.booking_details_missing(new.companions, new.size, new.emergency, new.booker))
+      || '. Details were due ' || to_char(public.details_due_date(new.date), 'Dy, Mon FMDD') || ': contact them, or release the slots under your policy.');
+  elsif new.released_at is not null and old.released_at is null then
+    insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
+    values (org, new.trip_id, new.date, new.ref, 'released',
+      'You released ' || case when new.status = 'cancelled' then 'all of ' || who || '''s booking' else 'the unnamed slots in ' || who || '''s booking' end
+      || ' on ' || title || ', ' || to_char(new.date, 'Dy, Mon FMDD') || '.');
   elsif new.dp_reminded_at is not null and old.dp_reminded_at is null then
     insert into public.organizer_activity (organizer_id, trip_id, date, booking_ref, kind, summary)
     values (org, new.trip_id, new.date, new.ref, 'reminder',
@@ -1128,6 +1139,7 @@ begin
    where b.status = 'confirmed' and b.dp_sent_at is not null and b.dp_reminded_at is null
      and b.dp_sent_at <= now() - public.app_setting('dp_reminder_hours')::float8 * interval '1 hour'
      and not exists (select 1 from public.dp_receipts r where r.booking_ref = b.ref);
+  perform public.flag_overdue_details();
   return n;
 end $$;
 
@@ -1346,3 +1358,119 @@ returns boolean language sql stable security definer set search_path = public as
   select coalesce(p_today, public.ph_today()) >= public.details_due_date(p_trip_date);
 $$;
 grant execute on function public.ph_date, public.details_due_date, public.details_required to anon, authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- Overdue joiner details (TP-016, ADR-008). From the due date (ADR-006), a booking that still
+-- misses a joiner's name, the emergency contact or a guardian for an under-18 is "overdue".
+-- The organizer gets one Activity alert per booking (no texts); the booker sees exactly what's
+-- missing in My trips. Nothing is released automatically: the organizer may release the
+-- unnamed slots (keeping the named joiners) or the whole booking, with a reason. Recorded DPs
+-- are never touched: any refund follows the trip's policy, outside TrailPeak.
+-- ---------------------------------------------------------------------------
+alter table public.bookings add column if not exists details_alerted_at timestamptz;
+alter table public.bookings add column if not exists released_at timestamptz;
+alter table public.bookings add column if not exists release_reason text;
+alter table public.bookings add column if not exists size_released int;   -- slots let go in a partial release
+
+-- What's still missing, as a list the pages and alerts can name:
+-- [{"item":"names","count":2}, {"item":"emergency"}, {"item":"guardian"}].
+create or replace function public.booking_details_missing(p_companions jsonb, p_size int, p_emergency jsonb, p_booker jsonb)
+returns jsonb language plpgsql immutable as $$
+declare out jsonb := '[]'::jsonb; n int := p_size - 1 - coalesce(jsonb_array_length(p_companions), 0);
+begin
+  if n > 0 then out := out || jsonb_build_array(jsonb_build_object('item', 'names', 'count', n)); end if;
+  if p_emergency is null or coalesce(trim(p_emergency ->> 'name'), '') = '' or coalesce(trim(p_emergency ->> 'phone'), '') = '' then
+    out := out || '[{"item":"emergency"}]'::jsonb;
+  end if;
+  begin
+    perform public.check_guardians(p_booker, coalesce(p_companions, '[]'::jsonb));
+  exception when others then out := out || '[{"item":"guardian"}]'::jsonb;
+  end;
+  return out;
+end $$;
+
+create or replace function public.missing_details_text(p_missing jsonb)
+returns text language sql immutable as $$
+  select coalesce(string_agg(case m ->> 'item'
+      when 'names' then (m ->> 'count') || case when (m ->> 'count')::int = 1 then ' joiner''s name' else ' joiners'' names' end
+      when 'emergency' then 'the emergency contact'
+      when 'guardian' then 'a guardian for someone under 18' end, ', '), 'nothing')
+  from jsonb_array_elements(p_missing) m;
+$$;
+
+-- Alert organizers once per overdue booking. Runs inside expire_holds() (every 5 minutes).
+create or replace function public.flag_overdue_details()
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  update public.bookings b set details_alerted_at = now()
+   where b.details_alerted_at is null and b.date >= public.ph_today()
+     and public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at)
+     and exists (select 1 from public.trips t where t.id = b.trip_id and t.organizer_id is not null)
+     and public.details_required(b.date)
+     and jsonb_array_length(public.booking_details_missing(b.companions, b.size, b.emergency, b.booker)) > 0;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- Organizer: release an overdue booking's slots. p_whole = false releases only the unnamed
+-- slots (the booking shrinks to the booker plus the named joiners; only when the emergency
+-- contact and guardians are in place); p_whole = true cancels the whole booking. Needs a reason.
+-- Releasing again is refused. DP receipts are untouched.
+create or replace function public.release_overdue_booking(p_ref text, p_reason text, p_whole boolean)
+returns public.bookings language plpgsql security definer set search_path = public as $$
+declare b public.bookings; missing jsonb; why text := trim(coalesce(p_reason, '')); keep int; per_dp int; per_bal int;
+begin
+  select * into b from public.bookings where ref = p_ref;
+  if not found or not public.is_organizer()
+     or not exists (select 1 from public.trips where id = b.trip_id and organizer_id = auth.uid()) then
+    raise exception 'Only this trip''s organizer can release these slots.';
+  end if;
+  perform 1 from public.departures where trip_id = b.trip_id and date = b.date for update;   -- same lock order as bookings
+  select * into b from public.bookings where ref = p_ref for update;
+  if b.status <> 'confirmed' then raise exception 'This booking is no longer active.'; end if;
+  if b.date < public.ph_today() then raise exception 'This trip date has passed.'; end if;
+  if not public.details_required(b.date) then
+    raise exception 'Details aren''t due yet (due %). You can release slots only after that.', to_char(public.details_due_date(b.date), 'Dy, Mon FMDD');
+  end if;
+  missing := public.booking_details_missing(b.companions, b.size, b.emergency, b.booker);
+  if jsonb_array_length(missing) = 0 then raise exception 'This booking''s details are complete, so its slots can''t be released this way.'; end if;
+  if why = '' or char_length(why) > 300 then raise exception 'Add a short reason (up to 300 characters).'; end if;
+  if coalesce(p_whole, false) then
+    update public.bookings set status = 'cancelled', released_at = now(), release_reason = why, size_released = size,
+           note = 'Released by the organizer: joiner details weren''t complete by ' || to_char(public.details_due_date(date), 'Dy, Mon FMDD')
+                  || '. Reason: ' || why || '. Any DP refund follows the trip''s policy.'
+     where ref = p_ref returning * into b;
+  else
+    if missing @> '[{"item":"emergency"}]'::jsonb or missing @> '[{"item":"guardian"}]'::jsonb then
+      raise exception 'The emergency contact or a guardian is missing, so only the whole booking can be released.';
+    end if;
+    keep := 1 + jsonb_array_length(b.companions);
+    per_dp := b.dp / b.size; per_bal := b.balance / b.size;
+    update public.bookings set released_at = now(), release_reason = why, size_released = size - keep,
+           size = keep, dp = per_dp * keep, balance = per_bal * keep,
+           note = 'The organizer released ' || (size - keep) || ' unnamed ' || case when size - keep = 1 then 'slot' else 'slots' end
+                  || ': names weren''t in by ' || to_char(public.details_due_date(date), 'Dy, Mon FMDD') || '. Reason: ' || why
+                  || '. Any DP refund follows the trip''s policy.'
+     where ref = p_ref returning * into b;
+  end if;
+  return b;
+end $$;
+
+-- Organizer: what's missing on each booking of theirs that's past its details due date.
+create or replace function public.organizer_overdue()
+returns table (ref text, details_missing jsonb, due date)
+language sql stable security definer set search_path = public as $$
+  select b.ref, public.booking_details_missing(b.companions, b.size, b.emergency, b.booker), public.details_due_date(b.date)
+  from public.bookings b join public.trips t on t.id = b.trip_id and t.organizer_id = auth.uid()
+  where b.date >= public.ph_today() and public.details_required(b.date)
+    and public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at)
+    and jsonb_array_length(public.booking_details_missing(b.companions, b.size, b.emergency, b.booker)) > 0;
+$$;
+
+revoke all on function public.flag_overdue_details, public.release_overdue_booking, public.organizer_overdue from public, anon;
+grant execute on function public.organizer_overdue to authenticated;
+revoke all on function public.flag_overdue_details from authenticated;
+grant execute on function public.release_overdue_booking to authenticated;
+grant execute on function public.booking_details_missing, public.missing_details_text to anon, authenticated;

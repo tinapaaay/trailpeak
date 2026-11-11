@@ -205,9 +205,9 @@ function card(b) {
   const detailsLine = !cancelled && !isPast
     ? (missing
       ? (detailsRequired(b.date)
-        ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>${missing === 1 ? "1 joiner's details were" : `${missing} joiners' details were`} due ${nice(dueDate(b.date))}.</strong> Add them now: the organizer needs every name to register your group.</span></p>`
+        ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Details were due ${nice(dueDate(b.date))}. Still missing: ${missingText(missingDetails(b))}.</strong> Add them now: the organizer needs them to register your group, and may release slots that stay incomplete.</span></p>`
         : `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Add ${missing === 1 ? "1 joiner's" : `${missing} joiners'`} details before ${nice(dueDate(b.date))}.</strong> The organizer needs every name to register your group.</span></p>`)
-      : (!b.emergency ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Add an emergency contact.</strong> Someone who isn't on this hike.</span></p>` : ""))
+      : (TP.online && detailsRequired(b.date) && missingDetails(b).length ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Details were due ${nice(dueDate(b.date))}. Still missing: ${missingText(missingDetails(b))}.</strong> Add them now.</span></p>` : !b.emergency ? `<p class="due"><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span><strong>Add an emergency contact.</strong> Someone who isn't on this hike.</span></p>` : ""))
     : "";
   if (open[b.ref] === "details") {
     panel = `<form class="inline" data-details-form="${b.ref}" novalidate>

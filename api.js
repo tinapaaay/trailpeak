@@ -267,6 +267,18 @@ TP.sendDpReference = async (ref, reference) => {
   await TP.sync({ reload: false });
 };
 // Organizer: a joiner paid after the hold expired; rebook if the date still has room.
+// Overdue joiner details (TP-016): what's missing per booking, and the organizer's release.
+TP.organizerOverdue = async () => {
+  const { data, error } = await TP.db.rpc("organizer_overdue");
+  if (error) return {};
+  return Object.fromEntries((data || []).map(r => [r.ref, { missing: r.details_missing, due: r.due }]));
+};
+TP.releaseOverdue = async (ref, reason, whole) => {
+  const { data, error } = await TP.db.rpc("release_overdue_booking", { p_ref: ref, p_reason: reason, p_whole: !!whole });
+  if (error) throw tpErr(error);
+  await TP.sync({ reload: false });
+  return Array.isArray(data) ? data[0] : data;
+};
 TP.rebookExpired = async ref => {
   const { data, error } = await TP.db.rpc("rebook_expired", { p_ref: ref });
   if (error) throw tpErr(error);
