@@ -4,8 +4,12 @@ One short file per technical decision: the context, the options, why one won, an
 
 | ADR | Decision | Status |
 | --- | --- | --- |
+| [001](001-static-site-supabase.md) | Static site on GitHub Pages with a light Supabase backend | Accepted |
 | [002](002-dp-hold-expiry.md) | Release unpaid DP holds by computing them at read time, with pg_cron for labels | Accepted |
+| [003](003-manual-organizer-approval.md) | Approve pilot organizers by hand in the SQL editor | Accepted for the pilot |
 
-Planned: 001 static site on GitHub Pages + Supabase · 003 manual organizer approval in the SQL editor · 004 payment gateway (TP-026) · 005 map provider (parked).
+Planned: 004 payment gateway (TP-026) · 005 booking, payment and refund states (TP-027) · map provider (parked).
+
+**When to write one:** a PR that chooses between real options, changes the database structure in a lasting way, picks a provider, or sets a rule other code must follow. Not for ordinary features, copy, design tweaks or bug fixes.
 
 Template: Status · Date · Deciders → Context → Decision → Options considered (complexity, cost, scale, familiarity; pros, cons) → Trade-off analysis → Consequences → Action items.
