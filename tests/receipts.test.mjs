@@ -58,7 +58,7 @@ await test('receipt writes never affect occupied seats',async()=>assert.deepEqua
 await test('new outside booking snapshots fee',async()=>as(org,async()=>{const o=(await db.query("select * from add_outside_booking($1,'test','2099-01-01','New',1,'Cubao','2 AM','other',null)",[uuid()])).rows[0];assert.equal(o.expected_dp,500);assert.equal(o.total_fee,1499);}));
 await test('price edit does not rewrite existing expected DP',async()=>{await db.exec(`update trips set details=details || '{"dp":600,"fee":1800}' where id='test'`);assert.equal((await one('select expected_dp from outside_bookings where id=$1',[outside])).expected_dp,1000);});
 await test('new online reservation creates no receipt, even with legacy wallet fields',async()=>as(joiner,async()=>{
- const b=(await db.query("select * from book_trip('test','2099-01-01',1,'Cubao','2 AM','GCash','synthetic','',false,'[]','{\"name\":\"Emergency Tester\",\"phone\":\"synthetic\"}')")).rows[0];
+ const b=(await db.query("select * from book_trip('test','2099-01-01',1,'Cubao','2 AM','GCash','synthetic','',false,'[]','{\"name\":\"Emergency Tester\",\"phone\":\"0917 000 0000\"}')")).rows[0];
  assert.equal(b.dp,600);assert.equal((await one('select count(*)::int n from dp_receipts where booking_ref=$1',[b.ref])).n,0);
 }));
 await db.exec(`insert into trips(id,org_name,details) values ('demo','Sample Organizer','{"fee":1499,"dp":500}');
@@ -66,7 +66,7 @@ await db.exec(`insert into trips(id,org_name,details) values ('demo','Sample Org
  insert into bookings(ref,trip_id,date,user_id,size,pickup,pickup_time,dp,balance,wallet,wallet_number)
  values ('TP-DEMO','demo','2099-02-01','${joiner}',1,'Sample','2 AM',500,999,'GCash','synthetic');`);
 const pilotSeats=await one("select seats_taken('test','2099-01-01') taken");
-await test('direct demo-trip booking RPC is denied',()=>as(joiner,()=>assert.rejects(db.query("select * from book_trip('demo','2099-02-01',1,'Sample','2 AM','GCash','synthetic','',false,'[]','{\"name\":\"Emergency Tester\",\"phone\":\"synthetic\"}')"))));
+await test('direct demo-trip booking RPC is denied',()=>as(joiner,()=>assert.rejects(db.query("select * from book_trip('demo','2099-02-01',1,'Sample','2 AM','GCash','synthetic','',false,'[]','{\"name\":\"Emergency Tester\",\"phone\":\"0917 000 0000\"}')"))));
 await test('legacy demo booking cannot be moved via RPC',()=>as(joiner,()=>assert.rejects(db.query("select * from move_booking('TP-DEMO','2099-02-08')"))));
 await test('organizer cannot record receipt on sample trip',()=>as(org,()=>assert.rejects(call({booking:'TP-DEMO',amount:500}))));
 await test('outside booking cannot target sample trip',()=>as(org,()=>assert.rejects(db.query("select * from add_outside_booking($1,'demo','2099-02-01','Sample',1,'Sample','2 AM','other',null)",[uuid()]))));

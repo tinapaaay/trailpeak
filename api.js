@@ -49,9 +49,9 @@ function tpBooking(b, receipts = null, mode = "pilot") {
     listed: b.listed, displayName: b.display_name, status: b.status, moved: b.moved, note: b.note, bookedAt: b.created_at,
     companions: b.companions || [], emergency: b.emergency || null };
 }
-function tpUser(p, email) {
+function tpUser(p, email, unread = 0) {
   return { id: p.id, name: p.name, phone: p.phone || "", email: email || "", role: p.role, org: p.org || "",
-    idVerified: p.id_verified, business: p.business, payout: p.payout, organizerStatus: p.organizer_status || "none", method: "email" };
+    idVerified: p.id_verified, business: p.business, payout: p.payout, organizerStatus: p.organizer_status || "none", method: "email", unread };
 }
 
 // ---- Sync -----------------------------------------------------------------------------
@@ -73,7 +73,14 @@ TP.sync = async function ({ reload = true } = {}) {
   const { data: { session } } = await TP.db.auth.getSession();
   if (session) {
     const { data: profile } = await TP.db.from("profiles").select("*").eq("id", session.user.id).single();
-    if (profile) setUser(tpUser(profile, session.user.email));
+    // Organizers: how many activity items (new bookings, cancellations, moves) are unread,
+    // for the count on the header's Dashboard button.
+    let unread = 0;
+    if (profile?.role === "organizer") {
+      const { count } = await TP.db.from("organizer_activity").select("id", { count: "exact", head: true }).is("read_at", null);
+      unread = count || 0;
+    }
+    if (profile) setUser(tpUser(profile, session.user.email, unread));
     if (profile && !profile.name && !/signin\.html$/.test(location.pathname)) {
       rememberNext((location.pathname.split("/").pop() || "index.html") + location.hash);
       location.replace("signin.html"); return;
@@ -237,11 +244,21 @@ TP.receiptHistory = async () => {
   if (error) throw new Error("Receipt history is unavailable. Apply the latest database schema, then refresh.");
   return data || [];
 };
+// Organizer activity feed: newest first, and "mark as read" (all, or the ids given).
+TP.activity = async () => {
+  const { data, error } = await TP.db.from("organizer_activity").select("*").order("created_at", { ascending: false }).limit(30);
+  if (error) throw tpErr(error);
+  return data || [];
+};
+TP.markActivityRead = async (ids = null) => {
+  const { error } = await TP.db.rpc("mark_activity_read", { p_ids: ids });
+  if (error) throw tpErr(error);
+};
 TP.recordReceipt = async r => {
   const { data, error } = await TP.db.rpc("record_dp_receipt", {
     p_request: r.requestId, p_booking: r.bookingRef || null, p_outside: r.outsideId || null,
     p_previous: r.previousId || null, p_amount: r.amount, p_method: r.amount ? r.method : null,
-    p_received: r.amount ? r.receivedAt : null, p_reason: r.reason });
+    p_received: r.amount ? r.receivedAt : null, p_reason: r.reason, p_reference: r.amount ? (r.reference || null) : null });
   if (error) throw tpErr(error);
   return data;
 };

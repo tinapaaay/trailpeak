@@ -98,6 +98,17 @@ To see them in the SQL editor:
 select trip_id, date, name, size, pickup, source, created_at from outside_bookings order by date, created_at;
 ```
 
+## Activity, references and mobile checks (November 2026)
+
+- **Activity:** when a joiner books, cancels or moves a date on an organizer's trip, the database adds a line to that organizer's activity (dashboard, top). The header's **Dashboard** button shows how many are unread. It's in-app only: nothing is emailed or texted yet. Old bookings from before this update don't create activity.
+- **Transaction reference:** Record DP has an optional reference number field. Both the organizer and the joiner see it.
+- **Mobile numbers:** the database now refuses mobile numbers that aren't a Philippine mobile (10 digits starting with 9), for outside bookings, joiner names and emergency contacts. Numbers saved before this update aren't changed; to find outside bookings with a bad number:
+
+```sql
+select trip_id, date, name, phone from outside_bookings
+where phone is not null and regexp_replace(phone, '\D', '', 'g') !~ '^(63|0)?9[0-9]{9}$';
+```
+
 ## What's real and what's still simulated
 
 | Real now | Still simulated |

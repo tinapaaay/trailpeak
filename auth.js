@@ -56,6 +56,14 @@ function renderAccount() {
     });
     return;
   }
+  // Organizers get a Dashboard button in the header on every page, with the number of
+  // unread activity items (new bookings, cancellations, date moves).
+  if (user.role === "organizer") {
+    const here = /dashboard\.html$/.test(location.pathname);
+    const n = Number(user.unread) || 0;
+    slot.parentElement.classList.add("is-organizer");
+    slot.insertAdjacentHTML("beforebegin", `<a class="btn btn-secondary label-caps dash-link" href="dashboard.html"${here ? ' aria-current="page"' : ""}>Dashboard${n ? `<span class="count" aria-hidden="true">${n > 99 ? "99+" : n}</span><span class="sr">, ${n} new</span>` : ""}</a>`);
+  }
   const role = user.role === "organizer"
     ? `Organizer · ${escapeHtml(user.org || "")}${user.idVerified ? ` · ID verified (${DEMO_CHECK})` : ""}`
     : user.organizerStatus === "pending" ? "Joiner · organizer application in review" : "Joiner";
@@ -153,8 +161,13 @@ function joinersFor(trip, date) {
 // Used by reserve.html and mytrips.html. The booker is joiner 1; companions are joiners 2+.
 // companions: [{ name, age: "adult" | "minor", phone }]; emergency: { name, relation, phone }.
 const jdDigits = v => String(v || "").replace(/\D/g, "");
-const jdPhone = v => { const d = jdDigits(v).replace(/^63/, ""); return `+63 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`; };
-const jdLocal = v => jdDigits(v).replace(/^63/, "").slice(0, 10);
+const jdPhone = v => { const d = jdLocal(v); return `+63 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`; };
+// The 10 local digits of a PH mobile number. Never cuts digits off: a number that's too long
+// must fail the check, not be shortened into a valid-looking one.
+const jdLocal = v => { const d = jdDigits(v); return d.length === 12 && d.startsWith("63") ? d.slice(2) : d.length === 11 && d.startsWith("0") ? d.slice(1) : d; };
+// "+63 917 123 4567" for a valid PH mobile number, or null. Same rule as ph_mobile() in schema.sql.
+const phMobile = v => { const d = jdLocal(v); return /^9\d{9}$/.test(d) ? jdPhone(d) : null; };
+const PH_MOBILE_HINT = "must be a Philippine mobile number: 10 digits starting with 9, like 0917 123 4567.";
 function missingJoiners(b) { return b.status === "confirmed" ? Math.max(0, b.size - 1 - (b.companions || []).length) : 0; }
 
 // p: id prefix (several forms can be on one page); size: joiners in the booking.

@@ -27,7 +27,7 @@ const testJoiner=new URLSearchParams(location.search).get('testRole')==='joiner'
 const testId=testJoiner?'${joiner}':'${org}';
 if(JSON.parse(localStorage.getItem('trailpeak.user')||'null')?.id!==testId)localStorage.setItem('trailpeak.user',JSON.stringify({id:testId,name:testJoiner?'Test Joiner':'Test Organizer',role:testJoiner?'joiner':'organizer',org:'Local Trail Test'}));
 async function request(payload){return (await fetch('/test-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,user:testId})})).json();}
-window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{user:{id:testId,email:'synthetic@example.test'}}}})},rpc:async(name,args)=>request({name,args}),from:(table)=>{const q={table,filters:[]};const b={select:()=>b,eq:(key,value)=>{q.filters.push([key,value]);return b},order:(key,opt)=>{q.order=key;q.desc=opt?.ascending===false;return b},single:()=>{q.single=true;return b},then:(yes,no)=>request(q).then(yes,no)};return b}})};`;
+window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{user:{id:testId,email:'synthetic@example.test'}}}})},rpc:async(name,args)=>request({name,args}),from:(table)=>{const q={table,filters:[]};const b={select:()=>b,eq:(key,value)=>{q.filters.push([key,value]);return b},order:(key,opt)=>{q.order=key;q.desc=opt?.ascending===false;return b},is:()=>b,limit:()=>b,single:()=>{q.single=true;return b},then:(yes,no)=>request(q).then(yes,no)};return b}})};`;
 let queue=Promise.resolve();
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost');
@@ -37,10 +37,10 @@ const server=http.createServer(async(req,res)=>{try{
   const task=async()=>{await db.exec('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[q.user]);try{
    let result;
    if(q.name){
-    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
+    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
     const args=Object.entries(q.args||{});result=await db.query(`select * from ${q.name}(${args.map(([k],i)=>k+'=> $'+(i+1)).join(',')})`,args.map(([,v])=>v));
    }else{
-    if(!['profiles','trips','departures','bookings','reviews','outside_bookings','dp_receipts'].includes(q.table))throw Error('Unexpected table');
+    if(!['profiles','trips','departures','bookings','reviews','outside_bookings','dp_receipts','organizer_activity'].includes(q.table))throw Error('Unexpected table');
     const filters=q.filters||[];for(const[k]of filters)if(!['id','user_id','status'].includes(k))throw Error('Unexpected filter');
     const order=q.order;if(order&&!['revision','created_at','date'].includes(order))throw Error('Unexpected order');
     result=await db.query('select * from '+q.table+(filters.length?' where '+filters.map(([k],i)=>k+'=$'+(i+1)).join(' and '):'')+(order?' order by '+order+(q.desc?' desc':''):' '),filters.map(([,v])=>v));

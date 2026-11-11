@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'api.js'
+      - 'auth.js'
       - 'demo.html'
       - 'trip.html'
       - 'cards.js'
