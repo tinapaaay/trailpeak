@@ -4,7 +4,14 @@ Find joiner hikes and group climbs across the Philippines (Batulao, Mariglem, Pu
 
 **Live prototype:** https://tinapaaay.github.io/trailpeak/
 
-> This is a prototype. Accounts (email code), trips and bookings are real and stored in Supabase; joiners pay organizers directly and organizers record DP receipt. TrailPeak does not move money or verify wallet transfers. ID checks and text messages are still simulated.
+> **Status: pilot-ready prototype (Nov 2026).** Accounts, trips, slots and bookings are real and stored in Supabase. Joiners pay the DP directly to the organizer, who records it; TrailPeak doesn't move money yet. ID checks and text messages are simulated and labeled "Demo". Next: an assisted pilot with 3–5 organizers.
+
+<p align="center">
+  <img src="docs/images/home.jpg" alt="TrailPeak home page: search by place, date, joiners and pick-up, with trip cards showing difficulty, slots left, meetup and event fee" width="100%">
+</p>
+<p align="center">
+  <img src="docs/images/trip.jpg" alt="Mt. Batulao trip page: photos, stats ribbon with 811 MASL and 4/9 difficulty, and the booking panel" width="100%">
+</p>
 
 ## Why
 
