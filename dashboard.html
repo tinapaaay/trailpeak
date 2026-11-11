@@ -761,6 +761,9 @@ async function start() {
   }
   const renderAll = () => { renderActivity(); renderTiles(); renderTrips(); renderJoiners(); renderPayouts(); };
   renderAll();
+  // From Post a trip's duplicate note (TP-054): dashboard.html#add-<trip id> opens on that trip's New date.
+  const addTo = decodeURIComponent((location.hash.match(/^#add-(.+)$/) || [])[1] || "");
+  if (addTo && $("nd-" + addTo)) { $("nd-" + addTo).scrollIntoView({ block: "center" }); $("nd-" + addTo).focus({ preventScroll: true }); }
   // While the dashboard is open, check for new activity every minute. New bookings change
   // slots and the joiner list too, so the banner offers a refresh instead of redrawing them.
   if (TP.online && activity !== null) setInterval(async () => {
