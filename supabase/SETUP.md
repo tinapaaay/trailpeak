@@ -1,6 +1,6 @@
 # Setting up the TrailPeak backend (Supabase)
 
-This adds real accounts and shared trips and bookings. **Payments and ID checks stay simulated.** It takes about 10 minutes and uses Supabase's free plan.
+This adds real accounts and shared trips and bookings. **Payments stay simulated, and you approve organizers by hand** (see [Approve an organizer](#approve-an-organizer)). It takes about 10 minutes and uses Supabase's free plan.
 
 ## 1. Create the project
 
@@ -73,7 +73,7 @@ Google's screen will say "continue to fjssjgefufwuadrltvjf.supabase.co". Showing
 
 ## After an update
 
-When `schema.sql` changes (for example, the November 2026 updates added reviews, Manila-time date rules, and joiner names with an emergency contact), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Run it right after pulling the update: the website and the database functions change together, so until you do, new features (and after the joiner-details update, new bookings) won't work.
+When `schema.sql` changes (for example, the November 2026 updates added reviews, Manila-time date rules, joiner names with an emergency contact, and organizer approval), open **SQL Editor → New query**, paste all of `schema.sql` again and click **Run**. It keeps your existing accounts, trips and bookings. Run it right after pulling the update: the website and the database functions change together, so until you do, new features (and after the joiner-details update, new bookings) won't work.
 
 ## What's real and what's still simulated
 
@@ -81,10 +81,53 @@ When `schema.sql` changes (for example, the November 2026 updates added reviews,
 | --- | --- |
 | Accounts (email link, or Google once it's set up) | Facebook and mobile-text sign-in |
 | Trips, dates and slots shared by everyone | GCash / Maya payment |
-| Bookings, move and cancel, checked on the server | ID and business checks |
+| Bookings, move and cancel, checked on the server | Automatic ID and business checks (you check them by hand) |
 | Organizers see joiners' bookings | Texts to joiners |
 | Who's going (opt-in, same-date only) | |
 | Reviews (one per booking, after the trip date) | |
 | Editing a published trip | |
+| Organizer approval (by you, in the SQL editor) | |
 
-**Known shortcut:** a signed-in user can currently mark their own profile as an organizer and as ID verified, because the ID check is simulated. Before any real launch, only an admin or the ID-check service should be able to set those.
+## Approve an organizer
+
+Since the November 2026 update (issue #1), nobody can make themselves an organizer or "ID verified". Organizer sign-up ends with **Application received**, and the database refuses any attempt to change `role`, `id_verified`, `business` or `organizer_status` from the website, even a hand-made API call. Only you can, from the SQL editor.
+
+**1. See who is waiting.** SQL Editor → New query:
+
+```sql
+select id, name, org, phone, application, applied_at
+from profiles where organizer_status = 'pending' order by applied_at;
+```
+
+`application` shows which ID they chose and whether they have business documents. The ID photos never leave their phone, so check the ID yourself (for example on a video call) before you mark it verified.
+
+**2. Approve.** Copy their `id` and run one of these (safe to run again to change the result):
+
+```sql
+select approve_organizer('paste-the-id-here');                     -- can post trips, no ID badge yet
+select approve_organizer('paste-the-id-here', true);               -- can post trips + ID verified badge
+select approve_organizer('paste-the-id-here', true, 'verified');   -- + Business verified
+```
+
+They see the Dashboard and Post a trip the next time they open the site. The verified seal on their trips follows their profile automatically; organizers can't set it themselves.
+
+**3. Turn access off (if needed).**
+
+```sql
+select revoke_organizer('paste-the-id-here');
+-- Their trips stay up. To hide them too:
+update trips set published = false where organizer_id = 'paste-the-id-here';
+```
+
+A revoked account can't post, edit its trips or change dates, and can't re-apply on its own; run `approve_organizer` again to restore it.
+
+These two functions only work in the SQL editor (or with the service role). The website's keys can't call them.
+
+### What the first run of this update did to old data
+
+Before this update, sign-up made people organizers and "ID verified" on the spot, but nothing was checked. So the first time you run the new `schema.sql`, it:
+
+- moves every existing organizer back to **pending** (they keep their trips, but can't post or edit until you approve them), and
+- clears every simulated ID and business check, so no old badge looks like a real check.
+
+Later runs don't touch approvals you've made. Sample trips from `seed.sql` keep their sample badges.

@@ -48,7 +48,7 @@ function tpBooking(b) {
 }
 function tpUser(p, email) {
   return { id: p.id, name: p.name, phone: p.phone || "", email: email || "", role: p.role, org: p.org || "",
-    idVerified: p.id_verified, business: p.business, payout: p.payout, method: "email" };
+    idVerified: p.id_verified, business: p.business, payout: p.payout, organizerStatus: p.organizer_status || "none", method: "email" };
 }
 
 // ---- Sync -----------------------------------------------------------------------------
@@ -124,6 +124,16 @@ TP.saveProfile = async fields => {
   const { data: { session } } = await TP.db.auth.getSession();
   if (!session) throw new Error("Please sign in again.");
   const { error } = await TP.db.from("profiles").update(fields).eq("id", session.user.id);
+  if (error) throw new Error(error.message);
+  await TP.sync({ reload: false });
+  return getUser();
+};
+
+// Organizer sign-up. The server saves the details and marks the application "pending";
+// only the TrailPeak owner can make someone an organizer or ID verified.
+TP.applyAsOrganizer = async ({ name, phone, org, payout, application }) => {
+  const { error } = await TP.db.rpc("apply_as_organizer",
+    { p_name: name, p_phone: phone, p_org: org, p_payout: payout, p_application: application || null });
   if (error) throw new Error(error.message);
   await TP.sync({ reload: false });
   return getUser();
