@@ -31,6 +31,11 @@ insert into bookings(ref,trip_id,date,user_id,size,pickup,pickup_time,dp,balance
 values ('TP-OLD','receipt-test',ph_today()-31,'${joiner}',2,'Cubao','2 AM',1000,1998,'GCash','synthetic',now(),'[{"name":"Old Friend","age":"adult"}]','{"name":"Dad","phone":"+63 917 000 0000"}','Old Friend');
 -- the synthetic trip is decades away, so make its details "due" to show the overdue state
 update app_settings set value = 40000 where key = 'details_due_days';
+-- trip status (TP-053): a draft and an archived trip for the dashboard
+insert into trips(id,organizer_id,org_name,details,status) values ('draft-test','${org}','Local Trail Test',jsonb_set('${JSON.stringify(details).replace(/'/g,"''")}'::jsonb,'{title}','"Draft test hike"'),'draft');
+insert into departures(trip_id,date,capacity) values ('draft-test','2099-02-01',10);
+insert into trips(id,organizer_id,org_name,details) values ('old-test','${org}','Local Trail Test',jsonb_set('${JSON.stringify(details).replace(/'/g,"''")}'::jsonb,'{title}','"Old test hike"'));
+update trips set status='archived' where id='old-test';
 insert into outside_bookings(request_id,trip_id,date,created_by,name,size,pickup,pickup_time,source)
 values (gen_random_uuid(),'receipt-test','2099-01-01','${org}','Tset Booker',2,'Cubao','2 AM','messenger');`);
 const bridge=`window.TRAILPEAK_SUPABASE={url:'local-test',anonKey:'local-test'};
@@ -38,7 +43,7 @@ const testJoiner=new URLSearchParams(location.search).get('testRole')==='joiner'
 const testId=testJoiner?'${joiner}':'${org}';
 if(JSON.parse(localStorage.getItem('trailpeak.user')||'null')?.id!==testId)localStorage.setItem('trailpeak.user',JSON.stringify({id:testId,name:testJoiner?'Test Joiner':'Test Organizer',role:testJoiner?'joiner':'organizer',org:'Local Trail Test'}));
 async function request(payload){return (await fetch('/test-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,user:testId})})).json();}
-window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{user:{id:testId,email:'synthetic@example.test'}}}})},rpc:async(name,args)=>request({name,args}),from:(table)=>{const q={table,filters:[]};const b={select:()=>b,eq:(key,value)=>{q.filters.push([key,value]);return b},order:(key,opt)=>{q.order=key;q.desc=opt?.ascending===false;return b},is:()=>b,limit:()=>b,single:()=>{q.single=true;return b},then:(yes,no)=>request(q).then(yes,no)};return b}})};`;
+window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{user:{id:testId,email:'synthetic@example.test'}}}})},rpc:async(name,args)=>request({name,args}),from:(table)=>{const q={table,filters:[]};const b={select:()=>b,update:(vals)=>{q.update=vals;return b},eq:(key,value)=>{q.filters.push([key,value]);return b},order:(key,opt)=>{q.order=key;q.desc=opt?.ascending===false;return b},is:()=>b,limit:()=>b,single:()=>{q.single=true;return b},then:(yes,no)=>request(q).then(yes,no)};return b}})};`;
 let queue=Promise.resolve();
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost');
@@ -50,6 +55,13 @@ const server=http.createServer(async(req,res)=>{try{
    if(q.name){
     if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired','edit_outside_booking','cancel_outside_booking','my_booking_contacts','organizer_overdue','release_overdue_booking','log_departure_check'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
     const args=Object.entries(q.args||{});result=await db.query(`select * from ${q.name}(${args.map(([k],i)=>k+'=> $'+(i+1)).join(',')})`,args.map(([,v])=>v));
+   }else if(q.update){
+    // Status and slot changes only (TP-053 archive/publish, TP-012 close/reopen).
+    const allowed={trips:['status'],departures:['status','capacity']}[q.table];
+    if(!allowed)throw Error('Unexpected update');
+    const sets=Object.keys(q.update);for(const k of sets)if(!allowed.includes(k))throw Error('Unexpected column');
+    const filters=q.filters||[];for(const[k]of filters)if(!['id','trip_id','date'].includes(k))throw Error('Unexpected filter');
+    result=await db.query('update '+q.table+' set '+sets.map((k,i)=>k+'=$'+(i+1)).join(',')+' where '+filters.map(([k],i)=>k+'=$'+(sets.length+i+1)).join(' and ')+' returning *',[...sets.map(k=>q.update[k]),...filters.map(([,v])=>v)]);
    }else{
     if(!['profiles','trips','departures','bookings','reviews','outside_bookings','dp_receipts','organizer_activity','app_settings','outside_booking_changes','departure_checks'].includes(q.table))throw Error('Unexpected table');
     const filters=q.filters||[];for(const[k]of filters)if(!['id','user_id','status','outside_id'].includes(k))throw Error('Unexpected filter');
