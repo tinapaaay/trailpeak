@@ -223,3 +223,20 @@ On the dashboard, each outside booking has **Edit** and **Cancel** (owning organ
 ## Organizer contact and booking help (TP-018)
 
 Post a trip now asks for a **mobile number for joiners**, shown on the trip page under Ask the organizer. Trips posted before that have none on the page; joiners who book one see the organizer's profile mobile in My trips instead (`my_booking_contacts()`, only for trips they booked). To add a number to an older trip, open it with **Edit trip** on the dashboard and save. The trip and reserve pages explain the booking steps (hold, paying the organizer directly, the reference, rain, cancelling, contact).
+
+## Booking privacy check (TP-005)
+
+`tests/privacy.test.mjs` checks every role against every way to read booking data, straight through the database (no website): booker, another joiner on the same date, a joiner on another date, the trip's organizer, another organizer, and signed out. Summary of what each gets:
+
+| Data | Booker | Same-date joiner | Other joiner | Trip's organizer | Other organizer | Signed out |
+| --- | --- | --- | --- | --- | --- | --- |
+| Booking, group, emergency contact, wallet | own only | own only | own only | their trips' | none | denied |
+| Profiles | own | own | own | own | own | denied |
+| Outside bookings, activity, change history | none | none | none | their trips' | none | denied |
+| DP receipts and reference log | own booking's | none | none | their trips' | none | denied |
+| Approval log | denied | denied | denied | denied | denied | denied |
+| Who's going (names) | own + opted-in, same date | own + opted-in, same date | counts only | counts only | counts only | counts only |
+| Slots list | counts only | counts only | counts only | counts only | counts only | counts only |
+| Organizer's mobile | for trips they booked | same | same | – | – | denied |
+
+**Self-name:** in Who's going you always see your own name, even if you didn't opt in; nobody else does. You see other names only while your own booking on that date still holds its seat: a cancelled, expired or lapsed unpaid hold sees counts only. Who's going never returns contacts, emergency details or wallet numbers. Run `npm test --prefix tests` to repeat the check.
