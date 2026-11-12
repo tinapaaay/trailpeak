@@ -225,6 +225,26 @@ TP.setTripStatus = async (id, status) => {
   if (error) throw tpErr(error);
   await TP.sync({ reload: false });
 };
+// ---- Pilot funnel (TP-022, ADR-012) ----------------------------------------------------
+// Counts visits, sign-in timing and reservations in TrailPeak's own database. Each browser makes
+// a random id for itself; nothing else about the person is sent (no name, email, phone or
+// account). Skipped offline and when the browser asks not to be tracked. Never blocks the page.
+function tpVisitor() {
+  try {
+    let v = localStorage.getItem("trailpeak.vid");
+    if (!v && crypto.randomUUID) { v = crypto.randomUUID(); localStorage.setItem("trailpeak.vid", v); }
+    return v;
+  } catch { return null; }
+}
+TP.track = async (kind, { trip = null, ref = null, source = null } = {}) => {
+  if (!TP.online || navigator.doNotTrack === "1" || navigator.globalPrivacyControl === true) return;
+  const visitor = tpVisitor(); if (!visitor) return;
+  try { await TP.db.rpc("log_event", { p_kind: kind, p_visitor: visitor, p_trip: trip, p_ref: ref, p_source: source }); } catch { /* never in the way */ }
+};
+// A visit counts as "from a shared link" when the link was made for sharing (?s=share, which the
+// Facebook text adds), came through Facebook (fbclid) or a campaign tag, or another site sent it.
+TP.visitSource = () => /[?&](s=share|fbclid=|utm_)/.test(location.search)
+  || (document.referrer && new URL(document.referrer).host !== location.host) ? "share" : "direct";
 // Save changes to a trip's page (not its dates: those change one by one on the dashboard).
 TP.updateTrip = async (id, details) => {
   const { error } = await TP.db.from("trips").update({ details, org_name: details.org }).eq("id", id);
