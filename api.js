@@ -194,7 +194,10 @@ TP.providers = async () => {
 // Google: leaves for Google's account picker and comes back to the sign-in page signed in.
 TP.signInWithGoogle = async () => {
   const back = new URL("signin.html" + (/[?&]as=organizer\b/.test(location.search) ? "?as=organizer" : ""), location.href).href;
-  const { error } = await TP.db.auth.signInWithOAuth({ provider: "google", options: { redirectTo: back } });
+  // prompt=select_account: always show Google's "Choose an account", so someone signed in to
+  // Google with one account (e.g. their organizer email) can pick another one.
+  const { error } = await TP.db.auth.signInWithOAuth({ provider: "google",
+    options: { redirectTo: back, queryParams: { prompt: "select_account" } } });
   if (error) throw new Error(error.message);
 };
 TP.verifyCode = async (email, token) => {
