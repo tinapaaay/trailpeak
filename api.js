@@ -50,9 +50,9 @@ function tpBooking(b, receipts = null, mode = "pilot") {
     listed: b.listed, displayName: b.display_name, status: b.status, moved: b.moved, note: b.note, bookedAt: b.created_at,
     companions: b.companions || [], emergency: b.emergency || null, booker: b.booker || { age: "adult" } };
 }
-function tpUser(p, email, unread = 0) {
+function tpUser(p, email, unread = 0, authUser = null) {
   return { id: p.id, name: p.name, phone: p.phone || "", email: email || "", role: p.role, org: p.org || "",
-    idVerified: p.id_verified, business: p.business, payout: p.payout, organizerStatus: p.organizer_status || "none", method: "email", unread };
+    idVerified: p.id_verified, business: p.business, payout: p.payout, organizerStatus: p.organizer_status || "none", method: "email", unread, ...accountPhotoFields(authUser) };
 }
 
 // ---- Sync -----------------------------------------------------------------------------
@@ -85,7 +85,7 @@ TP.sync = async function ({ reload = true } = {}) {
       const { count } = await TP.db.from("organizer_activity").select("id", { count: "exact", head: true }).is("read_at", null);
       unread = count || 0;
     }
-    if (profile) setUser(tpUser(profile, session.user.email, unread));
+    if (profile) setUser(tpUser(profile, session.user.email, unread, session.user));
     if (profile && !profile.name && !/signin\.html$/.test(location.pathname)) {
       rememberNext((location.pathname.split("/").pop() || "index.html") + location.hash);
       location.replace("signin.html"); return;
@@ -108,6 +108,16 @@ TP.sync = async function ({ reload = true } = {}) {
 ["input", "change", "submit"].forEach(ev => document.addEventListener(ev, () => { TP.dirty = true; }, true));
 
 // ---- Accounts -------------------------------------------------------------------------
+// Preference lives in the account's Auth metadata; no photo binary or profile-table change.
+TP.setAvatarHidden = async hidden => {
+  if (!TP.online) throw new Error("Sign in to change your photo preference.");
+  const { data, error } = await TP.db.auth.updateUser({ data: { trailpeak_avatar_hidden: !!hidden } });
+  if (error || !data?.user) throw error || new Error("Could not save photo preference.");
+  const current = getUser();
+  if (current?.id !== data.user.id) throw new Error("Your account changed. Reload and try again.");
+  setUser({ ...current, ...accountPhotoFields(data.user) });
+};
+
 TP.sendCode = async email => {
   // The email's link comes back to this site's sign-in page (it must be in Supabase's Redirect URLs),
   // keeping "?as=organizer" so organizer sign-up continues even if the link opens in a new tab.
