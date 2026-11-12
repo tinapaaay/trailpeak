@@ -14,47 +14,43 @@ This created three critical vulnerabilities:
 3. **Auditability and disputes**: TrailPeak support needs a verifiable, append-only history of who changed each state, when, why, and how many seats were affected, especially during disputes where joiners claim they paid or organizers report refunds sent.
 
 ## Decision
-Separate the lifecycle of every reservation into three orthogonal state dimensions and an append-only audit trail:
+Three separate state dimensions on `public.bookings`, one source of truth, and an append-only history.
 
-### 1. Three Orthogonal Lifecycles
-On `public.bookings`:
-- **`status` (Booking Status)**: `confirmed` | `cancelled` | `completed`.
-  Governs slot reservation and trip participation.
+### 1. Three lifecycles
+- **`status`** (seats): `confirmed` | `cancelled` | `expired`. "Completed" is **not stored**: a confirmed booking whose date has passed is completed (the status check stays as it was).
 - **`payment_status`**: `none` | `pending` | `confirmed` | `failed`.
-  Governs the down-payment / event fee collection. In the pilot, GCash/Maya reference submission moves `none` → `pending`; organizer confirmation (via `record_dp_receipt`) moves `pending` → `confirmed`.
-- **`refund_status`**: `none` | `pending` | `completed` | `declined`.
-  Governs financial return. A booking can be `status = 'cancelled'` while `refund_status = 'pending'`, directly representing "Cancelled with refund pending".
+- **`refund_status`**: `none` | `pending` | `completed` | `declined`. "Cancelled with refund pending" is `status = 'cancelled' and refund_status = 'pending'`.
 
-### 2. Allowed Transitions and Permitted Actors
-Transitions are governed by `transition_booking_state()` and specialized business functions:
-- **Joiner**:
-  - Cancel own active booking before the departure date (`confirmed` → `cancelled`). If DP was confirmed and cancellation is >= 7 days prior, `refund_status` becomes `pending`; otherwise DP is retained under policy (`refund_status = 'none'`).
-  - Submit DP payment reference (`payment_status`: `none` → `pending`).
-- **Organizer**:
-  - Confirm received DP (`pending` → `confirmed`) via `record_dp_receipt()`.
-  - Record refund sent (`refund_status`: `pending` → `completed`).
-  - Decline refund under stated policy (`refund_status`: `pending` → `declined`).
-  - Release overdue booking slots or cancel date with full refund pending.
-- **Support / Admin**:
-  - Adjudicate disputes and adjust payment or refund states with recorded rationale.
-- **System (Automated/Cron)**:
-  - Expire unpaid holds (`expire_holds()`), marking lapsed reservations.
+### 2. One source of truth (no drift)
+The existing actions stay the only way most states change; triggers keep the new columns in step with them:
 
-### 3. Slot Invariants: Released Never Twice
-Seat availability continues to be computed at read time via `booking_holds_seat(status, hold_until, dp_sent_at)`.
-- Releasing slots occurs if and only if a booking currently holds seats (`booking_holds_seat(...) = true`).
-- Transitioning to `cancelled` frees the slots immediately and logs `slots_affected = -size`.
-- Subsequent operations on a cancelled booking (such as transitioning `refund_status` from `pending` to `completed`, or re-evaluating policies) calculate `slots_affected = 0`.
-- It is mathematically impossible for slots to be released twice.
+| Action (existing function) | Effect |
+| --- | --- |
+| `send_dp_reference` | payment `none`/`failed` → `pending` |
+| `record_dp_receipt` (full / partial / undo to 0) | payment → `confirmed` / `pending` / back to what the facts say (`derived_payment_status()`) |
+| `expire_holds` | status → `expired`; payment `none` → `failed` |
+| `rebook_expired` | status `expired` → `confirmed` (seats checked under the date lock, ADR-009); payment `failed` → `pending`/`none` |
+| `cancel_booking` (joiner) | status → `cancelled`; refund by policy: confirmed DP and at least `refund_cutoff_days` (7) before the trip → `pending`, otherwise `none` (DP kept) |
+| `release_overdue_booking` (whole, organizer) or any other cancel | status → `cancelled`; refund `pending` if the DP was confirmed, else `none` |
+| DP confirmed after the booking was already cancelled | refund `none` → `pending` (money arrived; the organizer decides) |
 
-### 4. Append-Only State History Log
-Every transition writes a permanent row to `public.booking_state_history`:
-- `booking_ref`, `from_booking_status`, `to_booking_status`
-- `from_payment_status`, `to_payment_status`
-- `from_refund_status`, `to_refund_status`
-- `actor_id`, `actor_role` (`joiner`, `organizer`, `support`, `system`)
-- `slots_affected` (integer: -N when seats freed, +N if restored, 0 otherwise)
-- `reason` and `created_at` timestamp.
+Upgrades backfill `payment_status` from the same facts.
+
+### 3. Deliberate changes: `transition_booking_state()`, a per-role matrix
+Anything not listed is refused. Payment status is never set by hand.
+
+| Role | Allowed |
+| --- | --- |
+| Joiner | booking `confirmed` → `cancelled`, **routed through `cancel_booking`** (its past-date rule, note and activity entry). Never a refund. |
+| Organizer | booking `expired` → `confirmed`, **routed through `rebook_expired`** (capacity checked); refund `pending` → `completed` / `declined`, with a reason. |
+| Support (service role or the owner in the SQL editor) | refund `pending` → `completed` / `declined`, `declined` → `pending`, and `none` → `pending` on a cancelled booking (goodwill), with a reason. |
+| System (cron) | only through `expire_holds`. |
+
+### 4. Seats: released never twice
+Seat use is still computed at read time (`booking_holds_seat()`, ADR-002). Each history row records the seats it moved: `+size` when a booking starts or is revived holding seats, `-size` when it stops (a cancel, a release, or an expiry: the lapse freed the seats at `hold_until`, and the expiry row records it), else `0`. For every booking, the history's seats add up to what it holds now; a second cancel is refused.
+
+### 5. Append-only history
+`public.booking_state_history`, written only by the trigger on `bookings`, on every insert and every change of any of the three states: from/to of each, `actor_id`, `actor_role` (joiner, organizer, support, system), `slots_affected`, `reason` (the caller's reason, else the booking's note), time. The booker and the trip's organizer can read their rows; nobody can write, edit or delete them through the API.
 
 ## Options Considered
 
@@ -75,10 +71,9 @@ Adding columns and an append-only log slightly increases row write volume during
 - `supabase/schema.sql` gains `payment_status` and `refund_status` on `bookings`, and the `booking_state_history` table.
 - Upgrades from existing schemas backfill historical rows seamlessly: confirmed DP receipts map to `payment_status = 'confirmed'`; existing cancellations default to `refund_status = 'none'`.
 - The organizer dashboard and joiner booking view can show accurate, multi-stage statuses (e.g., "Cancelled · Refund pending from organizer").
-- PGlite test suite validates idempotency, permitted transitions, and upgrade compatibility.
+- `tests/states.test.mjs` (PGlite, upgrade path from main) and two new real-Postgres scenarios in `tests/race.test.mjs` check no-drift, the matrix and the seat invariant.
 
 ## Action Items
-1. Add `payment_status`, `refund_status`, and `booking_state_history` to `supabase/schema.sql`.
-2. Implement `public.transition_booking_state()` with actor role checks and seat idempotency.
-3. Wire `cancel_booking()` and `record_dp_receipt()` to update state and log history.
-4. Add comprehensive PGlite tests in `tests/states.test.mjs`.
+1. Show the states in My trips and on the dashboard ("Cancelled · Refund pending from organizer"), with the organizer's refund buttons, in a later PR.
+2. When the payment gateway lands (ADR-004), its webhook sets payment status through the same receipt path, not by hand.
+3. Released unnamed slots (a booking that shrinks but stays confirmed) don't change any of the three states; refunds for them follow the trip's policy outside TrailPeak for now.

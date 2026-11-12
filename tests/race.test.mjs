@@ -212,6 +212,38 @@ for (let k = 0; k < 5; k++) {
 }
 check(`Bursts of 12 mixed requests into 10 seats (x5): seats taken = seats won, never over capacity [${detail10.join(", ")}]`, ok10);
 
+// 11. TP-027: reviving an expired booking through transition_booking_state vs a new booking for
+// the last 2 seats (repeated). Revival must take the seat-checked path.
+let ok11 = true;
+for (let k = 0; k < 5; k++) {
+  const d = await departure(4);
+  await book(await S(2), d, 2);
+  const ref = (await book(await S(3), d, 2)).rows[0].ref;
+  await admin.query(`update bookings set hold_until = now() - interval '1 minute' where ref = $1`, [ref]);
+  await admin.query(`select expire_holds()`);
+  const r = await Promise.all([settle(org.query(`select status from public.transition_booking_state($1, p_to_booking => 'confirmed')`, [ref])), book(await S(4), d, 2)]);
+  const o = await occupancy(d); if (r.filter(x => x.ok).length !== 1 || o.taken > o.capacity) ok11 = false;
+}
+check("Reviving an expired booking via transition_booking_state vs a new booking for the last 2 seats (x5): one wins, never over", ok11);
+
+// 12. TP-027: the joiner cancels while the organizer records the full DP (repeated). Whatever the
+// order, a cancelled booking with a confirmed DP (cancelled weeks ahead) ends with a refund owed,
+// and the history holds exactly one seat release.
+let ok12 = true, detail12 = [];
+for (let k = 0; k < 5; k++) {
+  const d = await departure(10), j = await S(5 + k);
+  const ref = (await book(j, d, 1)).rows[0].ref;
+  await j.query(`select public.send_dp_reference($1, 'R-' || $2)`, [ref, k]);
+  await Promise.all([
+    settle(j.query(`select status from public.transition_booking_state($1, p_to_booking => 'cancelled')`, [ref])),
+    settle(org.query(`select * from public.record_dp_receipt(gen_random_uuid(), $1, null, null, 500, 'GCash', now(), 'race')`, [ref]))]);
+  const b = (await admin.query(`select status, payment_status, refund_status from bookings where ref = $1`, [ref])).rows[0];
+  const rel = (await admin.query(`select count(*)::int n from booking_state_history where booking_ref = $1 and slots_affected < 0`, [ref])).rows[0].n;
+  detail12.push(`${b.status}/${b.payment_status}/${b.refund_status}`);
+  if (b.status !== "cancelled" || b.payment_status !== "confirmed" || b.refund_status !== "pending" || rel !== 1) ok12 = false;
+}
+check(`Cancel vs DP recorded at the same moment (x5): ends cancelled, DP confirmed, refund pending, one seat release [${[...new Set(detail12)].join(", ")}]`, ok12);
+
 for (const c of [...pool.filter(Boolean), org, org2]) await c.end();
 await admin.end();
 console.log(`\n${pass} passed, ${fail} failed`);
