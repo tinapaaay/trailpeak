@@ -328,15 +328,21 @@ $("open-link").onclick = () => {
 };
 // Google: one tap, no email. The button appears only once Google is turned on in Supabase.
 if (TP.online) {
-  TP.providers().then(p => {
-    if (!p.google) return;
-    $("go-google").hidden = false;
-    $("go-email").classList.replace("btn-primary", "btn-secondary"); // Google leads; email is the backup
-    $("choose-lead").textContent = asOrganizer
+  // Show Google at once when config.js lists it (no layout shift while Supabase answers),
+  // then confirm with Supabase and switch back to email-only if Google is off there.
+  const emailLead = $("choose-lead").textContent, emailNote = $("choose-note").textContent;
+  const showGoogle = on => {
+    $("go-google").hidden = !on;
+    $("go-email").classList.toggle("btn-secondary", on); // Google leads; email is the backup
+    $("go-email").classList.toggle("btn-primary", !on);
+    $("choose-lead").textContent = !on ? emailLead : asOrganizer
       ? "First, sign in. Use the Google account or email you'll run trips with. Next you'll add your organizer name, apply for organizer approval and add your direct-payment details."
       : "New or returning, it's the same step. Continue with Google, or get a sign-in link by email. No password needed.";
-    $("choose-note").textContent = "Facebook and mobile-number sign-in are coming later.";
-  });
+    $("choose-note").textContent = on ? "Facebook and mobile-number sign-in are coming later." : emailNote;
+  };
+  const listed = (window.TRAILPEAK_SUPABASE.signInWith || []).includes("google");
+  if (listed) showGoogle(true);
+  TP.providers().then(p => { if (p && Object.keys(p).length && !!p.google !== listed) showGoogle(!!p.google); });
   $("go-google").onclick = () => {
     $("go-google").disabled = true;
     TP.signInWithGoogle().catch(err => { $("go-google").disabled = false; $("choose-note").textContent = `Google sign-in didn't start: ${err.message}`; });

@@ -4,4 +4,7 @@
 window.TRAILPEAK_SUPABASE = {
   url: "https://fjssjgefufwuadrltvjf.supabase.co",
   anonKey: "sb_publishable_GH2WsVTwnp8EFGM8bOyDYw_MPeGkB8c",
+  // Sign-in buttons to show right away (no wait for Supabase). The sign-in page still checks
+  // Supabase in the background and hides Google if it's turned off there.
+  signInWith: ["google", "email"],
 };
