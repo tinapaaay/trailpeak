@@ -1837,3 +1837,178 @@ from logged l full join incidents i using (week_of)
 order by 1;
 
 revoke all on public.pilot_bookings, public.pilot_funnel_weekly, public.pilot_waits_weekly, public.pilot_admin_weekly from anon, authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- Separate booking, payment and refund states (TP-027, ADR-005, Nov 2026).
+-- A booking's lifecycle is separated into three orthogonal state dimensions:
+--   - status: 'confirmed' (active reservation) | 'cancelled' | 'completed'
+--   - payment_status: 'none' | 'pending' | 'confirmed' | 'failed'
+--   - refund_status: 'none' | 'pending' | 'completed' | 'declined'
+-- This allows "Cancelled with refund pending" to be represented cleanly without
+-- corrupting seat counts. An append-only booking_state_history log tracks all transitions,
+-- actors, reasons, and guarantees slots are never released twice.
+-- ---------------------------------------------------------------------------
+alter table public.bookings add column if not exists payment_status text not null default 'none'
+  check (payment_status in ('none', 'pending', 'confirmed', 'failed'));
+alter table public.bookings add column if not exists refund_status text not null default 'none'
+  check (refund_status in ('none', 'pending', 'completed', 'declined'));
+
+-- Backfill existing rows idempotently:
+update public.bookings b
+   set payment_status = case
+         when exists (select 1 from public.dp_receipts r where r.booking_ref = b.ref and r.amount >= b.dp) then 'confirmed'
+         when b.dp_sent_at is not null then 'pending'
+         else 'none'
+       end
+ where b.payment_status = 'none' and (b.dp_sent_at is not null or exists (select 1 from public.dp_receipts r where r.booking_ref = b.ref and r.amount >= b.dp));
+
+create table if not exists public.booking_state_history (
+  id                  bigserial primary key,
+  booking_ref         text not null references public.bookings (ref) on delete cascade,
+  from_booking_status text,
+  to_booking_status   text not null,
+  from_payment_status text,
+  to_payment_status   text not null,
+  from_refund_status  text,
+  to_refund_status    text not null,
+  actor_id            uuid references public.profiles (id) on delete set null,
+  actor_role          text not null check (actor_role in ('joiner', 'organizer', 'support', 'system')),
+  slots_affected      int not null default 0,
+  reason              text,
+  created_at          timestamptz not null default now()
+);
+
+create index if not exists booking_state_history_ref on public.booking_state_history(booking_ref, created_at desc);
+
+alter table public.booking_state_history enable row level security;
+drop policy if exists "Booker and organizer read state history" on public.booking_state_history;
+create policy "Booker and organizer read state history" on public.booking_state_history
+  for select using (
+    exists (select 1 from public.bookings b where b.ref = booking_ref and b.user_id = auth.uid())
+    or exists (select 1 from public.bookings b join public.trips t on t.id = b.trip_id where b.ref = booking_ref and t.organizer_id = auth.uid())
+  );
+
+revoke all on public.booking_state_history from anon, authenticated;
+grant select on public.booking_state_history to authenticated;
+
+-- State transition function with role authorization and strict seat release idempotency.
+create or replace function public.transition_booking_state(
+  p_ref text,
+  p_to_booking text default null,
+  p_to_payment text default null,
+  p_to_refund text default null,
+  p_reason text default null
+)
+returns public.bookings language plpgsql security definer set search_path = public as $$
+declare
+  b public.bookings;
+  v_caller uuid := auth.uid();
+  v_role text;
+  v_is_org boolean;
+  v_is_joiner boolean;
+  v_new_booking text;
+  v_new_payment text;
+  v_new_refund text;
+  v_held_before boolean;
+  v_held_after boolean;
+  v_slots_delta int := 0;
+  v_reason text := trim(coalesce(p_reason, ''));
+  v_prev_booking text;
+  v_prev_payment text;
+  v_prev_refund text;
+begin
+  select * into b from public.bookings where ref = p_ref for update;
+  if not found then raise exception 'Booking not found.'; end if;
+
+  v_is_org := exists (select 1 from public.trips t where t.id = b.trip_id and t.organizer_id = v_caller);
+  v_is_joiner := (b.user_id = v_caller);
+
+  if current_setting('request.jwt.claim.role', true) = 'service_role' then
+    v_role := 'support';
+  elsif v_caller is null then
+    raise exception 'Signed-out users cannot change booking states.';
+  elsif v_is_org then
+    v_role := 'organizer';
+  elsif v_is_joiner then
+    v_role := 'joiner';
+  else
+    raise exception 'You do not have permission to change this booking state.';
+  end if;
+
+  v_prev_booking := b.status;
+  v_prev_payment := b.payment_status;
+  v_prev_refund := b.refund_status;
+
+  v_new_booking := coalesce(p_to_booking, b.status);
+  v_new_payment := coalesce(p_to_payment, b.payment_status);
+  v_new_refund  := coalesce(p_to_refund, b.refund_status);
+
+  -- Role permissions validation:
+  if v_role = 'joiner' then
+    if p_to_booking is not null and p_to_booking <> 'cancelled' then
+      raise exception 'Joiners can only cancel their booking.';
+    end if;
+    if p_to_payment is not null and p_to_payment not in ('pending') then
+      raise exception 'Joiners can only submit payment details (pending).';
+    end if;
+    if p_to_refund is not null and p_to_refund <> 'pending' then
+      raise exception 'Refund status is managed by the organizer or support.';
+    end if;
+    if p_to_booking = 'cancelled' and p_to_refund is null then
+      if b.payment_status = 'confirmed' and b.date >= public.ph_today() + 7 then
+        v_new_refund := 'pending';
+      elsif b.payment_status = 'confirmed' then
+        v_new_refund := 'declined';
+      else
+        v_new_refund := 'none';
+      end if;
+    end if;
+  elsif v_role = 'organizer' then
+    if p_to_booking = 'confirmed' and b.status = 'cancelled' then
+      raise exception 'Cancelled bookings cannot be revived.';
+    end if;
+  end if;
+
+  -- Seat hold state before transition
+  v_held_before := public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at);
+
+  -- Apply updates to booking
+  update public.bookings
+     set status = v_new_booking,
+         payment_status = v_new_payment,
+         refund_status = v_new_refund,
+         note = case when v_reason <> '' then v_reason else note end
+   where ref = p_ref
+  returning * into b;
+
+  -- Seat hold state after transition
+  v_held_after := public.booking_holds_seat(b.status, b.hold_until, b.dp_sent_at);
+
+  -- Calculate slot impact: negative when freed, positive when acquired, 0 if no change
+  if v_held_before and not v_held_after then
+    v_slots_delta := -b.size;
+  elsif not v_held_before and v_held_after then
+    v_slots_delta := b.size;
+  else
+    v_slots_delta := 0;
+  end if;
+
+  -- Append audit history
+  insert into public.booking_state_history (
+    booking_ref, from_booking_status, to_booking_status,
+    from_payment_status, to_payment_status,
+    from_refund_status, to_refund_status,
+    actor_id, actor_role, slots_affected, reason
+  ) values (
+    p_ref, v_prev_booking, v_new_booking,
+    v_prev_payment, v_new_payment,
+    v_prev_refund, v_new_refund,
+    v_caller, v_role, v_slots_delta, nullif(v_reason, '')
+  );
+
+  return b;
+end $$;
+
+revoke all on function public.transition_booking_state from public, anon;
+grant execute on function public.transition_booking_state to authenticated, service_role;
