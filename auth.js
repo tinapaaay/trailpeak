@@ -9,9 +9,38 @@ function getUser() {
 function setUser(user) {
   try { localStorage.setItem(TP_USER_KEY, JSON.stringify(user)); } catch { /* storage blocked: stays signed out */ }
 }
+function clearLocalAccount() {
+  try {
+    if (typeof localStorage === "undefined" || !localStorage) return;
+    if (typeof localStorage.removeItem === "function") {
+      localStorage.removeItem(TP_USER_KEY);
+      localStorage.removeItem(typeof TP_BOOKINGS_KEY !== "undefined" ? TP_BOOKINGS_KEY : "trailpeak.bookings");
+      localStorage.removeItem(typeof TP_REVIEWS_KEY !== "undefined" ? TP_REVIEWS_KEY : "trailpeak.reviews");
+    }
+    const toRemove = [];
+    const len = Number(localStorage.length) || 0;
+    for (let i = 0; i < len; i++) {
+      const k = typeof localStorage.key === "function" ? localStorage.key(i) : null;
+      if (k && (k.startsWith("sb-") || k.includes("-auth-token") || k.includes("supabase.auth.token"))) {
+        toRemove.push(k);
+      }
+    }
+    toRemove.forEach(k => {
+      try { localStorage.removeItem(k); } catch { /* ignore */ }
+    });
+  } catch {
+    /* storage blocked */
+  }
+}
+
 function signOut() {
-  try { localStorage.removeItem(TP_USER_KEY); } catch { /* ignore */ }
-  location.href = "index.html";
+  clearLocalAccount();
+  if (typeof TP !== "undefined" && TP.online && typeof TP.signOut === "function") {
+    return TP.signOut();
+  }
+  if (typeof location !== "undefined" && location.href) {
+    location.href = "index.html";
+  }
 }
 // Where to go after signing in. Stored for this tab only, and only our own pages.
 function rememberNext(page) {
@@ -101,15 +130,30 @@ function escapeHtml(s) {
 
 // Header: "Sign in" when signed out, an initials menu when signed in.
 function renderAccount() {
-  const slot = document.querySelector(".header-actions .avatar");
+  if (typeof document === "undefined" || !document.querySelector) return;
+  const actions = document.querySelector(".header-actions");
+  if (!actions) return;
+  const existingAcct = actions.querySelector(".acct");
+  const existingLink = actions.querySelector(".signin-link");
+  const existingPlaceholder = actions.querySelector(".avatar:not(.acct summary)");
+  const slot = existingAcct || existingLink || existingPlaceholder;
   if (!slot) return;
+
   const user = getUser();
   if (!user) {
+    actions.classList.remove("is-organizer");
+    actions.querySelectorAll(".dash-link").forEach(el => el.remove());
+
     // Already on a sign-in page: no point offering "Sign in" again.
-    if (/^(signin|organizer-signup)\.html$/.test(location.pathname.split("/").pop())) { slot.remove(); return; }
-    const page = (location.pathname.split("/").pop() || "index.html") + (/^#[a-z0-9-]+$/.test(location.hash) ? location.hash : "");
+    if (typeof location !== "undefined" && /^(signin|organizer-signup)\.html$/.test(location.pathname?.split("/").pop() || "")) {
+      slot.remove();
+      return;
+    }
+    const page = typeof location !== "undefined"
+      ? (location.pathname?.split("/").pop() || "index.html") + (/^#[a-z0-9-]+$/.test(location.hash) ? location.hash : "")
+      : "index.html";
     slot.outerHTML = `<a class="btn btn-secondary label-caps signin-link" href="signin.html" data-next="${escapeHtml(page)}">Sign in</a>`;
-    document.querySelector(".signin-link").addEventListener("click", e => {
+    document.querySelector(".signin-link")?.addEventListener("click", e => {
       const from = e.currentTarget.dataset.next;
       if (!/^(signin|organizer-signup)\.html$/.test(from)) rememberNext(from);
     });
@@ -118,10 +162,19 @@ function renderAccount() {
   // Organizers get a Dashboard button in the header on every page, with the number of
   // unread activity items (new bookings, cancellations, date moves).
   if (user.role === "organizer") {
-    const here = /dashboard\.html$/.test(location.pathname);
+    const here = typeof location !== "undefined" && /dashboard\.html$/.test(location.pathname);
     const n = Number(user.unread) || 0;
-    slot.parentElement.classList.add("is-organizer");
-    slot.insertAdjacentHTML("beforebegin", `<a class="btn btn-secondary label-caps dash-link" href="dashboard.html"${here ? ' aria-current="page"' : ""}>Dashboard${n ? `<span class="count" aria-hidden="true">${n > 99 ? "99+" : n}</span><span class="sr">, ${n} new</span>` : ""}</a>`);
+    actions.classList.add("is-organizer");
+    const existingDash = actions.querySelector(".dash-link");
+    if (!existingDash) {
+      slot.insertAdjacentHTML("beforebegin", `<a class="btn btn-secondary label-caps dash-link" href="dashboard.html"${here ? ' aria-current="page"' : ""}>Dashboard${n ? `<span class="count" aria-hidden="true">${n > 99 ? "99+" : n}</span><span class="sr">, ${n} new</span>` : ""}</a>`);
+    } else {
+      existingDash.innerHTML = `Dashboard${n ? `<span class="count" aria-hidden="true">${n > 99 ? "99+" : n}</span><span class="sr">, ${n} new</span>` : ""}`;
+      if (here) existingDash.setAttribute("aria-current", "page");
+    }
+  } else {
+    actions.classList.remove("is-organizer");
+    actions.querySelectorAll(".dash-link").forEach(el => el.remove());
   }
   const role = user.role === "organizer"
     ? `Organizer · ${escapeHtml(user.org || "")}${user.idVerified ? ` · ID verified (${DEMO_CHECK})` : ""}`
@@ -136,11 +189,13 @@ function renderAccount() {
       <button type="button" class="btn btn-secondary label-caps" id="signout">Sign out</button>
     </div>
   </details>`;
-  document.getElementById("signout").addEventListener("click", signOut);
+  document.getElementById("signout")?.addEventListener("click", signOut);
   // Close the menu with Escape or a click outside.
   const acct = document.querySelector(".acct");
-  document.addEventListener("click", e => { if (!acct.contains(e.target)) acct.open = false; });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && acct.open) { acct.open = false; acct.querySelector("summary").focus(); } });
+  if (acct) {
+    document.addEventListener("click", e => { if (!acct.contains(e.target)) acct.open = false; });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && acct.open) { acct.open = false; acct.querySelector("summary")?.focus(); } });
+  }
 }
 document.addEventListener("DOMContentLoaded", () => { renderAccount(); renderOwnAvatars(); });
 
