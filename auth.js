@@ -25,6 +25,65 @@ function takeNext(fallback = "index.html") {
 function initialsOf(name) {
   return (name || "").split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
 }
+// Account photos are private to the signed-in account; never add them to trip/joiner data.
+function avatarUrl(value) {
+  if (typeof value !== "string" || value.length > 2048) return "";
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" && !u.username && !u.password ? u.href : "";
+  } catch { return ""; }
+}
+function accountPhotoFields(authUser) {
+  const google = authUser?.app_metadata?.provider === "google"
+    || authUser?.app_metadata?.providers?.includes("google")
+    || authUser?.identities?.some(i => i.provider === "google");
+  const metadata = authUser?.user_metadata || {};
+  const url = google ? avatarUrl(metadata.avatar_url) : "";
+  const hidden = metadata.trailpeak_avatar_hidden === true;
+  return { avatarUrl: hidden ? "" : url, photoAvailable: !!url, photoHidden: hidden };
+}
+function renderOwnAvatars() {
+  const user = getUser();
+  if (!user) return;
+  document.querySelectorAll("[data-own-avatar]").forEach(slot => {
+    slot.textContent = initialsOf(user.name);
+    const url = avatarUrl(user.avatarUrl);
+    if (!url || user.photoHidden) return;
+    const image = document.createElement("img");
+    image.alt = ""; // The enclosing account control/greeting supplies the name.
+    image.referrerPolicy = "no-referrer";
+    image.onerror = () => image.remove(); // Initials stay visible underneath.
+    image.src = url;
+    slot.append(image);
+  });
+}
+function renderPhotoPreference() {
+  const button = document.getElementById("photo-toggle");
+  if (!button) return;
+  const user = getUser();
+  button.hidden = !user?.photoAvailable;
+  button.textContent = user?.photoHidden ? "Use Google photo" : "Use initials";
+}
+document.addEventListener("DOMContentLoaded", () => {
+  renderOwnAvatars();
+  renderPhotoPreference();
+  const button = document.getElementById("photo-toggle");
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    const status = document.getElementById("photo-status");
+    button.disabled = true;
+    status.textContent = "Saving photo preference…";
+    try {
+      await TP.setAvatarHidden(!getUser().photoHidden);
+      renderOwnAvatars();
+      renderPhotoPreference();
+      status.textContent = getUser().photoHidden ? "Your photo is hidden. Initials are shown instead." : "Your Google photo is enabled. Initials appear if it cannot load.";
+    } catch {
+      status.textContent = "Couldn't save your photo preference. Try again.";
+    } finally { button.disabled = false; }
+  });
+});
+
 // ---- Verification claims (TP-002) ------------------------------------------
 // TrailPeak has no real ID-check service yet, so every "ID verified" or "Business verified"
 // claim carries this tag right beside it, never only in a footer. ID and business stay
@@ -68,7 +127,7 @@ function renderAccount() {
     ? `Organizer · ${escapeHtml(user.org || "")}${user.idVerified ? ` · ID verified (${DEMO_CHECK})` : ""}`
     : user.organizerStatus === "pending" ? "Joiner · organizer application in review" : "Joiner";
   slot.outerHTML = `<details class="acct">
-    <summary class="avatar label-caps" aria-label="Account: ${escapeHtml(user.name)}">${escapeHtml(initialsOf(user.name))}</summary>
+    <summary class="avatar label-caps" data-own-avatar aria-label="Account: ${escapeHtml(user.name)}">${escapeHtml(initialsOf(user.name))}</summary>
     <div class="acct-menu">
       <p class="acct-name">${escapeHtml(user.name)}</p>
       <p class="meta">${role}</p>
@@ -83,7 +142,7 @@ function renderAccount() {
   document.addEventListener("click", e => { if (!acct.contains(e.target)) acct.open = false; });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && acct.open) { acct.open = false; acct.querySelector("summary").focus(); } });
 }
-document.addEventListener("DOMContentLoaded", renderAccount);
+document.addEventListener("DOMContentLoaded", () => { renderAccount(); renderOwnAvatars(); });
 
 // ---- Mock bookings (prototype): kept in this browser only ----------------
 const TP_BOOKINGS_KEY = "trailpeak.bookings";

@@ -102,9 +102,14 @@ textarea.input { width: 100%; resize: vertical; }
 
 <main id="main" class="wrap" tabindex="-1">
   <div class="page">
-    <div>
-      <h1>My trips</h1>
-      <p class="lead" id="lead"></p>
+    <div id="profile-photo">
+      <div class="profile-greeting">
+        <span class="avatar label-caps" data-own-avatar aria-hidden="true"></span>
+        <div><h1>My trips</h1><p class="lead" id="lead"></p></div>
+      </div>
+      <button class="link-btn" type="button" id="photo-toggle" hidden>Use initials</button>
+      <p class="note">Your photo is visible only to you here. To change it, update your <a href="https://myaccount.google.com/personal-info" target="_blank" rel="noopener noreferrer">Google profile photo</a>, then sign out and sign in with Google again.</p>
+      <p class="note" id="photo-status" role="status"></p>
     </div>
     <section aria-labelledby="up-h"><h2 class="sr" id="up-h">Upcoming trips</h2><div id="upcoming"></div></section>
     <section id="past-sec" hidden aria-labelledby="past-h"><h2 id="past-h" style="margin-bottom:var(--space-md)">Past trips</h2><div id="past" style="display:grid;gap:var(--space-md)"></div></section>
