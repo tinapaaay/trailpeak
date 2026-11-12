@@ -5,7 +5,7 @@
 // slotsLeft()). This file keeps a copy of the latest server data in the browser so pages
 // draw instantly, then refreshes it in the background and reloads the page once if
 // anything changed (unless the person has started typing).
-const TP = { online: false, db: null, dirty: false };
+const TP = { online: false, db: null, dirty: false, authGen: 0 };
 const TP_CACHE_KEY = "trailpeak.cache.v1";
 
 (function connect() {
@@ -66,6 +66,7 @@ function tpUser(p, email, unread = 0, authUser = null) {
 // Fetch everything this person may see, save it, and reload once if it changed.
 TP.sync = async function ({ reload = true } = {}) {
   if (!TP.online) return;
+  const startGen = TP.authGen;
   const before = JSON.stringify([tpReadCache().trips, tpReadCache().slots, tpReadCache().reviews, localStorage.getItem(TP_USER_KEY), localStorage.getItem(TP_BOOKINGS_KEY)]);
   const [{ data: trips, error: e1 }, { data: slots, error: e2 }, { data: deps }, { data: reviews }, { data: settings }] = await Promise.all([
     TP.db.from("trips").select("*").order("created_at"),   // status: draft / published / archived (TP-053)
@@ -80,11 +81,34 @@ TP.sync = async function ({ reload = true } = {}) {
     reviews: (reviews || []).map(r => ({ tripId: r.trip_id, name: r.display_name, date: r.created_at.slice(0, 10), stars: r.stars, text: r.body })),
     settings: Object.fromEntries((settings || []).map(r => [r.key, Number(r.value)])), at: Date.now() });
 
+  // If a sign-out happened while public data was loading, discard account writes!
+  if (startGen !== TP.authGen) {
+    if (typeof clearLocalAccount === "function") clearLocalAccount();
+    if (typeof renderAccount === "function") renderAccount();
+    if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+    return;
+  }
+
   const { data: { session } } = await TP.db.auth.getSession();
+  if (startGen !== TP.authGen) {
+    if (typeof clearLocalAccount === "function") clearLocalAccount();
+    if (typeof renderAccount === "function") renderAccount();
+    if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+    return;
+  }
+
   if (session) {
     // Tidy overdue DP holds first (their slots are already free; this sets the "Expired" label).
     try { await TP.db.rpc("expire_holds"); } catch { /* older database: nothing to tidy */ }
     const { data: profile } = await TP.db.from("profiles").select("*").eq("id", session.user.id).single();
+
+    if (startGen !== TP.authGen) {
+      if (typeof clearLocalAccount === "function") clearLocalAccount();
+      if (typeof renderAccount === "function") renderAccount();
+      if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+      return;
+    }
+
     // Organizers: how many activity items (new bookings, cancellations, moves) are unread,
     // for the count on the header's Dashboard button.
     let unread = 0;
@@ -92,8 +116,21 @@ TP.sync = async function ({ reload = true } = {}) {
       const { count } = await TP.db.from("organizer_activity").select("id", { count: "exact", head: true }).is("read_at", null);
       unread = count || 0;
     }
+
+    // Re-verify session right before writing to localStorage
+    const { data: { session: freshSession } } = await TP.db.auth.getSession();
+    if (!freshSession || freshSession.user.id !== session.user.id || startGen !== TP.authGen) {
+      if (typeof clearLocalAccount === "function") clearLocalAccount();
+      if (typeof renderAccount === "function") renderAccount();
+      if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+      return;
+    }
+
     if (profile) setUser(tpUser(profile, session.user.email, unread, session.user));
-    if (profile && !profile.name && !/signin\.html$/.test(location.pathname)) {
+    if (typeof renderAccount === "function") renderAccount();
+    if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+
+    if (profile && !profile.name && typeof location !== "undefined" && !/signin\.html$/.test(location.pathname)) {
       rememberNext((location.pathname.split("/").pop() || "index.html") + location.hash);
       location.replace("signin.html"); return;
     }
@@ -103,13 +140,27 @@ TP.sync = async function ({ reload = true } = {}) {
     ]);
     let receipts = null;
     try { receipts = await TP.receiptHistory(); } catch (e) { console.warn(e.message); }
+
+    if (startGen !== TP.authGen) {
+      if (typeof clearLocalAccount === "function") clearLocalAccount();
+      if (typeof renderAccount === "function") renderAccount();
+      if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+      return;
+    }
+
     saveBookings((mine || []).map(b => tpBooking(b, receipts, trips.find(t => t.id === b.trip_id)?.organizer_id ? "pilot" : "demo")));
     saveMyReviews((myReviews || []).map(r => ({ ref: r.booking_ref, tripId: r.trip_id, stars: r.stars, text: r.body, date: r.created_at.slice(0, 10) })));
   } else {
-    try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); localStorage.removeItem(TP_REVIEWS_KEY); } catch { /* ignore */ }
+    if (typeof clearLocalAccount === "function") clearLocalAccount();
+    else {
+      try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); localStorage.removeItem(TP_REVIEWS_KEY); } catch { /* ignore */ }
+    }
+    if (typeof renderAccount === "function") renderAccount();
+    if (typeof renderOwnAvatars === "function") renderOwnAvatars();
   }
+  if (startGen !== TP.authGen) return;
   const after = JSON.stringify([tpReadCache().trips, tpReadCache().slots, tpReadCache().reviews, localStorage.getItem(TP_USER_KEY), localStorage.getItem(TP_BOOKINGS_KEY)]);
-  if (reload && before !== after && !TP.dirty) location.reload();
+  if (reload && before !== after && !TP.dirty && typeof location !== "undefined" && typeof location.reload === "function") location.reload();
 };
 // Once someone starts typing or choosing, never reload the page under them.
 ["input", "change", "submit"].forEach(ev => document.addEventListener(ev, () => { TP.dirty = true; }, true));
@@ -404,10 +455,79 @@ if (TP.online) {
   // Server slots already count everyone's bookings, so don't subtract this browser's again.
   slotsLeft = (trip, date) => Math.max(0, trip.departures[date] ?? 0); // eslint-disable-line no-global-assign
   signOut = async () => { // eslint-disable-line no-global-assign
-    await TP.db.auth.signOut();
-    try { localStorage.removeItem(TP_USER_KEY); localStorage.removeItem(TP_BOOKINGS_KEY); localStorage.removeItem(TP_REVIEWS_KEY); } catch { /* ignore */ }
-    location.href = "index.html";
+    TP.authGen++;
+    let signoutError = null;
+    const btn = typeof document !== "undefined" ? document.getElementById("signout") : null;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Signing out…";
+    }
+    try {
+      const res = await TP.db.auth.signOut();
+      if (res && res.error) {
+        signoutError = res.error;
+        console.warn("Sign-out warning (server session not ended):", res.error.message || res.error);
+        try { await TP.db.auth.signOut({ scope: "local" }); } catch { /* ignore */ }
+      }
+    } catch (e) {
+      signoutError = e;
+      console.warn("Sign-out warning (network or runtime exception):", e.message || e);
+      try { await TP.db.auth.signOut({ scope: "local" }); } catch { /* ignore */ }
+    }
+    if (typeof clearLocalAccount === "function") {
+      clearLocalAccount();
+    } else {
+      try {
+        localStorage.removeItem(TP_USER_KEY);
+        localStorage.removeItem(TP_BOOKINGS_KEY);
+        localStorage.removeItem(typeof TP_REVIEWS_KEY !== "undefined" ? TP_REVIEWS_KEY : "trailpeak.reviews");
+      } catch { /* ignore */ }
+    }
+    if (typeof renderAccount === "function") renderAccount();
+    if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+
+    if (signoutError && btn) {
+      btn.textContent = "Signed out locally";
+      btn.title = signoutError.message || "Server error";
+      if (typeof document !== "undefined" && typeof document.createElement === "function") {
+        const note = document.createElement("p");
+        note.className = "meta signout-note";
+        note.textContent = "Signed out locally: server sign-out failed.";
+        btn.parentElement?.appendChild(note);
+      }
+    }
+
+    if (typeof location !== "undefined" && location.href) {
+      location.href = "index.html";
+    }
+    return { ok: !signoutError, error: signoutError || null };
   };
+  TP.signOut = signOut;
+
+  // Listen to auth state changes across tabs / windows
+  if (TP.db?.auth?.onAuthStateChange) {
+    TP.db.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        TP.authGen++;
+        if (typeof clearLocalAccount === "function") clearLocalAccount();
+        if (typeof renderAccount === "function") renderAccount();
+        if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+      }
+    });
+  }
+
+  // Multi-tab storage synchronization: if another tab cleared the account
+  if (typeof window !== "undefined" && window.addEventListener) {
+    window.addEventListener("storage", e => {
+      if ((e.key === TP_USER_KEY || !e.key) && !localStorage.getItem(TP_USER_KEY)) {
+        TP.authGen++;
+        if (typeof clearLocalAccount === "function") clearLocalAccount();
+        if (typeof renderAccount === "function") renderAccount();
+        if (typeof renderOwnAvatars === "function") renderOwnAvatars();
+      }
+    });
+  }
+
   // Refresh in the background after the page has drawn.
   // Start right away. Waiting for the page's "load" event meant waiting for every photo first
   // (about 1 MB), so trips arrived seconds late and the page then reloaded.
