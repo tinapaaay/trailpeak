@@ -1,23 +1,13 @@
-name: Receipt regression tests
+name: Tests
+# Runs on every PR and on main, so branch protection can require it.
 on:
   pull_request:
-    paths:
-      - 'api.js'
-      - 'auth.js'
-      - 'demo.html'
-      - 'trip.html'
-      - 'cards.js'
-      - 'signin.html'
-      - 'dashboard.html'
-      - 'mytrips.html'
-      - 'reserve.html'
-      - 'supabase/schema.sql'
-      - 'tests/**'
-      - '.github/workflows/receipts.yml'
+  push:
+    branches: [main]
 permissions:
   contents: read
 jobs:
-  receipts:
+  tests:
     runs-on: ubuntu-latest
     # A real, throwaway Postgres for the concurrency tests (tests/race.test.mjs); PGlite has one connection.
     services:
@@ -41,3 +31,14 @@ jobs:
           cache-dependency-path: tests/package-lock.json
       - run: npm ci --prefix tests
       - run: npm test --prefix tests
+  design-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '22'
+      - name: Lint DESIGN.md (0 errors, 0 warnings)
+        run: |
+          npx -y @google/design.md@0.4.0 lint --format json DESIGN.md > lint.json
+          node -e "const s=require('./lint.json').summary; console.log(s); if (s.errors||s.warnings) process.exit(1)"
