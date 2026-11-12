@@ -317,7 +317,7 @@
             <li><strong>The organizer confirms.</strong> Your booking then shows "DP received". TrailPeak doesn't handle or check the money; you pay the balance to the organizer on meetup day.</li>
             <li><strong>Rain or a closure.</strong> If PAGASA raises signal no. 1 or higher or the LGU closes the trail, you can move to another date or get your DP back.</li>
             <li><strong>Cancelling.</strong> 7 or more days before, move to another date once, free. Later than that, or a no-show, the DP isn't refunded.</li>
-            <li><strong>Questions.</strong> Tap Ask the organizer for their mobile number. After you reserve, it's also in My trips.</li>
+            <li><strong>Questions.</strong> Tap Ask the organizer for their mobile number. After you reserve, it's also in My trips. Read our <a href="faq.html">pilot FAQ</a> for more answers.</li>
           </ol>
         </div>
       </section>
@@ -383,7 +383,7 @@
 </div>
 
 <footer class="footer">
-  <div class="wrap">TrailPeak prototype · built from DESIGN.md · heights, difficulty and trail class from published trail guides; organizers, dates, fees, guides and itineraries are sample data · placeholder photos from Unsplash</div>
+  <div class="wrap"><a href="faq.html">FAQ</a> · <a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms of service</a> · TrailPeak prototype · built from DESIGN.md · heights, difficulty and trail class from published trail guides; organizers, dates, fees, guides and itineraries are sample data · placeholder photos from Unsplash</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -480,8 +480,8 @@ function renderStatic() {
     </div>`;
   $("book-price").innerHTML = `${peso(FEE)} <small>event fee per joiner</small>`;
   $("dp-note").innerHTML = TP.online
-    ? `You send the DP directly to ${esc(T.org)} by GCash or Maya. <a href="#how-booking-works">How booking works</a>`
-    : `Demo: no money moves. <a href="#how-booking-works">How booking works</a>`;
+    ? `You send the DP directly to ${esc(T.org)} by GCash or Maya. <a href="#how-booking-works">How booking works</a> · <a href="faq.html">FAQ</a>`
+    : `Demo: no money moves. <a href="#how-booking-works">How booking works</a> · <a href="faq.html">FAQ</a>`;
 }
 
 function buildCalendar() {
