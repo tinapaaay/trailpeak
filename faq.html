@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frequently asked questions · TrailPeak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Source+Sans+3:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Policy pages: one readable column of plain text, 68 characters a line. */
+.policy { padding: var(--space-xl) 0 var(--space-xxl); max-width: 68ch; display: grid; gap: var(--space-md); }
+.policy h1 { font: 700 32px/1.15 var(--font-display); letter-spacing: -0.02em; }
+.policy h2 { font: 700 24px/1.2 var(--font-display); letter-spacing: -0.01em; margin-top: var(--space-lg); }
+.policy .updated { color: var(--color-secondary); font-size: 15px; }
+.policy ul { margin: 0; padding-left: var(--space-lg); display: grid; gap: var(--space-xs); }
+.policy .summary { background: var(--color-card); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-sm); }
+@media (max-width: 767px) { .policy h1 { font-size: 24px; } .policy h2 { font-size: 20px; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+    <path d="M2 20 9 7l4 7 2-3 7 9z"/>
+    <path d="m7.5 10 1.5 1.5L10.5 10"/>
+  </symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+    <circle cx="12" cy="8.5" r="3.5"/>
+    <path d="M5 20a7 7 0 0 1 14 0"/>
+  </symbol>
+</svg>
+
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day hikes</a>
+      <a href="index.html#major" data-kind="major">Major climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <article class="policy">
+    <h1>Frequently asked questions</h1>
+    <p class="updated">Last updated November 12, 2026 · Pilot edition</p>
+
+    <div class="summary">
+      <p><strong>In short:</strong> TrailPeak connects hikers with independent mountain organizers. You reserve slots here, pay your down payment (DP) directly to the organizer by GCash or Maya within the hold window, and pay the remaining balance on meetup day. TrailPeak holds no money, and during the pilot it takes no commission and charges no booking fees.</p>
+    </div>
+
+    <h2>How the down payment (DP) works</h2>
+    <p>TrailPeak does not process payments or hold joiner money. You pay the organizer directly:</p>
+    <ul>
+      <li><strong>Direct payment:</strong> After you reserve, send the exact DP amount shown on your booking to the organizer by GCash or Maya. TrailPeak doesn’t show wallet numbers: get the organizer’s GCash or Maya number from them directly (see <a href="#contact">How to contact your organizer</a>).</li>
+      <li><strong>The 6-hour hold:</strong> Your reserved slots are held for up to 6 hours (shorter when the trip departs in fewer than 3 days). The exact deadline is shown in Manila time as soon as you reserve.</li>
+      <li><strong>Submit your reference:</strong> Once you send the DP, enter the GCash or Maya reference number under your booking in <a href="mytrips.html">My trips</a>. Entering the reference keeps your slots held while the organizer checks their wallet.</li>
+      <li><strong>"DP pending" vs. "DP received":</strong> While the organizer checks their transfer history, your booking shows "DP sent, waiting for organizer". Once verified, the organizer marks it and your status changes to "DP received". If no reference is submitted before the deadline, the hold expires and slots are automatically released.</li>
+      <li><strong>Paying the balance:</strong> You pay the remaining event fee balance directly to your organizer on meetup day in cash or GCash before departure.</li>
+    </ul>
+
+    <h2>What happens if it rains or the trail closes?</h2>
+    <p>Mountain weather in the Philippines changes quickly. Hiker and guide safety always comes first:</p>
+    <ul>
+      <li><strong>Weather &amp; closures:</strong> The organizer decides whether a date goes ahead, based on weather advisories and any trail closure by the local government (LGU) or DENR. If they cancel, you’ll see the date marked cancelled on TrailPeak, and the organizer will contact you.</li>
+      <li><strong>Your choice:</strong> Under TrailPeak’s standard policy, when the organizer cancels for weather or a closure, you choose between moving to another open date or getting your DP back. The refund comes from the organizer, since they received the DP. Some organizers use their own policy; it’s shown on the trip page before you book.</li>
+    </ul>
+
+    <h2>Cancelling your reservation (the 7-day rule)</h2>
+    <p>Trips on TrailPeak follow a clear cancellation rule so organizers can manage permits and vans fairly:</p>
+    <ul>
+      <li><strong>7 or more days before departure:</strong> You may move your reservation to another open date on that same trip once for free. Under the standard policy, the DP isn’t refunded if you cancel outright, so moving is the better option. Check the trip page in case the organizer uses their own policy.</li>
+      <li><strong>Less than 7 days before departure:</strong> The down payment is not refunded. Organizers commit non-refundable costs for van transport, local guides, jump-off registrations and climb permits in advance based on confirmed group size.</li>
+      <li><strong>No-shows:</strong> If you do not arrive at the designated pickup point by meetup time, your booking is counted as a no-show and the down payment is forfeited.</li>
+    </ul>
+
+    <h2>What does “Demo: not a real check” mean?</h2>
+    <p>You will see the tag <span class="tag-demo">Demo: not a real check</span> next to organizer verification badges:</p>
+    <ul>
+      <li><strong>Honest pilot disclosure:</strong> TrailPeak is in an assisted pilot with a small group of organizers. Pilot organizers are approved by hand by the TrailPeak team. ID and business checks on the site are simulated: TrailPeak does not yet verify IDs or business permits, so a badge marked “Demo” has not been checked.</li>
+      <li><strong>What an ID check cannot tell you:</strong> An ID check confirms only who the organizer is. It does not inspect guide certifications, wilderness first-aid training, gear maintenance or emergency plans.</li>
+      <li><strong>Ask before you book:</strong> Review the itinerary, difficulty level, and what the fee includes, and message the organizer if you have any questions.</li>
+    </ul>
+
+    <h2 id="contact">How to contact your organizer</h2>
+    <ul>
+      <li><strong>Before you reserve:</strong> On the trip page, scroll to the organizer card and tap <strong>Ask the organizer</strong> to view their mobile number or copy a pre-filled inquiry text to send via SMS or Messenger.</li>
+      <li><strong>After you reserve:</strong> The organizer's direct Philippine mobile number appears on your booking card in <a href="mytrips.html">My trips</a> as a tap-to-call link alongside your meetup details.</li>
+      <li><strong>Questions for TrailPeak:</strong> For technical questions or issues with your account, <a href="https://github.com/tinapaaay/trailpeak/issues">open an issue on TrailPeak's GitHub repository</a>. Never post private personal details on public issues; we will reply with a secure contact method.</li>
+    </ul>
+  </article>
+</main>
+
+<footer class="footer">
+  <div class="wrap"><a href="faq.html">FAQ</a> · <a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms of service</a> · TrailPeak prototype</div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script src="api.js"></script>
+</body>
+</html>
