@@ -259,6 +259,8 @@ function mergeReviews(trips, list) {
 }
 if (typeof TP !== "undefined" && TP.online) {
   TP.applyTo(TRIPS); // trips, dates, live slots and reviews from Supabase (see api.js)
+  // First visit: don't flash sample trips that will be replaced a moment later.
+  if (TP.firstSync && /(^|\/)(index\.html)?$|\/(trip|org)\.html$/.test(location.pathname)) TRIPS.length = 0;
 } else {
   try {
     // Trips published from this browser; an edited one replaces its earlier copy.

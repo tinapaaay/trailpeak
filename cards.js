@@ -7,6 +7,9 @@ const levels = {
   expert:   { label: "Expert",   shape: "blaze-diamond", marks: 2 },
 };
 const img = id => `https://images.unsplash.com/photo-${id}?w=900&h=600&fit=crop&q=70`;
+// Card photos: the browser picks the smallest size that stays sharp (cards show about 300–420px wide).
+const imgSrcset = id => [480, 800].map(w => `https://images.unsplash.com/photo-${id}?w=${w}&h=${Math.round(w * 2 / 3)}&fit=crop&q=70 ${w}w`).join(", ");
+const CARD_SIZES = "(max-width: 767px) calc(100vw - 32px), (max-width: 1024px) 50vw, 420px";
 
 const icon = (id, s = 18) => `<svg width="${s}" height="${s}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
 const peso = n => "₱" + n.toLocaleString();
@@ -25,7 +28,7 @@ function card(t, dep) {
   const [date, left] = dep;
   return `<article class="card">
     <div class="card-media">
-      <img src="${t.photoUrl || img(t.photo)}" alt="${t.alt}" loading="lazy">
+      <img src="${t.photoUrl || img(t.photo)}"${t.photoUrl ? "" : ` srcset="${imgSrcset(t.photo)}" sizes="${CARD_SIZES}"`} alt="${t.alt}" loading="lazy" decoding="async" width="900" height="600">
       ${badge(t.level)}
       <span class="tag-elevation data">${t.masl.toLocaleString()} MASL</span>
     </div>
