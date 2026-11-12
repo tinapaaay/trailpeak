@@ -96,6 +96,7 @@
 const slugOf = name => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const slug = location.hash.slice(1);
+if (TP.firstSync) { document.getElementById("profile").innerHTML = '<p class="loading-note" role="status">Loading organizer…</p>'; TP.waitForData(); }
 const trips = TRIPS.filter(t => isListed(t) && slugOf(t.org) === slug);
 const root = document.getElementById("profile");
 

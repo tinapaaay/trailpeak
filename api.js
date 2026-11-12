@@ -20,6 +20,13 @@ function tpReadCache() { try { return JSON.parse(localStorage.getItem(TP_CACHE_K
 function tpWriteCache(c) { try { localStorage.setItem(TP_CACHE_KEY, JSON.stringify(c)); } catch { /* storage blocked */ } }
 
 // Called by trips.js: swap the built-in sample trips for the server's trips and live slots.
+// First visit with no saved copy of the trips: pages show a loading state instead of the
+// built-in sample trips, then the page reloads once the real trips arrive (TP.sync).
+TP.firstSync = TP.online && !tpReadCache().trips;
+// Pages call this to stop drawing until the first data arrives; the quiet error ends the page script.
+TP.waitForData = () => { throw new Error("TrailPeak: waiting for the first data load"); };
+window.addEventListener("error", e => { if (String(e.message).includes("waiting for the first data load")) e.preventDefault(); });
+
 TP.applyTo = function (trips) {
   if (!TP.online) return;
   const c = tpReadCache();
@@ -402,5 +409,7 @@ if (TP.online) {
     location.href = "index.html";
   };
   // Refresh in the background after the page has drawn.
-  window.addEventListener("load", () => { TP.sync().catch(e => console.warn("TrailPeak sync failed", e)); });
+  // Start right away. Waiting for the page's "load" event meant waiting for every photo first
+  // (about 1 MB), so trips arrived seconds late and the page then reloaded.
+  TP.sync().catch(e => console.warn("TrailPeak sync failed", e));
 }

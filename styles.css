@@ -131,7 +131,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   min-height: 560px;
   display: flex; align-items: flex-end;
   color: var(--color-surface);
-  background: var(--color-primary-deep) url("https://images.unsplash.com/photo-1685720320152-064dec597cb5?w=2000&q=75") center 60% / cover;
+  background: var(--color-primary-deep) url("https://images.unsplash.com/photo-1685720320152-064dec597cb5?w=1600&q=70") center 60% / cover;
 }
 .hero::before { /* primary-deep gradient so text always has contrast */
   content: ""; position: absolute; inset: 0;
@@ -378,3 +378,18 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 [data-own-avatar] img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .profile-greeting { display: flex; align-items: center; gap: var(--space-md); }
 .profile-greeting .avatar { cursor: default; }
+
+/* Smaller hero photo on narrower screens (was one 2000px image for everyone). */
+@media (max-width: 1024px) { .hero { background-image: url("https://images.unsplash.com/photo-1685720320152-064dec597cb5?w=1100&q=70"); } }
+@media (max-width: 600px) { .hero { background-image: url("https://images.unsplash.com/photo-1685720320152-064dec597cb5?w=750&q=70"); } }
+
+/* First-visit loading state: grey placeholders shaped like trip cards. */
+.skeleton-card { background: var(--color-card); border-radius: var(--rounded-lg); overflow: hidden; }
+.skeleton-card .sk-photo { aspect-ratio: 3 / 2; background: var(--color-neutral); }
+.skeleton-card .sk-line { height: 14px; margin: var(--space-md) var(--space-lg) 0; border-radius: var(--rounded-sm); background: var(--color-neutral); }
+.skeleton-card .sk-line.short { width: 40%; margin-bottom: var(--space-lg); }
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-card .sk-photo, .skeleton-card .sk-line { animation: sk-pulse 1.4s ease-in-out infinite; }
+}
+@keyframes sk-pulse { 50% { opacity: .55; } }
+.loading-note { color: var(--color-secondary); padding: var(--space-xl) 0; }

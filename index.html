@@ -149,6 +149,12 @@ let level = "all";
 const kinds = { day: "Day hikes", major: "Major climbs" };
 let kind = kinds[location.hash.slice(1)] ? location.hash.slice(1) : "";
 function render() {
+  if (TP.firstSync) {
+    count.textContent = "Loading trips…";
+    grid.setAttribute("aria-busy", "true");
+    grid.innerHTML = Array.from({ length: 3 }, () => `<div class="skeleton-card" aria-hidden="true"><div class="sk-photo"></div><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line short"></div></div>`).join("");
+    return;
+  }
   const where = document.getElementById("where").value.trim().toLowerCase();
   const [from, to] = dateRange();
   const size = Number(document.getElementById("size").value);

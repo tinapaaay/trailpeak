@@ -391,6 +391,7 @@
 <script>
 // Which trip: from the link (trip.html#mt-pulag-akiki), else the first one.
 const $ = id => document.getElementById(id);
+if (TP.firstSync) { document.getElementById("main").innerHTML = '<p class="loading-note" role="status">Loading trip…</p>'; TP.waitForData(); }
 const T = tripById(location.hash.slice(1)) || TRIPS[0];
 // Pilot funnel (TP-022): one visit per browser, trip and day; only published trips count.
 TP.track("trip_view", { trip: T.id, source: TP.visitSource() });
