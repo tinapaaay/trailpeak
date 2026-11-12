@@ -9,3 +9,7 @@ Run `node tests/preview.mjs` for a local synthetic browser fixture. Use `/dashbo
 Browser evidence from this change: pending showed ₱0 received / ₱2,998 outstanding; recording ₱1,000 produced ₱1,998; correcting to ₱700 produced ₱2,298 in both organizer and joiner views. Occupancy stayed at two seats. Saved via keyboard and tested the receipt form at 375px with no page-level overflow.
 
 Limitations: PGlite has one connection, so it does not prove true concurrent locking. This fixture does not validate Supabase JWT handling, PostgREST or the live deployment. Repeat owner/booker/other-organizer/signed-out checks in staging, apply the schema before app deployment, and verify demo/pilot isolation before pilot release. Demo sample IDs are rejected by booking/move/receipt/outside-booking operations and cannot be reassigned by normal clients. VoiceOver has not been tested.
+
+## Manual end-to-end test
+
+The live walkthrough for issue #24 (TP-019), a real two-joiner booking from both sides, is in [docs/testing/pilot-booking-test.md](../docs/testing/pilot-booking-test.md). The practice demo (`demo.html`) saves nothing and can't be used for it.
