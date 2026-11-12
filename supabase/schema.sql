@@ -1837,3 +1837,230 @@ from logged l full join incidents i using (week_of)
 order by 1;
 
 revoke all on public.pilot_bookings, public.pilot_funnel_weekly, public.pilot_waits_weekly, public.pilot_admin_weekly from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Booking, payment and refund states (TP-027, ADR-005). Three separate dimensions:
+--   status          confirmed | cancelled | expired   (seats; "completed" is not stored: a
+--                   confirmed booking whose date has passed is completed)
+--   payment_status  none | pending | confirmed | failed
+--   refund_status   none | pending | completed | declined
+-- One source of truth: payment_status and the refund on cancel are set by triggers from the
+-- actions that already exist (send_dp_reference, record_dp_receipt, expire_holds,
+-- cancel_booking, rebook_expired, release_overdue_booking), so they can't drift. Every change of
+-- any of the three is written to booking_state_history by a trigger, with who did it, why and
+-- how many seats it freed or took. transition_booking_state() only adds refund decisions and
+-- routes cancel/revive to the existing, checked functions.
+-- ---------------------------------------------------------------------------
+alter table public.bookings add column if not exists payment_status text not null default 'none';
+alter table public.bookings add column if not exists refund_status text not null default 'none';
+do $$ begin
+  alter table public.bookings add constraint bookings_payment_status_check check (payment_status in ('none', 'pending', 'confirmed', 'failed'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.bookings add constraint bookings_refund_status_check check (refund_status in ('none', 'pending', 'completed', 'declined'));
+exception when duplicate_object then null; end $$;
+
+insert into public.app_settings (key, value, note) values
+  ('refund_cutoff_days', 7, 'A joiner who cancels at least this many days before the trip (Manila dates) is owed their confirmed DP back; later, the DP is kept under the policy')
+on conflict (key) do nothing;
+
+-- What the payment status is, from the facts already stored (also used to backfill).
+create or replace function public.derived_payment_status(p_ref text)
+returns text language sql stable security definer set search_path = public as $$
+  select case
+    when (select r.amount from public.dp_receipts r where r.booking_ref = b.ref order by r.revision desc limit 1) >= b.dp then 'confirmed'
+    when b.dp_sent_at is not null
+      or coalesce((select r.amount from public.dp_receipts r where r.booking_ref = b.ref order by r.revision desc limit 1), 0) > 0 then 'pending'
+    when b.status = 'expired' then 'failed'
+    else 'none' end
+  from public.bookings b where b.ref = p_ref;
+$$;
+-- Backfill (safe to repeat): only rows still on the default.
+update public.bookings b set payment_status = public.derived_payment_status(b.ref)
+ where b.payment_status = 'none' and public.derived_payment_status(b.ref) <> 'none';
+
+create table if not exists public.booking_state_history (
+  id                  bigint generated always as identity primary key,
+  booking_ref         text not null references public.bookings (ref) on delete cascade,
+  from_booking_status text,
+  to_booking_status   text not null,
+  from_payment_status text,
+  to_payment_status   text not null,
+  from_refund_status  text,
+  to_refund_status    text not null,
+  actor_id            uuid,
+  actor_role          text not null check (actor_role in ('joiner', 'organizer', 'support', 'system')),
+  slots_affected      int not null default 0,
+  reason              text,
+  created_at          timestamptz not null default now()
+);
+create index if not exists booking_state_history_ref on public.booking_state_history (booking_ref, id);
+alter table public.booking_state_history enable row level security;
+drop policy if exists "Booker and organizer read state history" on public.booking_state_history;
+create policy "Booker and organizer read state history" on public.booking_state_history
+  for select using (exists (select 1 from public.bookings b where b.ref = booking_ref
+                            and (b.user_id = auth.uid() or exists (select 1 from public.trips t where t.id = b.trip_id and t.organizer_id = auth.uid()))));
+revoke all on public.booking_state_history from anon, authenticated;
+grant select on public.booking_state_history to authenticated;   -- append-only: written by the trigger only
+
+-- Who is acting: set by transition_booking_state() for support; otherwise from the session.
+create or replace function public.state_actor(b public.bookings)
+returns text language sql stable security definer set search_path = public as $$
+  select coalesce(nullif(current_setting('trailpeak.actor_role', true), ''),
+    case when auth.uid() is null then 'system'
+         when auth.uid() = b.user_id then 'joiner'
+         when exists (select 1 from public.trips t where t.id = b.trip_id and t.organizer_id = auth.uid()) then 'organizer'
+         else 'system' end);
+$$;
+
+-- Before a booking row changes: derive payment_status, and on cancellation decide the refund.
+create or replace function public.booking_states_before()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare actor text := public.state_actor(new);
+begin
+  if tg_op = 'UPDATE' then
+    -- DP reference sent: pending (from none, or failed when a late payer is rebooked).
+    if new.dp_sent_at is not null and old.dp_sent_at is null and new.payment_status in ('none', 'failed') then
+      new.payment_status := 'pending';
+    end if;
+    -- Hold lapsed with no reference: the DP failed.
+    if new.status = 'expired' and old.status <> 'expired' and new.payment_status = 'none' then
+      new.payment_status := 'failed';
+    end if;
+    -- Rebooked after expiring: back to what the facts say.
+    if old.status = 'expired' and new.status = 'confirmed' and new.payment_status = 'failed' then
+      new.payment_status := case when new.dp_sent_at is not null then 'pending' else 'none' end;
+    end if;
+    -- A DP confirmed after the booking was already cancelled (it crossed with the cancel):
+    -- money arrived for a cancelled booking, so a refund is owed until the organizer decides.
+    if new.status = 'cancelled' and old.status = 'cancelled' and new.payment_status = 'confirmed'
+       and old.payment_status <> 'confirmed' and new.refund_status = 'none' then
+      new.refund_status := 'pending';
+    end if
+    ;
+    -- Cancelled: the refund follows the policy, unless this same change set it on purpose.
+    if new.status = 'cancelled' and old.status <> 'cancelled' and new.refund_status = old.refund_status then
+      new.refund_status := case
+        when new.payment_status <> 'confirmed' then 'none'                     -- nothing confirmed to return
+        when actor = 'joiner' and new.date < public.ph_today() + public.app_setting('refund_cutoff_days')::int then 'none'  -- late: DP kept
+        else 'pending' end;                                                      -- early joiner cancel, or organizer/system cancel
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists booking_states_before on public.bookings;
+create trigger booking_states_before before update on public.bookings
+  for each row execute function public.booking_states_before();
+
+-- After a booking row is made or changes state: one history row, with the seats it moved.
+create or replace function public.booking_states_history()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare held_before boolean := false; held_after boolean;
+begin
+  if tg_op = 'UPDATE' then
+    if new.status = old.status and new.payment_status = old.payment_status and new.refund_status = old.refund_status then return null; end if;
+    held_before := public.booking_holds_seat(old.status, old.hold_until, old.dp_sent_at);
+  end if;
+  held_after := public.booking_holds_seat(new.status, new.hold_until, new.dp_sent_at);
+  insert into public.booking_state_history (booking_ref, from_booking_status, to_booking_status, from_payment_status, to_payment_status,
+                                            from_refund_status, to_refund_status, actor_id, actor_role, slots_affected, reason)
+  values (new.ref, case when tg_op = 'UPDATE' then old.status end, new.status,
+          case when tg_op = 'UPDATE' then old.payment_status end, new.payment_status,
+          case when tg_op = 'UPDATE' then old.refund_status end, new.refund_status,
+          auth.uid(), public.state_actor(new),
+          -- A lapsed hold freed its seats when hold_until passed (read time, ADR-002); the expiry
+          -- records that release, so a booking's seats in the history always add up.
+          case when tg_op = 'UPDATE' and new.status = 'expired' and old.status = 'confirmed' then -new.size
+               when held_before and not held_after then -new.size when held_after and not held_before then new.size else 0 end,
+          coalesce(nullif(current_setting('trailpeak.reason', true), ''),
+                   case when tg_op = 'INSERT' then 'Booked' when new.status <> old.status then new.note end));
+  return null;
+end $$;
+drop trigger if exists booking_states_history on public.bookings;
+create trigger booking_states_history after insert or update on public.bookings
+  for each row execute function public.booking_states_history();
+
+-- A DP receipt changes the payment status (full -> confirmed, partial -> pending, undone -> back).
+create or replace function public.receipt_payment_status()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.booking_ref is not null then
+    update public.bookings set payment_status = public.derived_payment_status(ref)
+     where ref = new.booking_ref and payment_status is distinct from public.derived_payment_status(ref);
+  end if;
+  return null;
+end $$;
+drop trigger if exists receipt_payment_status on public.dp_receipts;
+create trigger receipt_payment_status after insert on public.dp_receipts
+  for each row execute function public.receipt_payment_status();
+revoke all on function public.state_actor, public.booking_states_before, public.booking_states_history,
+  public.receipt_payment_status, public.derived_payment_status from public, anon, authenticated;
+
+-- The one place to change a state on purpose. Allowed moves (anything else is refused):
+--   joiner:     booking confirmed -> cancelled         (runs cancel_booking: its date rule, note, activity)
+--   organizer:  booking expired -> confirmed           (runs rebook_expired: seats checked under the date lock)
+--               refund pending -> completed | declined (with a reason)
+--   support:    refund pending -> completed | declined, declined -> pending, none -> pending (with a reason)
+-- Payment status is never set here: it follows the DP reference and the organizer's receipts.
+drop function if exists public.transition_booking_state(text, text, text, text, text);
+create or replace function public.transition_booking_state(
+  p_ref text, p_to_booking text default null, p_to_payment text default null,
+  p_to_refund text default null, p_reason text default null)
+returns public.bookings language plpgsql security definer set search_path = public as $$
+declare
+  b public.bookings;
+  me uuid := auth.uid();
+  role text;
+  why text := left(trim(coalesce(p_reason, '')), 300);
+begin
+  select * into b from public.bookings where ref = p_ref;
+  if not found then raise exception 'Booking not found.'; end if;
+  -- Support: the service role, or the owner in the SQL editor (no website role is set there).
+  if coalesce(current_setting('request.jwt.claim.role', true), '') = 'service_role'
+     or (me is null and coalesce(current_setting('role', true), 'none') not in ('anon', 'authenticated')) then role := 'support';
+  elsif me is null then raise exception 'Sign in to change a booking.';
+  elsif exists (select 1 from public.trips t where t.id = b.trip_id and t.organizer_id = me) then role := 'organizer';
+  elsif b.user_id = me then role := 'joiner';
+  else raise exception 'Booking not found.';
+  end if;
+  if num_nonnulls(p_to_booking, p_to_payment, p_to_refund) <> 1 then
+    raise exception 'Change one thing at a time: the booking, or the refund.';
+  end if;
+  if p_to_payment is not null then
+    raise exception 'The payment status follows the DP: the joiner sends the reference, and the organizer records the DP received.';
+  end if;
+
+  if p_to_booking is not null then
+    if p_to_booking = 'cancelled' and b.status = 'confirmed' and role = 'joiner' then
+      perform set_config('trailpeak.reason', coalesce(nullif(why, ''), 'Cancelled by the joiner'), true);
+      b := public.cancel_booking(p_ref);
+      perform set_config('trailpeak.reason', '', true);
+      return b;
+    elsif p_to_booking = 'confirmed' and b.status = 'expired' and role = 'organizer' then
+      perform set_config('trailpeak.reason', coalesce(nullif(why, ''), 'Rebooked after paying late'), true);
+      b := public.rebook_expired(p_ref);
+      perform set_config('trailpeak.reason', '', true);
+      return b;
+    end if;
+    raise exception 'That change isn''t allowed (% to % by the %).', b.status, p_to_booking, role;
+  end if;
+
+  -- Refund decisions
+  if role = 'joiner' then raise exception 'The organizer or TrailPeak support decides refunds.'; end if;
+  if not (
+       (b.refund_status = 'pending' and p_to_refund in ('completed', 'declined'))
+    or (role = 'support' and b.refund_status = 'declined' and p_to_refund = 'pending')
+    or (role = 'support' and b.refund_status = 'none' and p_to_refund = 'pending' and b.status = 'cancelled')) then
+    raise exception 'That refund change isn''t allowed (% to % by the %).', b.refund_status, p_to_refund, role;
+  end if;
+  if why = '' then raise exception 'Add a reason (for example the refund''s transaction reference, or the policy line).'; end if;
+  select * into b from public.bookings where ref = p_ref for update;   -- no seats move: the booking lock is enough
+  perform set_config('trailpeak.actor_role', role, true);
+  perform set_config('trailpeak.reason', why, true);
+  update public.bookings set refund_status = p_to_refund where ref = p_ref returning * into b;
+  perform set_config('trailpeak.actor_role', '', true);
+  perform set_config('trailpeak.reason', '', true);
+  return b;
+end $$;
+revoke all on function public.transition_booking_state from public, anon;
+grant execute on function public.transition_booking_state to authenticated, service_role;
