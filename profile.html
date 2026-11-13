@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your profile · TrailPeak</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Profile (TP-058, #93): details saved once and prefilled on every booking. */
+.pf { padding: var(--space-xl) 0 var(--space-xxl); display: grid; gap: var(--space-xl); max-width: 1040px; }
+.pf h1 { font: 700 40px/1.1 var(--font-display); letter-spacing: -0.02em; }
+.pf h2 { font: 700 20px/1.3 var(--font-display); }
+.lead { color: var(--color-secondary); max-width: 640px; }
+.pf-head { display: grid; gap: var(--space-sm); }
+.pf-grid { display: flex; flex-wrap: wrap; gap: var(--space-lg); align-items: flex-start; }
+.pf-card { background: var(--color-card); border: 1px solid var(--color-hairline); border-radius: var(--rounded-lg); padding: var(--space-lg); display: grid; gap: var(--space-md); min-width: 0; }
+.pf-id { flex: 1 1 260px; max-width: 340px; justify-items: center; text-align: center; }
+.pf-forms { flex: 999 1 520px; min-width: 0; display: grid; gap: var(--space-lg); }
+.pf-avatar { width: 120px; height: 120px; cursor: default; font: 700 40px/1 var(--font-display); background: var(--color-tertiary-tint); color: var(--color-tertiary); }
+.pf-name { font: 700 24px/1.2 var(--font-display); }
+.pf-stats { width: 100%; display: flex; justify-content: space-around; gap: var(--space-sm); border-top: 1px solid var(--color-hairline); padding-top: var(--space-md); }
+.pf-stats div { display: grid; }
+.pf-num { font: 700 28px/1.1 var(--font-label); font-feature-settings: "tnum" 1; }
+.pf-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-lg) var(--space-md); }
+.pf-field { display: grid; gap: var(--space-sm); align-content: start; min-width: 0; }
+.pf-prefix { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-sm); align-items: center; }
+.pf-prefix span { color: var(--color-secondary); }
+.input { width: 100%; font: 400 17px/1.4 var(--font-body); color: var(--color-on-surface); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-sm); padding: var(--space-sm) var(--space-md); min-height: 52px; }
+.input[aria-invalid="true"] { border-color: var(--color-error); }
+.note { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
+.pf-health { display: flex; gap: var(--space-md); align-items: flex-start; background: var(--color-neutral); border-radius: var(--rounded-lg); padding: var(--space-lg); }
+.pf-health svg { flex: none; color: var(--color-primary); margin-top: 2px; }
+.pf-health h2 { font: 700 17px/1.6 var(--font-body); }
+.pf-row { display: flex; justify-content: space-between; align-items: center; gap: var(--space-md); flex-wrap: wrap; padding-top: var(--space-md); border-top: 1px solid var(--color-hairline); }
+.pf-row > div { display: grid; }
+.pf-ok { display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--color-primary); font: 700 14px/1.2 var(--font-label); }
+.pf-chip { background: var(--color-neutral); color: var(--color-secondary); font: 700 14px/1.2 var(--font-label); border-radius: var(--rounded-sm); padding: var(--space-xs) var(--space-sm); }
+.pf-actions { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+.error { display: flex; gap: var(--space-xs); align-items: flex-start; color: var(--color-error); font-size: 15px; line-height: 1.5; }
+.error svg { flex: none; margin-top: 2px; }
+@media (max-width: 767px) {
+  .pf h1 { font-size: 32px; }
+  .pf-id { max-width: none; }
+  .pf-card, .pf-health { padding: var(--space-md); }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mountain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M2 20 9 7l4 7 2-3 7 9z"/><path d="m7.5 10 1.5 1.5L10.5 10"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8 6.6 19.7l1.1-6.1L3.2 9.4l6.1-.8z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 21s-6.5-6.2-6.5-11.5a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></symbol>
+  <symbol id="i-van" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 16V8a2 2 0 0 1 2-2h10l4 4h1a1 1 0 0 1 1 1v5h-2"/><path d="M9 16h6"/><circle cx="7" cy="16.5" r="1.8"/><circle cx="17" cy="16.5" r="1.8"/><path d="M3 11h16"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.8 14.4 4.5l2.9-.1.9 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-.9 2.8-2.9-.1L12 21.2l-2.4-1.7-2.9.1-.9-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7.9-2.8 2.9.1z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="1"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+  <symbol id="i-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2"/><path d="M10.5 18.5h3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="1.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
+  <symbol id="i-id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="1.5"/><circle cx="8.5" cy="11" r="2.2"/><path d="M5.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h4M14.5 13.5h3"/></symbol>
+</svg>
+<header class="header">
+  <div class="wrap">
+    <a class="logo" href="index.html"><svg width="28" height="28"><use href="#i-mountain"/></svg>TrailPeak</a>
+    <nav class="nav" aria-label="Main">
+      <a href="index.html#day" data-kind="day">Day hikes</a>
+      <a href="index.html#major" data-kind="major">Major climbs</a>
+      <a href="organize.html">Post a trip</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-secondary label-caps post-link" href="organize.html">Post a trip</a>
+      <span class="avatar" role="img" aria-label="Your profile"><svg width="22" height="22"><use href="#i-user"/></svg></span>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap" tabindex="-1">
+  <div class="pf">
+    <div class="pf-head">
+      <h1>Your profile</h1>
+      <p class="lead">Saved once, filled in on every booking. Organizers see these details only on bookings you make with them.</p>
+    </div>
+    <div class="pf-grid">
+      <aside class="pf-card pf-id" aria-labelledby="pf-name">
+        <span class="avatar pf-avatar" data-own-avatar aria-hidden="true"></span>
+        <div><p class="pf-name" id="pf-name"></p><p class="note" id="pf-email"></p></div>
+        <button class="btn btn-secondary label-caps" type="button" id="photo-toggle" hidden>Use initials</button>
+        <p class="note">Only you see your photo. To change it, update your <a href="https://myaccount.google.com/personal-info" target="_blank" rel="noopener noreferrer">Google profile photo</a>, then sign in with Google again.</p>
+        <p class="note" id="photo-status" role="status"></p>
+        <div class="pf-stats">
+          <div><span class="pf-num" id="st-booked">0</span><span class="note">hikes booked</span></div>
+          <div><span class="pf-num" id="st-next">0</span><span class="note">coming up</span></div>
+        </div>
+      </aside>
+
+      <form class="pf-forms" id="pf-form" novalidate>
+        <section class="pf-card" aria-labelledby="h-about">
+          <div><h2 id="h-about">About you</h2><p class="note">Organizers register every hiker at the jump-off, so use your name as it appears on your ID.</p></div>
+          <div class="pf-fields">
+            <div class="pf-field"><label class="field-label" for="p-name">Full name</label><input class="input" id="p-name" autocomplete="name" maxlength="100"></div>
+            <div class="pf-field"><label class="field-label" for="p-mob">Mobile</label><div class="pf-prefix"><span aria-hidden="true">+63</span><input class="input" id="p-mob" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="917 123 4567"></div></div>
+            <div class="pf-field"><label class="field-label" for="p-age">Age</label>
+              <select class="input" id="p-age" aria-describedby="p-age-h"><option value="">Choose</option><option value="adult">18 or older</option><option value="minor">Under 18</option></select>
+              <p class="note" id="p-age-h">Under 18 needs a parent or guardian on the trip.</p></div>
+          </div>
+        </section>
+
+        <section class="pf-card" aria-labelledby="h-em">
+          <div><h2 id="h-em">Emergency contact</h2><p class="note">Someone who isn't on your hikes. Organizers call them only if something happens on the trail. You can still use someone else for one booking.</p></div>
+          <div class="pf-fields">
+            <div class="pf-field"><label class="field-label" for="e-name">Name</label><input class="input" id="e-name" autocomplete="off" maxlength="100"></div>
+            <div class="pf-field"><label class="field-label" for="e-rel">Relationship</label><input class="input" id="e-rel" placeholder="e.g. Mother, Partner" maxlength="60"></div>
+            <div class="pf-field"><label class="field-label" for="e-mob">Mobile</label><div class="pf-prefix"><span aria-hidden="true">+63</span><input class="input" id="e-mob" type="tel" inputmode="numeric" placeholder="917 123 4567"></div></div>
+          </div>
+        </section>
+
+        <section class="pf-health" aria-labelledby="h-health">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>
+          <div><h2 id="h-health">Health notes aren't kept on your profile</h2>
+          <p class="note">If an organizer needs to know about asthma, allergies or anything else, tell them directly for that trip.</p></div>
+        </section>
+
+        <section class="pf-card" aria-labelledby="h-conn">
+          <h2 id="h-conn">Connected accounts</h2>
+          <div class="pf-row"><div><span class="jd-h">Google</span><span class="note" id="g-note"></span></div><span id="g-state"></span></div>
+          <div class="pf-row"><div><span class="jd-h">Strava</span><span class="note">Show organizers how many hikes you've logged.</span></div><span class="pf-chip">Coming later</span></div>
+        </section>
+
+        <p class="error" id="pf-err" role="alert" tabindex="-1" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        <div class="pf-actions">
+          <button type="submit" class="btn btn-primary label-caps" id="pf-save">Save profile</button>
+          <p class="note" id="pf-saved" role="status"></p>
+        </div>
+        <p class="note">Changes fill in your next bookings. Past bookings keep the details you sent.</p>
+      </form>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="wrap"><a href="faq.html">FAQ</a> · <a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms of service</a> · TrailPeak prototype · profile</div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script src="api.js"></script>
+<script src="trips.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const user = getUser();
+if (!user) { rememberNext("profile.html"); location.replace("signin.html"); }
+else fill(user);
+
+function fill(u) {
+  $("pf-name").textContent = u.name || "";
+  $("pf-email").textContent = u.email || "";
+  $("p-name").value = u.name || "";
+  $("p-mob").value = u.phone ? jdPhone(u.phone).slice(4) : "";   // "917 123 4567"
+  $("p-age").value = u.ageGroup || "";
+  const e = u.emergency || {};
+  $("e-name").value = e.name || ""; $("e-rel").value = e.relation || ""; $("e-mob").value = e.phone ? jdPhone(e.phone).slice(4) : "";
+  const tick = '<svg width="18" height="18" aria-hidden="true"><use href="#i-tick"/></svg>';
+  $("g-note").textContent = u.google ? "You sign in with Google." : "You sign in with an email link.";
+  $("g-state").innerHTML = u.google ? `<span class="pf-ok">${tick}Connected</span>` : '<span class="pf-chip">Not connected</span>';
+  const mine = getBookings().filter(b => b.status === "confirmed");
+  $("st-booked").textContent = mine.length;
+  $("st-next").textContent = mine.filter(b => !isPastDate(b.date)).length;
+}
+
+// Reads the form; returns the fields to save, or { error, field } for the first problem.
+function readProfile() {
+  const name = $("p-name").value.trim(), mob = $("p-mob").value.trim();
+  const en = $("e-name").value.trim(), er = $("e-rel").value.trim(), em = $("e-mob").value.trim();
+  if (!name) return { error: "Enter your full name as it appears on your ID.", field: $("p-name") };
+  if (!/^9\d{9}$/.test(jdLocal(mob))) return { error: "Enter your 10-digit mobile number that starts with 9.", field: $("p-mob") };
+  let emergency = null;
+  if (en || er || em) {
+    if (!en) return { error: "Add your emergency contact's name, or clear all three emergency fields.", field: $("e-name") };
+    if (!/^9\d{9}$/.test(jdLocal(em))) return { error: "Enter the emergency contact's 10-digit mobile number that starts with 9.", field: $("e-mob") };
+    emergency = { name: en, relation: er, phone: jdPhone(em) };
+  }
+  return { fields: { name, phone: jdPhone(mob), age_group: $("p-age").value || null, emergency } };
+}
+
+$("pf-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const err = msg => { $("pf-err").hidden = !msg; $("pf-err").querySelector("span").textContent = msg || ""; };
+  document.querySelectorAll("#pf-form [aria-invalid]").forEach(el => el.removeAttribute("aria-invalid"));
+  $("pf-saved").textContent = "";
+  const r = readProfile();
+  if (r.error) { err(r.error); r.field.setAttribute("aria-invalid", "true"); r.field.focus(); return; }
+  err("");
+  $("pf-save").disabled = true; $("pf-saved").textContent = "Saving…";
+  try {
+    if (TP.online) await TP.saveProfile(r.fields);
+    else setUser({ ...getUser(), name: r.fields.name, phone: r.fields.phone, ageGroup: r.fields.age_group, emergency: r.fields.emergency });
+    fill(getUser());
+    renderOwnAvatars();
+    $("pf-saved").textContent = "Saved. Your next bookings will use these details.";
+    TP.dirty = false;
+  } catch (e2) {
+    $("pf-saved").textContent = "";
+    err(e2.message || "Couldn't save your profile. Try again.");
+    $("pf-err").focus();
+  } finally { $("pf-save").disabled = false; }
+});
+</script>
+</body>
+</html>

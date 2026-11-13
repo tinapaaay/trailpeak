@@ -69,7 +69,7 @@ function accountPhotoFields(authUser) {
   const metadata = authUser?.user_metadata || {};
   const url = google ? avatarUrl(metadata.avatar_url) : "";
   const hidden = metadata.trailpeak_avatar_hidden === true;
-  return { avatarUrl: hidden ? "" : url, photoAvailable: !!url, photoHidden: hidden };
+  return { avatarUrl: hidden ? "" : url, photoAvailable: !!url, photoHidden: hidden, google: !!google };
 }
 function renderOwnAvatars() {
   const user = getUser();
@@ -185,6 +185,7 @@ function renderAccount() {
       <p class="acct-name">${escapeHtml(user.name)}</p>
       <p class="meta">${role}</p>
       <a class="btn btn-${user.role === "organizer" ? "secondary" : "primary"} label-caps" href="mytrips.html">My trips</a>
+      <a class="btn btn-secondary label-caps" href="profile.html">Profile</a>
       ${user.role === "organizer" ? '<a class="btn btn-primary label-caps" href="dashboard.html">Dashboard</a><a class="btn btn-secondary label-caps" href="organize.html">Post a trip</a>' : `<a class="btn btn-secondary label-caps" href="organizer-signup.html">${user.organizerStatus === "pending" ? "Application status" : "Become an organizer"}</a>`}
       <button type="button" class="btn btn-secondary label-caps" id="signout">Sign out</button>
     </div>
@@ -357,13 +358,21 @@ document.addEventListener("change", e => {
     refreshGuardianOptions(m[1]);
   }
 });
+// "Use someone else for this trip": open the prefilled emergency fields in place of the summary.
+document.addEventListener("click", e => {
+  const b = e.target.closest?.("[data-em-edit]"); if (!b) return;
+  const p = b.dataset.emEdit;
+  document.getElementById(`${p}-esum`)?.remove();
+  const f = document.getElementById(`${p}-efields`); if (f) f.hidden = false;
+  document.getElementById(`${p}-en`)?.focus();
+});
 document.addEventListener("input", e => {
   const m = /^(.+)-n(\d+)$/.exec(e.target.id || "");
   if (m) refreshGuardianOptions(m[1]);
 });
 
 // p: id prefix (several forms can be on one page); size: joiners in the booking.
-function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = "", allowLater = true, date = null, overdue = false, booker = { age: "adult" }, editableCount = false, maxJoiners = null } = {}) {
+function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = "", allowLater = true, date = null, overdue = false, booker = { age: "adult" }, editableCount = false, maxJoiners = null, ageFromProfile = false, emergencySaved = null, offerSave = false, saveChecked = true } = {}) {
   const e = emergency || {};
   const laterLabel = overdue ? "I'll add their details as soon as I can" : `I'll add their details later${date ? ` (before ${niceShort(dueDate(date))} in My trips)` : ""}`;
   const rows = Array.from({ length: Math.max(0, size - 1) }, (_, k) => {
@@ -384,8 +393,18 @@ function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = ""
     </div>`;
   }).join("");
   const b1 = booker || { age: "adult" };
-  const youRow = `<div class="jd-joiner"><p class="jd-you"><span class="jd-h">Joiner 1</span> You${you ? `, ${escapeHtml(you)}` : ""}</p>
-      <div class="jd-row"><div class="jd-field"><label class="field-label" for="${p}-a1">Your age</label><select class="input" id="${p}-a1"><option value="adult"${b1.age !== "minor" ? " selected" : ""}>18 or older</option><option value="minor"${b1.age === "minor" ? " selected" : ""}>Under 18</option></select></div></div>
+  // Joiner 1 is the booker (TP-058): a card with their photo, "You" and their name. With an age
+  // from the profile, the age select is replaced by a hidden field (readJoinerFields reads it).
+  const ageTxt = b1.age === "minor" ? "Under 18" : "18 or older";
+  const youMeta = [you, ageFromProfile ? ageTxt : ""].filter(Boolean).join(" · ");
+  const youRow = `<div class="jd-joiner">
+      <div class="jd-you">
+        <span class="avatar label-caps jd-avatar" data-own-avatar aria-hidden="true">${escapeHtml(initialsOf(you))}</span>
+        <p class="jd-you-text"><span class="jd-h"><span class="sr">Joiner 1: </span>You</span>${youMeta ? `<span class="jd-you-meta">${escapeHtml(youMeta)}</span>` : ""}</p>
+        ${ageFromProfile ? '<a class="jd-you-link" href="profile.html">Edit in profile</a>' : ""}
+      </div>
+      ${ageFromProfile ? `<input type="hidden" id="${p}-a1" value="${b1.age === "minor" ? "minor" : "adult"}">`
+        : `<div class="jd-row"><div class="jd-field"><label class="field-label" for="${p}-a1">Your age</label><select class="input" id="${p}-a1"><option value="adult"${b1.age !== "minor" ? " selected" : ""}>18 or older</option><option value="minor"${b1.age === "minor" ? " selected" : ""}>Under 18</option></select></div></div>`}
       ${guardianHtml(p, 1, size, b1, b1.age === "minor", companions)}</div>`;
   const addRow = editableCount ? `<div class="jd-add-row"><button type="button" class="btn btn-secondary label-caps" id="${p}-add">+ Add joiner</button>${maxJoiners != null ? `<span class="jd-hint">${maxJoiners} ${maxJoiners === 1 ? "slot" : "slots"} left on this date</span>` : ""}</div><p class="jd-err" id="${p}-count-err" role="alert" hidden></p>` : "";
   const cutoffNote = !allowLater && size > 1 ? `<p class="jd-hint"><strong>This trip is ${detailsDueDays()} days away or less, so add every joiner's full name now.</strong></p>` : "";
@@ -398,13 +417,25 @@ function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = ""
       ${cutoffNote}
     </fieldset>`;
   const emVal = e.rawPhone !== undefined ? escapeHtml(e.rawPhone) : jdLocal(e.phone);
+  // A saved profile contact shows as a summary; its fields stay in the form (prefilled, hidden)
+  // until "Use someone else for this trip" opens them.
+  const es = emergencySaved;
+  const summary = es ? `<div class="jd-you" id="${p}-esum">
+        <svg width="24" height="24" aria-hidden="true"><use href="#i-phone"/></svg>
+        <p class="jd-you-text"><span class="jd-h">${escapeHtml(es.name)}${es.relation ? `, ${escapeHtml(es.relation)}` : ""}</span><span class="jd-you-meta">${escapeHtml(es.phone)} · from your profile</span></p>
+        <button type="button" class="link-btn jd-you-link" data-em-edit="${p}">Use someone else for this trip</button>
+      </div>` : "";
   return who + `<fieldset class="jd">
       <legend>Emergency contact</legend>
       <p class="jd-hint">Someone who isn't on this hike. The organizer calls them only if something happens on the trail.</p>
+      ${summary}
+      <div class="jd-fields" id="${p}-efields"${es ? " hidden" : ""}>
       <div class="jd-row">
         <div class="jd-field"><label class="field-label" for="${p}-en">Name</label><input class="input" id="${p}-en" value="${escapeHtml(e.name || "")}" autocomplete="off"></div>
         <div class="jd-field"><label class="field-label" for="${p}-er">Relationship</label><input class="input" id="${p}-er" value="${escapeHtml(e.relation || "")}" placeholder="e.g. Mother, Partner"></div>
         <div class="jd-field"><label class="field-label" for="${p}-em">Mobile</label><div class="jd-prefix"><span aria-hidden="true">+63</span><input class="input data" id="${p}-em" type="tel" inputmode="numeric" value="${emVal}" placeholder="917 123 4567"></div></div>
+      </div>
+      ${offerSave ? `<label class="check"><input type="checkbox" id="${p}-esave"${saveChecked ? " checked" : ""}><span>Save to my profile for next time</span></label>` : ""}
       </div>
     </fieldset>`;
 }

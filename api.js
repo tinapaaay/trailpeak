@@ -62,7 +62,11 @@ function tpBooking(b, receipts = null, mode = "pilot") {
 }
 function tpUser(p, email, unread = 0, authUser = null) {
   return { id: p.id, name: p.name, phone: p.phone || "", email: email || "", role: p.role, org: p.org || "",
-    idVerified: p.id_verified, business: p.business, payout: p.payout, organizerStatus: p.organizer_status || "none", method: "email", unread, ...accountPhotoFields(authUser) };
+    idVerified: p.id_verified, business: p.business, payout: p.payout, organizerStatus: p.organizer_status || "none", method: "email", unread,
+    // Profile details (TP-058): prefilled on bookings; each booking keeps its own copy.
+    ageGroup: p.age_group === "adult" || p.age_group === "minor" ? p.age_group : null,
+    emergency: p.emergency && p.emergency.name && p.emergency.phone ? { name: p.emergency.name, relation: p.emergency.relation || "", phone: p.emergency.phone } : null,
+    ...accountPhotoFields(authUser) };
 }
 
 // ---- Sync -----------------------------------------------------------------------------
