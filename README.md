@@ -29,7 +29,6 @@ Joiner hikes in the Philippines are organized in Facebook groups: long hand-type
 - `org.html`: organizer profile, e.g. `org.html#batangas-trail-co`
 - `signin.html`: mock sign-in for joiners (Facebook, mobile code, email)
 - `reserve.html`: reserve real slots with DP pending, then pay the organizer directly
-- `demo.html`: isolated in-memory booking simulation, with no account/API access
 - `mytrips.html`: a joiner's bookings, with move date and cancel, and a review once the trip date has passed
 - `organizer-signup.html`: mock organizer sign-up (account, ID check, business, payout)
 - `organize.html`: organizer form to post a trip, with live preview, Facebook text and a share image; `organize.html?edit=<trip id>` edits a trip you published

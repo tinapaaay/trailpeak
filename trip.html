@@ -392,7 +392,14 @@
 // Which trip: from the link (trip.html#mt-pulag-akiki), else the first one.
 const $ = id => document.getElementById(id);
 if (TP.firstSync) { document.getElementById("main").innerHTML = '<p class="loading-note" role="status">Loading trip…</p>'; TP.waitForData(); }
-const T = tripById(location.hash.slice(1)) || TRIPS[0];
+// A link to a trip that isn't listed (e.g. an old sample trip) says so instead of showing another trip (#89).
+const T = tripById(location.hash.slice(1)) || (TP.online ? null : TRIPS[0]);
+if (!T) {
+  document.title = "Trip not found · TrailPeak";
+  document.getElementById("main").innerHTML = '<div class="loading-note" role="status"><h1 style="font:700 32px/1.15 var(--font-display);margin-bottom:var(--space-sm)">This trip isn\'t available</h1><p>It may have been a sample trip or been taken down by its organizer.</p><p style="margin-top:var(--space-md)"><a class="btn btn-primary label-caps" href="index.html">See trips</a></p></div>';
+  window.addEventListener("hashchange", () => location.reload());
+  TP.waitForData();
+}
 // Pilot funnel (TP-022): one visit per browser, trip and day; only published trips count.
 TP.track("trip_view", { trip: T.id, source: TP.visitSource() });
 const FEE = T.fee, DP = T.dp, GROUP = T.group, MEET = T.meet;
@@ -566,10 +573,6 @@ function update() {
   $("b-now").textContent = size > 1 ? `${peso(DP)} × ${size} = ${peso(DP * size)}` : peso(DP);
   $("m-now").textContent = peso(DP * size);
   $("m-date").textContent = `to reserve · ${nice(picked)}`;
-  if (TP.online && !T.organizerId) {
-    $("reserve").textContent = "Try the demo";
-    $("reserve-note").textContent = "Sample trip only. The separate demo never creates real bookings or payments.";
-  }
   // Draft or archived (TP-053): only its organizer, or a joiner already booked on it, gets here.
   if (!isListed(T)) {
     $("reserve").setAttribute("aria-disabled", "true");
@@ -591,7 +594,6 @@ $("plus").addEventListener("click", () => { size++; update(); announce(); });
 $("reserve").addEventListener("click", e => {
   e.preventDefault();
   if (!isListed(T)) { $("reserve-note").focus?.(); return; }
-  if (TP.online && !T.organizerId) { location.href = "demo.html"; return; }
   const user = getUser();
   setPending({ tripId: T.id, date: picked, size, pickup: $("pickup").selectedIndex });
   if (!user) { rememberNext("reserve.html"); location.href = "signin.html"; return; }

@@ -33,6 +33,9 @@ TP.applyTo = function (trips) {
   if (!c.trips) return;
   trips.length = 0;
   for (const row of c.trips) {
+    // Live site: only trips from real organizer accounts. The seeded sample trips (no organizer)
+    // looked bookable but could only open a practice demo, so they're hidden (#89).
+    if (!row.organizer_id) continue;
     // `saved` keeps the stored details as they are, so editing a trip never saves page-only fields back.
     const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, status: row.status || "published", archived_at: row.archived_at || null, createdAt: row.created_at || null, bookingMode: row.organizer_id ? "pilot" : "demo", saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
     for (const s of (c.slots || []).filter(s => s.trip_id === row.id)) {
