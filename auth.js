@@ -301,73 +301,180 @@ function missingJoiners(b) { return b.status === "confirmed" ? Math.max(0, b.siz
 // Under-18 hikers (TP-015, ADR-007): each needs a parent or guardian 18 or older in the same
 // booking. The guardian is a joiner number (1 = the booker); the database checks the same rule.
 const RELATIONS = { parent: "Parent", guardian: "Legal guardian", permitted_adult: "Adult with the parents' written permission" };
-function guardianHtml(p, n, size, who, minor) {
+function guardianLabel(k, c = {}) {
+  if (k === 1) return "Joiner 1 (you)";
+  if (c.later) return `Joiner ${k} (adding later)`;
+  const name = (c.name || "").trim();
+  const base = name ? `Joiner ${k} (${name})` : `Joiner ${k}`;
+  return c.age === "minor" ? `${base} · under 18` : base;
+}
+function guardianHtml(p, n, size, who, minor, companions = []) {
   const opts = Array.from({ length: size }, (_, k) => k + 1).filter(k => k !== n)
-    .map(k => `<option value="${k}"${String(who.guardian) === String(k) ? " selected" : ""}>Joiner ${k}${k === 1 ? " (you)" : ""}</option>`).join("");
+    .map(k => `<option value="${k}"${String(who.guardian) === String(k) ? " selected" : ""}>${escapeHtml(guardianLabel(k, k >= 2 ? companions[k - 2] : {}))}</option>`).join("");
   return `<div class="jd-row jd-guard" id="${p}-gbox${n}"${minor ? "" : " hidden"}>
       <div class="jd-field"><label class="field-label" for="${p}-g${n}">Parent or guardian (18+)</label><select class="input" id="${p}-g${n}"><option value="">Choose who</option>${opts}</select></div>
       <div class="jd-field"><label class="field-label" for="${p}-r${n}">They are the</label><select class="input" id="${p}-r${n}"><option value="">Choose</option>${Object.entries(RELATIONS).map(([k, l]) => `<option value="${k}"${who.relation === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
     </div>`;
 }
-// Show the guardian fields when someone is marked under 18.
+function refreshGuardianOptions(p) {
+  if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return;
+  document.querySelectorAll(`[id^="${p}-g"]`).forEach(sel => {
+    // "\\d" because inside a template string a single "\d" becomes a plain "d".
+    if (!new RegExp(`^${p}-g\\d+$`).test(sel.id || "")) return;
+    Array.from(sel.options || []).forEach(opt => {
+      const k = Number(opt.value);
+      if (!k) return;
+      if (k === 1) {
+        const age = document.getElementById(`${p}-a1`)?.value;
+        opt.textContent = "Joiner 1 (you)" + (age === "minor" ? " · under 18" : "");
+      } else {
+        const later = !!document.getElementById(`${p}-later${k}`)?.checked;
+        const name = document.getElementById(`${p}-n${k}`)?.value || "";
+        const age = document.getElementById(`${p}-a${k}`)?.value || "adult";
+        opt.textContent = guardianLabel(k, { later, name, age });
+      }
+    });
+  });
+}
+// Keep guardian boxes, per-joiner "add later" hides, and guardian dropdown labels in sync.
 document.addEventListener("change", e => {
-  const m = /^(.+)-a(\d+)$/.exec(e.target.id || ""); if (!m) return;
-  const box = document.getElementById(`${m[1]}-gbox${m[2]}`); if (box) box.hidden = e.target.value !== "minor";
+  const id = e.target.id || "";
+  let m = /^(.+)-a(\d+)$/.exec(id);
+  if (m) {
+    const box = document.getElementById(`${m[1]}-gbox${m[2]}`); if (box) box.hidden = e.target.value !== "minor";
+    refreshGuardianOptions(m[1]);
+    return;
+  }
+  m = /^(.+)-later(\d+)$/.exec(id);
+  if (m) {
+    const fields = document.getElementById(`${m[1]}-fields${m[2]}`);
+    if (fields) {
+      fields.hidden = !!e.target.checked;
+      if (e.target.checked && typeof fields.querySelectorAll === "function") {
+        fields.querySelectorAll("[aria-invalid]").forEach(el => el.removeAttribute("aria-invalid"));
+      }
+    }
+    refreshGuardianOptions(m[1]);
+  }
+});
+document.addEventListener("input", e => {
+  const m = /^(.+)-n(\d+)$/.exec(e.target.id || "");
+  if (m) refreshGuardianOptions(m[1]);
 });
 
 // p: id prefix (several forms can be on one page); size: joiners in the booking.
-function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = "", allowLater = true, date = null, overdue = false, booker = { age: "adult" } } = {}) {
+function joinerFieldsHtml(p, size, companions = [], emergency = null, { you = "", allowLater = true, date = null, overdue = false, booker = { age: "adult" }, editableCount = false, maxJoiners = null } = {}) {
   const e = emergency || {};
+  const laterLabel = overdue ? "I'll add their details as soon as I can" : `I'll add their details later${date ? ` (before ${niceShort(dueDate(date))} in My trips)` : ""}`;
   const rows = Array.from({ length: Math.max(0, size - 1) }, (_, k) => {
     const n = k + 2, c = companions[k] || {};
+    const isLater = allowLater && !!c.later;
+    const mobVal = c.rawPhone !== undefined ? escapeHtml(c.rawPhone) : jdLocal(c.phone);
     return `<div class="jd-joiner">
-      <p class="jd-h">Joiner ${n}</p>
-      <div class="jd-row">
-        <div class="jd-field"><label class="field-label" for="${p}-n${n}">Full name</label><input class="input" id="${p}-n${n}" value="${escapeHtml(c.name || "")}" placeholder="As on their ID" autocomplete="off"></div>
-        <div class="jd-field"><label class="field-label" for="${p}-a${n}">Age</label><select class="input" id="${p}-a${n}"><option value="adult"${c.age !== "minor" ? " selected" : ""}>18 or older</option><option value="minor"${c.age === "minor" ? " selected" : ""}>Under 18</option></select></div>
-        <div class="jd-field"><label class="field-label" for="${p}-m${n}">Mobile <span class="jd-opt">optional</span></label><div class="jd-prefix"><span aria-hidden="true">+63</span><input class="input data" id="${p}-m${n}" type="tel" inputmode="numeric" value="${jdLocal(c.phone)}" placeholder="917 123 4567"></div></div>
+      <div class="jd-top"><p class="jd-h">Joiner ${n}</p>${editableCount ? `<button type="button" class="link-btn danger jd-remove" data-remove-joiner="${n}" aria-label="Remove joiner ${n}">Remove</button>` : ""}</div>
+      <div class="jd-fields" id="${p}-fields${n}"${isLater ? " hidden" : ""}>
+        <div class="jd-row">
+          <div class="jd-field"><label class="field-label" for="${p}-n${n}">Full name</label><input class="input" id="${p}-n${n}" value="${escapeHtml(c.name || "")}" placeholder="As on their ID" autocomplete="off"></div>
+          <div class="jd-field"><label class="field-label" for="${p}-a${n}">Age</label><select class="input" id="${p}-a${n}"><option value="adult"${c.age !== "minor" ? " selected" : ""}>18 or older</option><option value="minor"${c.age === "minor" ? " selected" : ""}>Under 18</option></select></div>
+          <div class="jd-field"><label class="field-label" for="${p}-m${n}">Mobile <span class="jd-opt">optional</span></label><div class="jd-prefix"><span aria-hidden="true">+63</span><input class="input data" id="${p}-m${n}" type="tel" inputmode="numeric" value="${mobVal}" placeholder="917 123 4567"></div></div>
+        </div>
+        ${guardianHtml(p, n, size, c, c.age === "minor", companions)}
       </div>
-      ${guardianHtml(p, n, size, c, c.age === "minor")}
+      ${allowLater ? `<label class="check"><input type="checkbox" id="${p}-later${n}"${overdue ? ' data-overdue="1"' : ""}${isLater ? " checked" : ""}><span>${laterLabel}</span></label>` : ""}
     </div>`;
   }).join("");
   const b1 = booker || { age: "adult" };
   const youRow = `<div class="jd-joiner"><p class="jd-you"><span class="jd-h">Joiner 1</span> You${you ? `, ${escapeHtml(you)}` : ""}</p>
       <div class="jd-row"><div class="jd-field"><label class="field-label" for="${p}-a1">Your age</label><select class="input" id="${p}-a1"><option value="adult"${b1.age !== "minor" ? " selected" : ""}>18 or older</option><option value="minor"${b1.age === "minor" ? " selected" : ""}>Under 18</option></select></div></div>
-      ${guardianHtml(p, 1, size, b1, b1.age === "minor")}</div>`;
+      ${guardianHtml(p, 1, size, b1, b1.age === "minor", companions)}</div>`;
+  const addRow = editableCount ? `<div class="jd-add-row"><button type="button" class="btn btn-secondary label-caps" id="${p}-add">+ Add joiner</button>${maxJoiners != null ? `<span class="jd-hint">${maxJoiners} ${maxJoiners === 1 ? "slot" : "slots"} left on this date</span>` : ""}</div><p class="jd-err" id="${p}-count-err" role="alert" hidden></p>` : "";
+  const cutoffNote = !allowLater && size > 1 ? `<p class="jd-hint"><strong>This trip is ${detailsDueDays()} days away or less, so add every joiner's full name now.</strong></p>` : "";
   const who = `<fieldset class="jd">
       <legend>Who's joining</legend>
       <p class="jd-hint">Organizers register every hiker at the jump-off, so use names as they appear on an ID. Under 18 needs a parent or guardian on the trip.</p>
       ${youRow}
       <div id="${p}-rows" class="jd-rows">${rows}</div>
-      ${allowLater ? `<label class="check"><input type="checkbox" id="${p}-later"><span>${overdue ? "Some names still aren't ready. I'll add them as soon as I can." : `Some names aren't ready yet. I'll add them in My trips before ${date ? niceShort(dueDate(date)) : "the due date"}.`}</span></label>`
-        : (size > 1 ? `<p class="jd-hint"><strong>This trip is ${detailsDueDays()} days away or less, so add every joiner's full name now.</strong></p>` : "")}
+      ${addRow}
+      ${cutoffNote}
     </fieldset>`;
+  const emVal = e.rawPhone !== undefined ? escapeHtml(e.rawPhone) : jdLocal(e.phone);
   return who + `<fieldset class="jd">
       <legend>Emergency contact</legend>
       <p class="jd-hint">Someone who isn't on this hike. The organizer calls them only if something happens on the trail.</p>
       <div class="jd-row">
         <div class="jd-field"><label class="field-label" for="${p}-en">Name</label><input class="input" id="${p}-en" value="${escapeHtml(e.name || "")}" autocomplete="off"></div>
         <div class="jd-field"><label class="field-label" for="${p}-er">Relationship</label><input class="input" id="${p}-er" value="${escapeHtml(e.relation || "")}" placeholder="e.g. Mother, Partner"></div>
-        <div class="jd-field"><label class="field-label" for="${p}-em">Mobile</label><div class="jd-prefix"><span aria-hidden="true">+63</span><input class="input data" id="${p}-em" type="tel" inputmode="numeric" value="${jdLocal(e.phone)}" placeholder="917 123 4567"></div></div>
+        <div class="jd-field"><label class="field-label" for="${p}-em">Mobile</label><div class="jd-prefix"><span aria-hidden="true">+63</span><input class="input data" id="${p}-em" type="tel" inputmode="numeric" value="${emVal}" placeholder="917 123 4567"></div></div>
       </div>
     </fieldset>`;
 }
-// Nothing to wire any more: "add later" only allows blank names, it doesn't hide the rows.
+function snapshotJoinerFields(p, size) {
+  const $j = id => document.getElementById(`${p}-${id}`);
+  const booker = {
+    age: $j("a1")?.value || "adult",
+    guardian: Number($j("g1")?.value) || null,
+    relation: $j("r1")?.value || null,
+  };
+  const companions = [];
+  for (let n = 2; n <= size; n++) {
+    const mob = $j("m" + n)?.value ?? "";
+    companions.push({
+      name: $j("n" + n)?.value ?? "",
+      age: $j("a" + n)?.value || "adult",
+      rawPhone: mob,
+      phone: mob.trim() ? mob.trim() : null,
+      guardian: Number($j("g" + n)?.value) || null,
+      relation: $j("r" + n)?.value || null,
+      later: !!$j("later" + n)?.checked,
+    });
+  }
+  const em = $j("em")?.value ?? "";
+  return {
+    booker,
+    companions,
+    emergency: {
+      name: $j("en")?.value ?? "",
+      relation: $j("er")?.value ?? "",
+      rawPhone: em,
+      phone: em.trim() ? em.trim() : null,
+    },
+  };
+}
+function removeJoinerFromSnapshot(snap, removeN) {
+  const idx = removeN - 2;
+  if (idx < 0 || idx >= snap.companions.length) return snap;
+  const remap = g => { const n = Number(g); return !n || n === removeN ? null : n > removeN ? n - 1 : n; };
+  return {
+    booker: { ...snap.booker, guardian: remap(snap.booker?.guardian) },
+    companions: snap.companions.filter((_, i) => i !== idx).map(c => ({ ...c, guardian: remap(c.guardian) })),
+    emergency: snap.emergency,
+  };
+}
+// Kept as a no-op so existing callers stay compatible; delegated handlers live above.
 function wireJoinerFields() {}
-// Returns { companions, emergency } or { error, field } for the first problem.
+// Returns { companions, emergency, booker } or { error, field } for the first problem.
 function readJoinerFields(p, size) {
   const $j = id => document.getElementById(`${p}-${id}`);
   document.querySelectorAll(`[id^="${p}-"]`).forEach(el => el.removeAttribute("aria-invalid"));
-  const bad = (field, error) => { field.setAttribute("aria-invalid", "true"); return { error, field }; };
-  const later = $j("later")?.checked;
+  const bad = (field, error) => { if (field) field.setAttribute("aria-invalid", "true"); return { error, field }; };
+  const groupLater = !!$j("later")?.checked;
   const companions = [];
-  // Names typed are kept; blanks are allowed only when "add later" is ticked.
+  const deferred = new Set();
+  const uiToPacked = { 1: 1 };
+  // Names typed are kept; blanks are allowed only when that joiner's "add later" is ticked.
   for (let n = 2; n <= size; n++) {
-    const name = $j("n" + n).value.trim(), mob = $j("m" + n).value.trim();
-    if (!name && later) continue;
-    if (!name) return bad($j("n" + n), $j("later") ? `Enter joiner ${n}'s full name, or tick "Some names aren't ready yet".` : `Enter joiner ${n}'s full name: this trip is too soon to add names later.`);
+    const laterBox = $j("later" + n);
+    const later = laterBox ? !!laterBox.checked : groupLater;
+    if (later) { deferred.add(n); continue; }
+    const name = ($j("n" + n)?.value || "").trim(), mob = ($j("m" + n)?.value || "").trim();
+    if (!name) {
+      return bad($j("n" + n), laterBox
+        ? `Enter joiner ${n}'s full name, or tick "${laterBox.dataset?.overdue ? "I'll add their details as soon as I can" : "I'll add their details later"}".`
+        : ($j("later") ? `Enter joiner ${n}'s full name, or tick "Some names aren't ready yet".` : `Enter joiner ${n}'s full name: this trip is too soon to add names later.`));
+    }
     if (mob && !/^9\d{9}$/.test(jdLocal(mob))) return bad($j("m" + n), `Joiner ${n}'s mobile should be 10 digits starting with 9, or leave it blank.`);
     const age = $j("a" + n).value;
+    uiToPacked[n] = companions.length + 2;
     companions.push({ name, age, phone: mob ? jdPhone(mob) : null, ...(age === "minor" ? { guardian: Number($j("g" + n).value) || null, relation: $j("r" + n).value || null, n } : { n }) });
   }
   // Every under-18 hiker needs a parent or guardian 18+ in this booking (same rule as check_guardians()).
@@ -376,13 +483,15 @@ function readJoinerFields(p, size) {
   const adults = [...(booker.age === "adult" ? [1] : []), ...companions.filter(c => c.age === "adult").map(c => c.n)];
   const needs = [...(booker.age === "minor" ? [{ n: 1, ...booker, name: "you" }] : []), ...companions.filter(c => c.age === "minor")];
   for (const k of needs) {
+    if (deferred.has(k.guardian)) return bad($j("g" + k.n), `Joiner ${k.guardian}'s details are set to add later, so they can't be a guardian yet. Add their details now or choose another adult.`);
     if (!adults.includes(k.guardian)) return bad($j("g" + k.n), k.n === 1
       ? (adults.length ? "You're under 18: choose your parent or guardian from this booking." : "You're under 18, so a parent or guardian 18 or older needs to be in this booking. Add them as a joiner and choose them here.")
       : `${k.name} is under 18: choose their parent or guardian (18 or older) from this booking.`);
     if (!k.relation) return bad($j("r" + k.n), k.n === 1 ? "Choose how your guardian is related to you." : `Choose how ${k.name} is related to their guardian.`);
   }
-  companions.forEach(c => delete c.n);
-  const en = $j("en").value.trim(), er = $j("er").value.trim(), em = $j("em").value.trim();
+  if (booker.age === "minor") booker.guardian = uiToPacked[booker.guardian];
+  companions.forEach(c => { if (c.age === "minor") c.guardian = uiToPacked[c.guardian]; delete c.n; });
+  const en = ($j("en")?.value || "").trim(), er = ($j("er")?.value || "").trim(), em = ($j("em")?.value || "").trim();
   if (!en) return bad($j("en"), "Add an emergency contact: someone who isn't on this hike.");
   if (!/^9\d{9}$/.test(jdLocal(em))) return bad($j("em"), "Enter the emergency contact's 10-digit mobile number that starts with 9.");
   return { companions, emergency: { name: en, relation: er, phone: jdPhone(em) }, booker };

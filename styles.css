@@ -358,10 +358,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .jd-h { font-weight: 700; }
 .jd-you { padding: var(--space-sm) var(--space-md); background: var(--color-card); border-radius: var(--rounded-md); }
 .jd-rows { display: grid; gap: var(--space-lg); }
+.link-btn { background: none; border: 0; padding: 0 var(--space-sm); min-height: 44px; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; }
+.link-btn.danger { color: var(--color-error); }
 .jd-joiner { display: grid; gap: var(--space-sm); }
+.jd-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.jd-remove { font-size: 15px; padding-right: 0; }
+.jd-fields { display: grid; gap: var(--space-sm); }
 .jd-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px 200px; gap: var(--space-md); align-items: end; }
 /* Under 18 (TP-015): who is responsible, and how they're related */
 .jd-guard { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding-left: var(--space-md); border-left: 2px solid var(--color-border); }
+.jd-add-row { display: flex; gap: var(--space-md); align-items: center; flex-wrap: wrap; }
+.jd-err { color: var(--color-error); font-size: 15px; line-height: 1.5; }
 .jd-field { display: grid; gap: var(--space-sm); min-width: 0; }
 .jd-opt { font-weight: 400; color: var(--color-secondary); }
 .jd-prefix { display: grid; grid-template-columns: auto 1fr; gap: var(--space-sm); align-items: center; }
