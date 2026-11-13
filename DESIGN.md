@@ -546,6 +546,8 @@ Borders are 1px `border` at rest and 1px `primary` on focus. Focus rings are 2px
 
 **Loading state (first visit).** Before the first real trips arrive, the search grid shows three skeleton cards in the card's shape (photo block and three lines in `neutral` on `card`, a gentle pulse that stops for reduced motion) and the count reads "Loading trips…"; trip and organizer pages show one quiet "Loading…" line. Never sample trips that are about to be replaced.
 
+**Live site lists real trips only.** Seeded sample trips (no organizer) are hidden online; a link to one shows "This trip isn't available" with a See trips button. There is no practice or simulated booking page. The offline demo (empty `config.js`) still uses the sample trips.
+
 **Empty search.** When nothing matches, the grid shows one `neutral` panel with a `headline-md` line ("No trips match yet"), one `text-meta` line suggesting what to change (date, pick-up, fewer joiners), and a `button-secondary` "Clear search". Never a blank grid.
 
 **Difficulty badges.** `badge-easy`, `badge-moderate`, `badge-hard`, `badge-expert`. Always shape icon + uppercase word, 12px squircle corners. The exact 1–9 score always appears nearby (in the specs row or the filter chip), because local hikers compare by score. Use the same four levels everywhere: search filter, cards, detail page.

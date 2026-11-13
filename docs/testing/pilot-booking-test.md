@@ -2,7 +2,7 @@
 
 Use this to check the full joiner → organizer flow on the live site: a two-joiner booking with one name left for later, **DP pending** with the hold deadline in My trips, and the organizer's **Activity** entry. It's the walkthrough for issue #24 (TP-019). It takes about 20 minutes.
 
-**Not the practice demo.** [`demo.html`](../../demo.html) is practice only: nothing is saved, so its bookings never appear in My trips, start a DP hold or notify anyone. This guide makes a *real* booking on a test trip, then cleans it up. No money moves: you type a made-up GCash reference, and the organizer can mark a made-up DP as received.
+**Every listed trip is real.** The old sample trips and the practice demo were removed (#89), so any trip you see on the live site comes from a real organizer account and its Reserve button makes a real booking. This guide makes one on a test trip, then cleans it up. No money moves: you type a made-up GCash reference, and the organizer can mark a made-up DP as received.
 
 ## Before you start
 
