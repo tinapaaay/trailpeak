@@ -356,7 +356,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .jd legend { padding: 0; margin-bottom: var(--space-xs); font: 700 20px/1.25 var(--font-display); color: var(--color-on-surface); }
 .jd-hint { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
 .jd-h { font-weight: 700; }
-.jd-you { padding: var(--space-sm) var(--space-md); background: var(--color-card); border-radius: var(--rounded-md); }
+/* Joiner 1 and a saved emergency contact (TP-058): photo or icon, a bold first line, a meta line, an action */
+.jd-you { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; padding: var(--space-sm) var(--space-md); background: var(--color-card); border: 1px solid var(--color-hairline); border-radius: var(--rounded-md); }
+.jd-you > svg { flex: none; color: var(--color-primary); }
+.jd-avatar { width: 48px; height: 48px; cursor: default; background: var(--color-tertiary-tint); color: var(--color-tertiary); }
+.jd-you-text { flex: 1 1 200px; min-width: 0; display: grid; }
+.jd-you-meta { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
+.jd-you-link { min-height: 44px; display: inline-flex; align-items: center; padding: 0; font-size: 15px; }
 .jd-rows { display: grid; gap: var(--space-lg); }
 .link-btn { background: none; border: 0; padding: 0 var(--space-sm); min-height: 44px; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; }
 .link-btn.danger { color: var(--color-error); }

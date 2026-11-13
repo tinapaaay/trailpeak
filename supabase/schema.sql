@@ -59,6 +59,39 @@ begin
   end if;
 end $$;
 
+-- Joiner profile (TP-058, #93): saved once, prefilled on every booking. Each booking still keeps
+-- its own copy (bookings.booker / bookings.emergency), so editing the profile never changes past
+-- bookings. Only the owner can read these: organizers see a booker's name and phone through
+-- organizer_bookings(), never the profile row. Health notes are deliberately NOT kept here.
+alter table public.profiles add column if not exists age_group text check (age_group in ('adult', 'minor'));
+alter table public.profiles add column if not exists emergency jsonb;   -- { name, relation, phone }
+
+-- Tidy and check the saved emergency contact with the same rules as a booking's: a name, and a
+-- Philippine mobile stored as "+63 917 123 4567". Extra keys are dropped. Runs for every writer.
+create or replace function public.tidy_profile_details()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.emergency is not null then
+    if jsonb_typeof(new.emergency) <> 'object' then raise exception 'The emergency contact is not valid.'; end if;
+    if coalesce(trim(new.emergency ->> 'name'), '') = '' then
+      raise exception 'Add your emergency contact''s name, or clear the emergency contact.';
+    end if;
+    if coalesce(trim(new.emergency ->> 'phone'), '') = '' then
+      raise exception 'Add your emergency contact''s mobile number.';
+    end if;
+    new.emergency := jsonb_build_object(
+      'name', left(trim(new.emergency ->> 'name'), 100),
+      'relation', nullif(left(trim(coalesce(new.emergency ->> 'relation', '')), 60), ''),
+      'phone', public.ph_mobile(new.emergency ->> 'phone', 'The emergency contact''s mobile'));
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists tidy_profile_details on public.profiles;
+create trigger tidy_profile_details
+  before insert or update on public.profiles
+  for each row execute function public.tidy_profile_details();
+
 drop policy if exists "Read own profile" on public.profiles;
 create policy "Read own profile" on public.profiles
   for select using (auth.uid() = id);
@@ -827,8 +860,8 @@ grant select on public.trips, public.departures to anon, authenticated;
 revoke all on public.profiles from anon;
 revoke insert, update on public.profiles from authenticated;
 grant select on public.profiles to authenticated;
-grant insert (id, name, phone, org, payout) on public.profiles to authenticated;
-grant update (name, phone, org, payout) on public.profiles to authenticated;
+grant insert (id, name, phone, org, payout, age_group, emergency) on public.profiles to authenticated;
+grant update (name, phone, org, payout, age_group, emergency) on public.profiles to authenticated;
 grant insert, update on public.trips to authenticated;
 -- Departures: organizers add dates and change capacity or status, nothing else. The date
 -- itself can't be edited (that would silently move joiners' bookings), and sample seats are

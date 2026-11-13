@@ -245,9 +245,13 @@ function start() {
       $("pay-btn").textContent = `Pay ${peso(dp)} DP`;
     }
   }
-  const renderJoiners = (companions = [], emergency = null, booker = { age: "adult" }) => {
+  // The profile (TP-058) fills in the booker's age and the emergency contact. The booking still
+  // keeps its own copy, so a later profile edit never changes it.
+  let emEditing = false;
+  const renderJoiners = (companions = [], emergency = user.emergency || null, booker = { age: user.ageGroup || "adult" }) => {
     // Names for registration and an emergency contact (shared with My trips; see auth.js).
     // From the due date on (3 days before, Manila), every name is needed now; the server checks too.
+    const saveBox = $("rv-esave");
     $("jd-box").innerHTML = joinerFieldsHtml("rv", size, companions, emergency, {
       you: user.name,
       allowLater: !detailsRequired(p.date),
@@ -255,8 +259,13 @@ function start() {
       booker,
       editableCount: true,
       maxJoiners: slotsLeft(T, p.date),
+      ageFromProfile: !!user.ageGroup,
+      emergencySaved: user.emergency && !emEditing ? user.emergency : null,
+      offerSave: true,
+      saveChecked: saveBox ? saveBox.checked : !user.emergency,
     });
     wireJoinerFields("rv");
+    renderOwnAvatars();
   };
   const showCountErr = msg => {
     const el = $("rv-count-err");
@@ -270,6 +279,7 @@ function start() {
   renderJoiners();
 
   $("jd-box").addEventListener("click", e => {
+    if (e.target.closest("[data-em-edit]")) { emEditing = true; return; }
     if (e.target.closest("#rv-add")) {
       const left = slotsLeft(T, p.date);
       if (size >= left) {
@@ -319,6 +329,7 @@ function start() {
     if (!$("agree").checked) { err("Tick the box to agree to the cancellation policy."); $("agree").focus(); return; }
     err("");
     const dp = T.dp * size, balance = (T.fee - T.dp) * size;
+    const saveEm = !!$("rv-esave")?.checked && !$("rv-efields")?.hidden;
     const wallet = document.querySelector('input[name="wallet"]:checked').value;
     // Simulated wallet approval. A real app hands off to GCash or Maya here and waits for the result.
     $("pay-btn").disabled = true; $("paying").hidden = false;
@@ -330,7 +341,11 @@ function start() {
       if (!p.requestId && crypto.randomUUID) { p.requestId = crypto.randomUUID(); setPending(p); }
       TP.book({ tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time, wallet, requestId: p.requestId,
         walletNumber: pretty($("wnum").value), listed: $("listme").checked, companions: jd.companions, emergency: jd.emergency, booker: jd.booker })
-        .then(b => { setPending(null); showDone(b); TP.track("reserved", { ref: b.ref }); })
+        .then(b => {
+          setPending(null); showDone(b); TP.track("reserved", { ref: b.ref });
+          // "Save to my profile for next time": only after the booking succeeded. Not saving is harmless.
+          if (saveEm) TP.saveProfile({ emergency: jd.emergency }).catch(() => {});
+        })
         .catch(e2 => { err(e2.message); $("pay-btn").disabled = false; $("paying").hidden = true; });
       return;
     }
@@ -342,6 +357,7 @@ function start() {
         status: "confirmed", moved: false, bookedAt: new Date().toISOString(),
         listed: $("listme").checked, displayName: shortName(user.name), userName: user.name };
       saveBookings([...getBookings(), booking]);
+      if (saveEm) setUser({ ...getUser(), emergency: jd.emergency });
       setPending(null);
       showDone(booking);
     }, 1200);
