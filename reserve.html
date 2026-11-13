@@ -103,6 +103,7 @@
 </header>
 
 <main id="main" class="wrap" tabindex="-1">
+  <p class="sr" id="live" aria-live="polite"></p>
   <section class="panel" id="missing" hidden style="padding:var(--space-xl) 0 var(--space-xxl);max-width:560px">
     <h1>Pick a trip first</h1>
     <p class="lead">Choose a trip and a date, then tap Reserve.</p>
@@ -129,7 +130,7 @@
         <div id="jd-box" class="panel"></div>
         <label class="check"><input type="checkbox" id="listme"><span>Show <strong id="listname">my first name</strong> on this date's joiner list. Only joiners on the same date can see it, and never your number.</span></label>
         <label class="check"><input type="checkbox" id="agree"><span id="agree-text"></span></label>
-        <p class="error" id="err" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
+        <p class="error" id="err" role="alert" tabindex="-1" hidden><svg width="18" height="18" aria-hidden="true"><use href="#i-alert"/></svg><span></span></p>
         <button type="submit" class="btn btn-primary label-caps pay-btn" id="pay-btn"></button>
         <p class="paying" id="paying" hidden aria-live="polite"><svg width="18" height="18" aria-hidden="true"><use href="#i-clock"/></svg><span></span></p>
         <details class="help-box"><summary>How paying, rain and cancelling work</summary>
@@ -201,55 +202,123 @@ else start();
 function start() {
   $("reserve").hidden = false;
   const pick = T.pickups[p.pickup] || T.pickups[0];
-  const size = p.size, dp = T.dp * size, balance = (T.fee - T.dp) * size;
+  let size = Math.max(1, Number(p.size) || 1);
+  let holdNote = "";
   document.title = `Reserve ${T.title} · TrailPeak`;
 
   $("sum-img").src = img(T.photo);
   $("sum-h").textContent = T.title;
   $("sum-place").textContent = `${T.place} · by ${T.org}`;
-  $("sum-lines").innerHTML = `
-    <div><dt>Date</dt><dd>${nice(p.date)}</dd></div>
-    <div><dt>Meetup</dt><dd>${pick.place} · ${pick.time}</dd></div>
-    <div><dt>Joiners</dt><dd>${size}</dd></div>
-    <div><dt>Event fee</dt><dd>${peso(T.fee)} × ${size}</dd></div>
-    <div><dt>Pay on meetup day</dt><dd>${peso(balance)}</dd></div>
-    <div class="now"><dt>Pay now (DP)</dt><dd>${peso(dp)}</dd></div>`;
-  $("pay-lead").textContent = `${size} ${size === 1 ? "joiner" : "joiners"} on ${nice(p.date)}. You pay the ${peso(dp)} DP now; the rest is paid to the organizer on meetup day.`;
-  $("pay-btn").textContent = `Pay ${peso(dp)} DP`;
   $("agree-text").innerHTML = `I agree to this trip's <a href="trip.html#${T.id}">cancellation policy</a>: if I cancel less than 7 days before, or don't show up, the DP isn't refunded.`;
   if (user.phone) $("wnum").value = digits(user.phone).slice(2);
   if (TP.online) {
-    $("pay-lead").textContent = `Reserve ${size} joiners for ${nice(p.date)}, then pay the ${peso(dp)} DP directly to ${T.org}. Your DP stays pending until the organizer records it.`;
     // Tell joiners the hold rule before they book (TP-011), from the same settings the server uses.
     TP.holdSettings().then(h => {
       if (!h.dp_hold_hours) return;
       const soon = Math.round((new Date(p.date + "T00:00+08:00") - new Date(todayIso() + "T00:00+08:00")) / 864e5) <= h.dp_hold_soon_days;
-      $("pay-lead").textContent += ` Your slots are held for ${soon ? h.dp_hold_hours_soon : h.dp_hold_hours} hours while you send it${soon ? " (shorter because the trip is soon)" : ""}; enter the GCash or Maya reference in My trips to keep them.`;
+      holdNote = ` Your slots are held for ${soon ? h.dp_hold_hours_soon : h.dp_hold_hours} hours while you send it${soon ? " (shorter because the trip is soon)" : ""}; enter the GCash or Maya reference in My trips to keep them.`;
+      renderTotals();
     }).catch(() => {});
-    $("pay-btn").textContent = "Reserve slots · DP pending";
     $("wallet-l").textContent = "Preferred direct-payment method";
     document.querySelectorAll(".choices .choice span").forEach(el => el.textContent = "Pay the organizer directly");
-    $("sum-lines").innerHTML = $("sum-lines").innerHTML.replace("Pay now (DP)", "DP due directly").replace("Pay on meetup day", "After full DP received");
     $("wnum").required = false;
     $("wnum").closest(".field2")?.setAttribute("hidden", "");
   }
   if (!TP.online) $("pay-note").textContent = "Prototype: no money moves. The payment is simulated and the booking is kept in this browser only.";
   $("listname").textContent = shortName(user.name);
-  // Names for registration and an emergency contact (shared with My trips; see auth.js).
-  // From the due date on (3 days before, Manila), every name is needed now; the server checks too.
-  $("jd-box").innerHTML = joinerFieldsHtml("rv", size, [], null, { you: user.name, allowLater: !detailsRequired(p.date), date: p.date });
-  wireJoinerFields("rv");
+
+  function renderTotals() {
+    const dp = T.dp * size, balance = (T.fee - T.dp) * size;
+    const jLabel = `${size} ${size === 1 ? "joiner" : "joiners"}`;
+    $("sum-lines").innerHTML = `
+      <div><dt>Date</dt><dd>${nice(p.date)}</dd></div>
+      <div><dt>Meetup</dt><dd>${pick.place} · ${pick.time}</dd></div>
+      <div><dt>Joiners</dt><dd>${size}</dd></div>
+      <div><dt>Event fee</dt><dd>${peso(T.fee)} × ${size}</dd></div>
+      <div><dt>${TP.online ? "After full DP received" : "Pay on meetup day"}</dt><dd>${peso(balance)}</dd></div>
+      <div class="now"><dt>${TP.online ? "DP due directly" : "Pay now (DP)"}</dt><dd>${peso(dp)}</dd></div>`;
+    if (TP.online) {
+      $("pay-lead").textContent = `Reserve ${jLabel} for ${nice(p.date)}, then pay the ${peso(dp)} DP directly to ${T.org}. Your DP stays pending until the organizer records it.${holdNote}`;
+      $("pay-btn").textContent = "Reserve slots · DP pending";
+    } else {
+      $("pay-lead").textContent = `${jLabel} on ${nice(p.date)}. You pay the ${peso(dp)} DP now; the rest is paid to the organizer on meetup day.`;
+      $("pay-btn").textContent = `Pay ${peso(dp)} DP`;
+    }
+  }
+  const renderJoiners = (companions = [], emergency = null, booker = { age: "adult" }) => {
+    // Names for registration and an emergency contact (shared with My trips; see auth.js).
+    // From the due date on (3 days before, Manila), every name is needed now; the server checks too.
+    $("jd-box").innerHTML = joinerFieldsHtml("rv", size, companions, emergency, {
+      you: user.name,
+      allowLater: !detailsRequired(p.date),
+      date: p.date,
+      booker,
+      editableCount: true,
+      maxJoiners: slotsLeft(T, p.date),
+    });
+    wireJoinerFields("rv");
+  };
+  const showCountErr = msg => {
+    const el = $("rv-count-err");
+    if (!el) return;
+    el.hidden = !msg;
+    el.textContent = msg || "";
+  };
+  const err = msg => { $("err").hidden = !msg; $("err").querySelector("span").textContent = msg || ""; };
+
+  renderTotals();
+  renderJoiners();
+
+  $("jd-box").addEventListener("click", e => {
+    if (e.target.closest("#rv-add")) {
+      const left = slotsLeft(T, p.date);
+      if (size >= left) {
+        showCountErr(left <= 0
+          ? "No slots are left on this date."
+          : `Only ${left} ${left === 1 ? "slot is" : "slots are"} left on this date.`);
+        return;
+      }
+      const snap = snapshotJoinerFields("rv", size);
+      size += 1;
+      p.size = size; delete p.requestId; setPending(p);
+      err("");
+      renderTotals();
+      renderJoiners(snap.companions, snap.emergency, snap.booker);
+      $("rv-n" + size)?.focus();
+      $("live").textContent = `Joiner ${size} added. ${size} joiners total.`;
+      return;
+    }
+    const rm = e.target.closest("[data-remove-joiner]");
+    if (rm) {
+      const removeN = Number(rm.dataset.removeJoiner);
+      const snap = removeJoinerFromSnapshot(snapshotJoinerFields("rv", size), removeN);
+      size = Math.max(1, size - 1);
+      p.size = size; delete p.requestId; setPending(p);
+      err("");
+      renderTotals();
+      renderJoiners(snap.companions, snap.emergency, snap.booker);
+      ($("rv-n" + Math.min(removeN, size)) || $("rv-add"))?.focus();
+      $("live").textContent = `Joiner ${removeN} removed. ${size} ${size === 1 ? "joiner" : "joiners"} total.`;
+    }
+  });
 
   $("pay").addEventListener("submit", e => {
     e.preventDefault();
-    const err = msg => { $("err").hidden = !msg; $("err").querySelector("span").textContent = msg || ""; };
     $("wnum").removeAttribute("aria-invalid");
+    const left = slotsLeft(T, p.date);
+    if (left < size) {
+      err(left <= 0
+        ? "No slots are left on this date now. Choose another date on the trip page."
+        : `Only ${left} ${left === 1 ? "slot is" : "slots are"} left on this date now. Remove a joiner or choose another date.`);
+      $("err").focus();
+      return;
+    }
     if (!TP.online && !validPhone($("wnum").value)) { err("Enter the 10-digit wallet number that starts with 9."); $("wnum").setAttribute("aria-invalid", "true"); $("wnum").focus(); return; }
     const jd = readJoinerFields("rv", size);
     if (jd.error) { err(jd.error); jd.field.focus(); return; }
     if (!$("agree").checked) { err("Tick the box to agree to the cancellation policy."); $("agree").focus(); return; }
-    if (slotsLeft(T, p.date) < size) { err(`Only ${slotsLeft(T, p.date)} slots are left on this date now. Go back and choose fewer joiners or another date.`); return; }
     err("");
+    const dp = T.dp * size, balance = (T.fee - T.dp) * size;
     const wallet = document.querySelector('input[name="wallet"]:checked').value;
     // Simulated wallet approval. A real app hands off to GCash or Maya here and waits for the result.
     $("pay-btn").disabled = true; $("paying").hidden = false;
