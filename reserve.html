@@ -117,13 +117,14 @@
         <p class="lead" id="pay-lead"></p>
 
         <div class="field2">
-          <span class="field-label" id="wallet-l">Pay the DP with</span>
+          <span class="field-label" id="wallet-l">Preferred direct-payment method</span>
           <div class="choices" role="radiogroup" aria-labelledby="wallet-l">
-            <label class="choice"><input type="radio" name="wallet" value="GCash" checked><strong>GCash</strong><span>Approve in the GCash app</span></label>
-            <label class="choice"><input type="radio" name="wallet" value="Maya"><strong>Maya</strong><span>Approve in the Maya app</span></label>
+            <label class="choice"><input type="radio" name="wallet" value="GCash" checked><strong>GCash</strong><span>Pay the organizer directly</span></label>
+            <label class="choice"><input type="radio" name="wallet" value="Maya"><strong>Maya</strong><span>Pay the organizer directly</span></label>
           </div>
         </div>
-        <div class="field2">
+        <!-- Sent with the booking from the profile's number; the joiner pays the organizer directly. -->
+        <div class="field2" hidden>
           <label class="field-label" for="wnum">Wallet mobile number</label>
           <div class="prefix"><span aria-hidden="true">+63</span><input class="input data" id="wnum" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="917 123 4567"></div>
         </div>
@@ -211,20 +212,13 @@ function start() {
   $("sum-place").textContent = `${T.place} · by ${T.org}`;
   $("agree-text").innerHTML = `I agree to this trip's <a href="trip.html#${T.id}">cancellation policy</a>: if I cancel less than 7 days before, or don't show up, the DP isn't refunded.`;
   if (user.phone) $("wnum").value = digits(user.phone).slice(2);
-  if (TP.online) {
-    // Tell joiners the hold rule before they book (TP-011), from the same settings the server uses.
-    TP.holdSettings().then(h => {
-      if (!h.dp_hold_hours) return;
-      const soon = Math.round((new Date(p.date + "T00:00+08:00") - new Date(todayIso() + "T00:00+08:00")) / 864e5) <= h.dp_hold_soon_days;
-      holdNote = ` Your slots are held for ${soon ? h.dp_hold_hours_soon : h.dp_hold_hours} hours while you send it${soon ? " (shorter because the trip is soon)" : ""}; enter the GCash or Maya reference in My trips to keep them.`;
-      renderTotals();
-    }).catch(() => {});
-    $("wallet-l").textContent = "Preferred direct-payment method";
-    document.querySelectorAll(".choices .choice span").forEach(el => el.textContent = "Pay the organizer directly");
-    $("wnum").required = false;
-    $("wnum").closest(".field2")?.setAttribute("hidden", "");
-  }
-  if (!TP.online) $("pay-note").textContent = "Prototype: no money moves. The payment is simulated and the booking is kept in this browser only.";
+  // Tell joiners the hold rule before they book (TP-011), from the same settings the server uses.
+  TP.holdSettings().then(h => {
+    if (!h.dp_hold_hours) return;
+    const soon = Math.round((new Date(p.date + "T00:00+08:00") - new Date(todayIso() + "T00:00+08:00")) / 864e5) <= h.dp_hold_soon_days;
+    holdNote = ` Your slots are held for ${soon ? h.dp_hold_hours_soon : h.dp_hold_hours} hours while you send it${soon ? " (shorter because the trip is soon)" : ""}; enter the GCash or Maya reference in My trips to keep them.`;
+    renderTotals();
+  }).catch(() => {});
   $("listname").textContent = shortName(user.name);
 
   function renderTotals() {
@@ -235,15 +229,10 @@ function start() {
       <div><dt>Meetup</dt><dd>${pick.place} · ${pick.time}</dd></div>
       <div><dt>Joiners</dt><dd>${size}</dd></div>
       <div><dt>Event fee</dt><dd>${peso(T.fee)} × ${size}</dd></div>
-      <div><dt>${TP.online ? "After full DP received" : "Pay on meetup day"}</dt><dd>${peso(balance)}</dd></div>
-      <div class="now"><dt>${TP.online ? "DP due directly" : "Pay now (DP)"}</dt><dd>${peso(dp)}</dd></div>`;
-    if (TP.online) {
-      $("pay-lead").textContent = `Reserve ${jLabel} for ${nice(p.date)}, then pay the ${peso(dp)} DP directly to ${T.org}. Your DP stays pending until the organizer records it.${holdNote}`;
-      $("pay-btn").textContent = "Reserve slots · DP pending";
-    } else {
-      $("pay-lead").textContent = `${jLabel} on ${nice(p.date)}. You pay the ${peso(dp)} DP now; the rest is paid to the organizer on meetup day.`;
-      $("pay-btn").textContent = `Pay ${peso(dp)} DP`;
-    }
+      <div><dt>After full DP received</dt><dd>${peso(balance)}</dd></div>
+      <div class="now"><dt>DP due directly</dt><dd>${peso(dp)}</dd></div>`;
+    $("pay-lead").textContent = `Reserve ${jLabel} for ${nice(p.date)}, then pay the ${peso(dp)} DP directly to ${T.org}. Your DP stays pending until the organizer records it.${holdNote}`;
+    $("pay-btn").textContent = "Reserve slots · DP pending";
   }
   // The profile (TP-058) fills in the booker's age and the emergency contact. The booking still
   // keeps its own copy, so a later profile edit never changes it.
@@ -323,44 +312,26 @@ function start() {
       $("err").focus();
       return;
     }
-    if (!TP.online && !validPhone($("wnum").value)) { err("Enter the 10-digit wallet number that starts with 9."); $("wnum").setAttribute("aria-invalid", "true"); $("wnum").focus(); return; }
     const jd = readJoinerFields("rv", size);
     if (jd.error) { err(jd.error); jd.field.focus(); return; }
     if (!$("agree").checked) { err("Tick the box to agree to the cancellation policy."); $("agree").focus(); return; }
     err("");
-    const dp = T.dp * size, balance = (T.fee - T.dp) * size;
     const saveEm = !!$("rv-esave")?.checked && !$("rv-efields")?.hidden;
     const wallet = document.querySelector('input[name="wallet"]:checked').value;
-    // Simulated wallet approval. A real app hands off to GCash or Maya here and waits for the result.
     $("pay-btn").disabled = true; $("paying").hidden = false;
-    $("paying").querySelector("span").textContent = TP.online ? "Reserving your slots…" : `Demo: waiting for ${wallet} approval…`;
-    if (TP.online) {
-      // The server checks slots again and sets the DP and balance; payment itself is still simulated.
-      // One id per reservation attempt, kept with the pending booking: a double click or a retry
-      // after a dropped connection returns the same booking instead of a second one (TP-013).
-      if (!p.requestId && crypto.randomUUID) { p.requestId = crypto.randomUUID(); setPending(p); }
-      TP.book({ tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time, wallet, requestId: p.requestId,
-        walletNumber: pretty($("wnum").value), listed: $("listme").checked, companions: jd.companions, emergency: jd.emergency, booker: jd.booker })
-        .then(b => {
-          setPending(null); showDone(b); TP.track("reserved", { ref: b.ref });
-          // "Save to my profile for next time": only after the booking succeeded. Not saving is harmless.
-          if (saveEm) TP.saveProfile({ emergency: jd.emergency }).catch(() => {});
-        })
-        .catch(e2 => { err(e2.message); $("pay-btn").disabled = false; $("paying").hidden = true; });
-      return;
-    }
-    setTimeout(() => {
-      const ref = "TP-" + Math.random().toString(36).slice(2, 8).toUpperCase();
-      const booking = { ref, tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time,
-        dp, balance, wallet, walletNumber: pretty($("wnum").value), names: jd.companions.map(c => c.name).join(", "),
-        companions: jd.companions, emergency: jd.emergency, booker: jd.booker,
-        status: "confirmed", moved: false, bookedAt: new Date().toISOString(),
-        listed: $("listme").checked, displayName: shortName(user.name), userName: user.name };
-      saveBookings([...getBookings(), booking]);
-      if (saveEm) setUser({ ...getUser(), emergency: jd.emergency });
-      setPending(null);
-      showDone(booking);
-    }, 1200);
+    $("paying").querySelector("span").textContent = "Reserving your slots…";
+    // The server checks slots again and sets the DP and balance; no money moves on TrailPeak.
+    // One id per reservation attempt, kept with the pending booking: a double click or a retry
+    // after a dropped connection returns the same booking instead of a second one (TP-013).
+    if (!p.requestId && crypto.randomUUID) { p.requestId = crypto.randomUUID(); setPending(p); }
+    TP.book({ tripId: T.id, date: p.date, size, pickup: pick.place, pickupTime: pick.time, wallet, requestId: p.requestId,
+      walletNumber: pretty($("wnum").value), listed: $("listme").checked, companions: jd.companions, emergency: jd.emergency, booker: jd.booker })
+      .then(b => {
+        setPending(null); showDone(b); TP.track("reserved", { ref: b.ref });
+        // "Save to my profile for next time": only after the booking succeeded. Not saving is harmless.
+        if (saveEm) TP.saveProfile({ emergency: jd.emergency }).catch(() => {});
+      })
+      .catch(e2 => { err(e2.message); $("pay-btn").disabled = false; $("paying").hidden = true; });
   });
 
   function showDone(b) {
@@ -369,9 +340,9 @@ function start() {
     $("ref").textContent = b.ref;
     const tick = '<svg width="20" height="20" aria-hidden="true"><use href="#i-tick"/></svg>';
     $("next").innerHTML = [
-      [TP.online ? `DP pending · send ${peso(b.dp)} to ${T.org}${b.holdUntil ? ` by ${holdTime(b.holdUntil)}` : ""}` : `Demo DP: ${peso(b.dp)} with ${b.wallet}`, TP.online ? `Your slots are held until then. After paying, open My trips and enter the GCash or Maya reference: that keeps your slots while the organizer checks. With no reference by the deadline, the slots are released. No payment was taken here.` : "Simulated only: no money moved."],
+      [`DP pending · send ${peso(b.dp)} to ${T.org}${b.holdUntil ? ` by ${holdTime(b.holdUntil)}` : ""}`, `Your slots are held until then. After paying, open My trips and enter the GCash or Maya reference: that keeps your slots while the organizer checks. With no reference by the deadline, the slots are released. No payment was taken here.`],
       [`Meetup ${nice(b.date)} · ${b.pickupTime} at ${b.pickup}`, "Be there 15 minutes early. The van leaves on time."],
-      [TP.online ? "Check your balance in My trips" : `Bring ${peso(b.balance)} for the balance`, TP.online ? "The full fee remains outstanding until the organizer records your DP." : "Demo amounts only."],
+      ["Check your balance in My trips", "The full fee remains outstanding until the organizer records your DP."],
       [`Contact ${T.org} before departure`, "Ask for the coordinator and van details. Automated texts are not connected."],
       ...(missingJoiners(b) ? [[`Add ${missingJoiners(b) === 1 ? "1 joiner's" : `${missingJoiners(b)} joiners'`} details before ${nice(dueDate(b.date))}`, "Open My trips and tap Add details. The organizer needs every name to register your group."]] : []),
     ].map(([a, b2]) => `<li>${tick}<div><strong>${a}</strong><p class="meta">${b2}</p></div></li>`).join("");

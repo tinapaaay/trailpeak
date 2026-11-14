@@ -14,10 +14,9 @@ await db.exec(readFileSync(path.join(root,'supabase/schema.sql'),'utf8'));
 await db.query('insert into auth.users(id) values ($1),($2)',[org,joiner]);
 await db.query("update profiles set role='organizer',organizer_status='approved',name='Test Organizer',org='Local Trail Test',phone='+63 917 000 1111' where id=$1",[org]);
 await db.query("update profiles set name='Test Joiner',phone='synthetic' where id=$1",[joiner]);
-// Reuse real trip content; only identity/date/price in this fixture are synthetic.
-const {execFileSync}=await import('node:child_process');
-const raw=execFileSync('node',['-e',`const fs=require('fs'),vm=require('vm');const c={console,localStorage:{getItem:()=>null},TP:{online:false,applyTo:()=>{}},mergeReviews:()=>{},getMyReviews:()=>[]};vm.createContext(c);vm.runInContext(fs.readFileSync('trips.js','utf8')+';this.trip=TRIPS[0]',c);console.log(JSON.stringify(c.trip))`],{cwd:root,encoding:'utf8'});
-const details={...JSON.parse(raw),fee:1499,dp:500,group:10,title:'Local receipt test hike'};
+// Synthetic trip content (the built-in sample trips were removed in #95).
+const details={title:'Local receipt test hike',place:'Nasugbu, Batangas',province:'Batangas',level:'moderate',score:4,masl:811,trailClass:'3',kind:'day',typeLabel:'Day hike',hours:'5–6 hrs',
+  fee:1499,dp:500,group:10,meet:'2:00 AM',photo:'1681287622401-9a77374ce790',alt:'Mountain ridge',pickups:[{place:'Cubao',time:'2:00 AM'}],incl:[],excl:[],reviews:0,rating:0,reviewList:[]};
 await db.query('insert into trips(id,organizer_id,org_name,details) values ($1,$2,$3,$4)',['receipt-test',org,'Local Trail Test',details]);
 await db.exec(`insert into departures(trip_id,date,capacity) values ('receipt-test','2099-01-01',10);
 insert into bookings(ref,trip_id,date,user_id,size,pickup,pickup_time,dp,balance,wallet,wallet_number,hold_until)
