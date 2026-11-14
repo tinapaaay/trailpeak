@@ -38,6 +38,9 @@ check("Switching clears TrailPeak's saved data (account copy, bookings, cache, p
 check("Switching leaves other sites' data and Supabase's own sign-in alone",
   local.getItem("other.app") === "keep" && local.getItem("sb-fjssjgefufwuadrltvjf-auth-token") === "keep");
 check("Staging never uses the live project", !/fjssjgefufwuadrltvjf/.test(r.win.TRAILPEAK_SUPABASE.url || ""));
+check("Staging uses the trailpeak-staging project, email sign-in only",
+  /abndhooswfitnrixwdsz\.supabase\.co/.test(r.win.TRAILPEAK_SUPABASE.url) && /^sb_publishable_/.test(r.win.TRAILPEAK_SUPABASE.anonKey) && r.win.TRAILPEAK_SUPABASE.signInWith.join() === "email");
+check("Staging bar says test data only", /test data only/.test(r.added[0]?.html || ""));
 check("Staging pages show the staging bar", r.added.length === 1 && /Staging/.test(r.added[0].html) && /env=live/.test(r.added[0].html));
 
 // Later pages without ?env stay on staging, and don't clear data again.

@@ -15,13 +15,13 @@
       anonKey: "sb_publishable_GH2WsVTwnp8EFGM8bOyDYw_MPeGkB8c",
     },
     staging: {
-      url: "",       // filled in after the staging project is created
-      anonKey: "",
+      url: "https://abndhooswfitnrixwdsz.supabase.co",   // trailpeak-staging
+      anonKey: "sb_publishable_QAia1iywJNJIoYAJ5Gh6iQ_6PLTT5cK",
     },
   };
   // Sign-in buttons to show right away (no wait for Supabase). The sign-in page still checks
-  // Supabase in the background and hides Google if it's turned off there.
-  const signInWith = ["google", "email"];
+  // Supabase in the background and hides Google if it's turned off there. Staging has email only.
+  const signInWith = { live: ["google", "email"], staging: ["email"] };
 
   const KEY = "trailpeak.env";
   let env = "live";
@@ -40,7 +40,7 @@
   } catch { /* storage blocked: stay on live */ }
 
   window.TRAILPEAK_ENV = env;
-  window.TRAILPEAK_SUPABASE = { ...ENVS[env], signInWith };
+  window.TRAILPEAK_SUPABASE = { ...ENVS[env], signInWith: signInWith[env] };
 
   // A bar on every staging page, so test data is never mistaken for the real site.
   if (env === "staging" && typeof document !== "undefined") {
