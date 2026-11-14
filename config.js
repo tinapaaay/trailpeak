@@ -20,8 +20,8 @@
     },
   };
   // Sign-in buttons to show right away (no wait for Supabase). The sign-in page still checks
-  // Supabase in the background and hides Google if it's turned off there. Staging has email only.
-  const signInWith = { live: ["google", "email"], staging: ["email"] };
+  // Supabase in the background and hides Google if it's turned off there.
+  const signInWith = { live: ["google", "email"], staging: ["google", "email"] };
 
   const KEY = "trailpeak.env";
   let env = "live";
