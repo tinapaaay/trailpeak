@@ -1,6 +1,6 @@
 # TrailPeak interview guide (for later)
 
-Issue: #26 (TP-021). Run these after the pilot build is ready. Aim for 3–5 organizers and 5 joiners, about 20–30 minutes each, by video call or in person.
+Issue: #26 (TP-021). Run these after the pilot build is ready. **Prefer forms?** See [survey-forms.md](survey-forms.md): the same questions as Google Forms, plus a 15-minute organizer call for the story questions. Aim for 3–5 organizers and 5 joiners, about 20–30 minutes each, by video call or in person.
 
 **Rule for every interview:** ask about their **last real trip**, not opinions about TrailPeak. "Walk me through…" beats "Would you use…?". Write down what they *did*; keep opinions in a separate column.
 
