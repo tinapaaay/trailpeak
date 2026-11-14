@@ -87,6 +87,9 @@ a { color: var(--color-primary); }
 /* Skip link: hidden until a keyboard user tabs to it */
 .skip { position: absolute; left: var(--space-md); top: -100px; z-index: 50; min-height: 44px; display: inline-flex; align-items: center; background: var(--color-primary); color: var(--color-surface); padding: var(--space-sm) var(--space-md); border-radius: var(--rounded-md); }
 .skip:focus { top: var(--space-sm); }
+/* Staging bar (TP-061): on every page of the test environment, so test data is never mistaken for the real site */
+.env-bar { padding: 0 var(--space-md); background: var(--color-tertiary-tint); color: var(--color-tertiary); font: 700 15px/1.5 var(--font-body); text-align: center; }
+.env-bar a { color: inherit; min-height: 44px; display: inline-flex; align-items: center; }
 main:focus { outline: none; } /* the skip link's target, not a control */
 
 /* Shared type levels */

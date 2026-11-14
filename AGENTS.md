@@ -27,4 +27,5 @@ A static site (GitHub Pages, no build step) plus a light Supabase backend. Joine
 - **ADRs:** if the PR chooses between real options, changes the database structure in a lasting way, picks a provider, or sets a rule other code must follow, write or update an ADR in `docs/adr/`.
 - **Be honest about gaps.** List anything unfinished or untested under "Not done" in the PR. Don't mark an issue fixed if part of it isn't.
 - **Don't merge your own PR.** The owner (or a reviewing assistant) merges after CI passes.
-- **After merge:** remind the owner to re-run `schema.sql` in the Supabase SQL editor if it changed.
+- **After merge:** remind the owner to re-run `schema.sql` in the Supabase SQL editor if it changed: **staging first**, then live.
+- **Staging:** `?env=staging` points the site at the staging Supabase project (`docs/testing/staging.md`). Ask the owner to try database changes there before live. Only publishable keys go in `config.js`.
