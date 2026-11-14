@@ -59,6 +59,19 @@ Use email addresses you control. Gmail's `+` trick gives you extra addresses tha
    ```
 3. Sign in as the **test joiner** email in a private window (also with `?env=staging`).
 
+## Automated booking test (TP-062, #96)
+
+`npm run e2e --prefix tests` books like a joiner on staging and then cancels: trip page → date → 2 joiners → Reserve → joiner 2 "later" → My trips shows the booking and the reminder. It runs on every PR (the **e2e** check) using that PR's pages.
+
+It needs, on **staging only**:
+
+1. **Anonymous sign-ins on:** Authentication → Sign In / Providers → **Allow anonymous sign-ins**. Each run gets a brand-new throwaway joiner, so no password is stored anywhere. **Never turn this on in the live project.**
+2. **One test trip:** as the test organizer, post any mountain (trip names come from the mountain list), capacity 20, with a few dates **at least 4 days** away (add more before they pass). Publish it. The test uses the first published trip with a date that far out and 2+ slots.
+
+Run it on your computer: `npm ci --prefix tests`, `npx --prefix tests playwright install chromium`, then `npm run e2e --prefix tests`. It refuses to run if `config.js` points staging at the live project.
+
+The throwaway joiners stay in staging's Authentication → Users list; delete them now and then if you like.
+
 ## Keeping staging up to date
 
 When a PR changes `supabase/schema.sql`, run it on **staging first**, try the change there, then run it on live after merging.

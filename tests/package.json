@@ -2,10 +2,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node signout.test.mjs && node avatar.test.mjs && node syntax.test.mjs && node receipts.test.mjs && node activity.test.mjs && node hold.test.mjs && node outside-edit.test.mjs && node approval.test.mjs && node contact.test.mjs && node privacy.test.mjs && node details.test.mjs && node guardian.test.mjs && node overdue.test.mjs && node retention.test.mjs && node reconcile.test.mjs && node trip-status.test.mjs && node funnel.test.mjs && node race.test.mjs && node states.test.mjs && node joiner-edit.test.mjs && node profile.test.mjs && node env.test.mjs"
+    "test": "node signout.test.mjs && node avatar.test.mjs && node syntax.test.mjs && node receipts.test.mjs && node activity.test.mjs && node hold.test.mjs && node outside-edit.test.mjs && node approval.test.mjs && node contact.test.mjs && node privacy.test.mjs && node details.test.mjs && node guardian.test.mjs && node overdue.test.mjs && node retention.test.mjs && node reconcile.test.mjs && node trip-status.test.mjs && node funnel.test.mjs && node race.test.mjs && node states.test.mjs && node joiner-edit.test.mjs && node profile.test.mjs && node env.test.mjs",
+    "e2e": "node e2e/booking.e2e.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.16",
-    "pg": "^8.13.1"
+    "@supabase/supabase-js": "2.49.4",
+    "pg": "^8.13.1",
+    "playwright": "1.49.1"
   }
 }
