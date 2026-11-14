@@ -6,6 +6,8 @@ Use this to check the full joiner → organizer flow on the live site: a two-joi
 
 ## Before you start
 
+- **Try it on staging first.** Open the site with `?env=staging` (see [staging.md](staging.md)) and run this whole guide there with your test accounts. Then run it once on the live site.
+
 - **Two accounts with different emails.** The same email is always the same TrailPeak account.
   - **Organizer:** your approved organizer account.
   - **Joiner:** a second email that isn't an organizer (another Gmail, or email-link sign-in). Google sign-in now shows "Choose an account", so you can pick it there.
