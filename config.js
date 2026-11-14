@@ -52,7 +52,7 @@
       el.setAttribute("role", "note");
       el.innerHTML = ready
         ? 'Staging: test data only. <a href="?env=live">Switch to the live site</a>'
-        : 'Staging isn\'t set up yet, so this is the offline demo. <a href="?env=live">Switch to the live site</a>';
+        : 'Staging isn\'t set up in config.js yet, so TrailPeak can\'t connect. <a href="?env=live">Switch to the live site</a>';
       // After "Skip to content", which stays the first thing Tab reaches.
       const skip = document.querySelector("body > .skip");
       if (skip) skip.after(el); else document.body.prepend(el);

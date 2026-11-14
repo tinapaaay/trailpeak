@@ -349,8 +349,7 @@ const me = getUser();
 const isOrganizer = me && me.role === "organizer";
 const editId = new URLSearchParams(location.search).get("edit");
 const E = editId ? tripById(editId) : null;
-const ownTrip = !!(E && isOrganizer && (TP.online ? E.organizerId === me.id
-  : (() => { try { return (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).some(x => x.id === E.id); } catch { return false; } })()));
+const ownTrip = !!(E && isOrganizer && E.organizerId === me.id);
 const ORG = isOrganizer ? me.org : "Your organizer name";
 // The eyebrow only shows who's posting; signed out, the title says enough.
 document.getElementById("org-label").textContent = isOrganizer ? `Posting as ${me.org}` : "";
@@ -447,7 +446,7 @@ function readTrip() {
 }
 
 // Duplicate check (TP-054): this organizer's own active trips on the same mountain.
-const myTrips = () => TRIPS.filter(t => t.status !== "archived" && (TP.online ? t.organizerId === me?.id : t.org === ORG));
+const myTrips = () => TRIPS.filter(t => t.status !== "archived" && t.organizerId === me?.id);
 function renderDuplicate(m) {
   const same = ownTrip || !m ? [] : myTrips().filter(t => t.title === m.name);
   $("dup-note").innerHTML = same.length ? `<p><strong>You already have ${escapeHtml(m.name)}${same.length > 1 ? ` (${same.length} trips)` : ""}.</strong> Add dates to it instead?
@@ -565,29 +564,19 @@ document.getElementById("form").addEventListener("submit", e => {
     $("done").classList.add("show");
     $("done").scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
-  if (TP.online) {
-    // Saved to the database: the trip shows for everyone right away.
-    const btn = document.querySelector('button[form="form"]'); btn.disabled = true;
-    $("publish-note").textContent = draft ? "Saving…" : "Publishing…";
-    TP.publishTrip(pub).then(finish)
-      .catch(err => { $("publish-note").textContent = `Couldn't ${draft ? "save" : "publish"}: ${err.message}`; })
-      .finally(() => { btn.disabled = false; });
-    return;
-  }
-  try {
-    const list = JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || [];
-    localStorage.setItem(TP_PUBLISHED_KEY, JSON.stringify([...list, pub]));
-  } catch { /* storage blocked: trip shows only in the preview */ }
-  finish();
+  // Saved to the database: the trip shows for everyone right away.
+  const btn = document.querySelector('button[form="form"]'); btn.disabled = true;
+  $("publish-note").textContent = draft ? "Saving…" : "Publishing…";
+  TP.publishTrip(pub).then(finish)
+    .catch(err => { $("publish-note").textContent = `Couldn't ${draft ? "save" : "publish"}: ${err.message}`; })
+    .finally(() => { btn.disabled = false; });
 });
 
 // Save an edited trip. Only the page content changes: the id, dates, reviews and anything
 // the form doesn't show (itinerary, guide, packing list) stay as they were.
 function saveEdit(t) {
   const fresh = toPublishedTrip(t), mountainChanged = fresh.title !== E.title;
-  let stored = null;
-  if (!TP.online) { try { stored = (JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || []).find(x => x.id === E.id); } catch { /* ignore */ } }
-  const base = TP.online ? (E.saved || {}) : (stored || {});
+  const base = E.saved || {};
   // Keep each pick-up's area and drop-off note if the place name didn't change.
   const pickups = fresh.pickups.map(p => { const old = (base.pickups || []).find(o => o.place === p.place); return old ? { ...old, time: p.time } : p; });
   const changed = ["title", "place", "province", "level", "score", "masl", "kind", "typeLabel", "hours", "hoursNote", "group", "fee", "dp", "meet", "org", "verified", "incl", "excl", "who", "contact"];
@@ -598,19 +587,11 @@ function saveEdit(t) {
     $("publish-note").innerHTML = `Changes saved. <a href="trip.html#${encodeURIComponent(E.id)}">View trip page</a> · <a href="dashboard.html">Dashboard</a>`;
     TP.dirty = false;
   };
-  if (TP.online) {
-    const { departures, ...rest } = details; // dates live in their own table
-    btn.disabled = true; $("publish-note").textContent = "Saving…";
-    TP.updateTrip(E.id, rest).then(saved)
-      .catch(err => { $("publish-note").textContent = `Couldn't save: ${err.message}`; })
-      .finally(() => { btn.disabled = false; });
-    return;
-  }
-  try {
-    const list = JSON.parse(localStorage.getItem(TP_PUBLISHED_KEY)) || [];
-    localStorage.setItem(TP_PUBLISHED_KEY, JSON.stringify(list.map(x => x.id === E.id ? { ...details, id: E.id, departures: x.departures } : x)));
-  } catch { /* storage blocked */ }
-  saved();
+  const { departures, ...rest } = details; // dates live in their own table
+  btn.disabled = true; $("publish-note").textContent = "Saving…";
+  TP.updateTrip(E.id, rest).then(saved)
+    .catch(err => { $("publish-note").textContent = `Couldn't save: ${err.message}`; })
+    .finally(() => { btn.disabled = false; });
 }
 
 function toPublishedTrip(t) {

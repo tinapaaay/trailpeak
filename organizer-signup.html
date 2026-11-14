@@ -223,16 +223,10 @@ const existing = getUser();
 const alreadyOrganizer = !!(existing && existing.role === "organizer");
 // Online, an organizer account starts from a signed-in account (email code).
 // The sign-in page shows it is step 1 of organizer sign-up and comes back here afterwards.
-if (TP.online && !existing) { rememberNext("organizer-signup.html"); location.replace("signin.html?as=organizer"); }
-if (!TP.online) {
-  $("acct-note").textContent = "Prototype: no real account is created, and photos stay on this device.";
-  $("foot-note").textContent = "TrailPeak prototype · mock sign-up: no ID is checked and nothing is sent or saved outside this browser";
-  $("biz-lead").innerHTML = "Add these if you have them. In this demo nothing is reviewed, and any Business verified badge shows <strong>Demo: not a real check</strong>.";
-  $("checking").lastChild.textContent = "Demo: pretending to check your ID…";
-}
+if (!existing) { rememberNext("organizer-signup.html"); location.replace("signin.html?as=organizer"); }
 // Online, sign-up ends in an application: the owner approves organizers by hand (TP-001).
-const applied = TP.online && existing && existing.organizerStatus === "pending";
-const revoked = TP.online && existing && existing.organizerStatus === "revoked";
+const applied = existing && existing.organizerStatus === "pending";
+const revoked = existing && existing.organizerStatus === "revoked";
 if (!alreadyOrganizer && (applied || revoked)) {
   document.querySelector(".page > div").innerHTML = applied
     ? `<div class="page-head"><h1>Application received</h1>
@@ -308,10 +302,8 @@ $("s2").addEventListener("submit", e => {
     && fail(2, !$("selfie").files.length ? "Add a selfie holding your ID." : "");
   if (!ok) return;
   // Online, the ID is reviewed with the application; nothing is marked verified here.
-  if (TP.online) { data.idType = $("idtype").value; go(3); return; }
-  // Offline demo: a simulated check. A real app sends the photos to an ID-checking service.
-  $("checking").hidden = false;
-  setTimeout(() => { $("checking").hidden = true; data.idVerified = true; data.idType = $("idtype").value; go(3); }, 1200);
+  // The ID is checked by TrailPeak by hand during approval (TP-003); nothing is uploaded.
+  data.idType = $("idtype").value; go(3);
 });
 
 $("s3").addEventListener("submit", e => {
@@ -330,17 +322,12 @@ $("s4").addEventListener("submit", e => {
     && fail(4, norm($("wname").value) !== norm(data.name) ? `The account name must match your ID name: ${data.name}.` : "", $("wname"));
   if (!ok) return;
   data.payout = { wallet: document.querySelector('input[name="wallet"]:checked').value, number: pretty($("wnum").value) };
-  if (TP.online) {
-    // Sends an application. The database never lets an account make itself an organizer or
-    // verified; the owner approves it (see supabase/SETUP.md).
-    TP.applyAsOrganizer({ name: data.name, phone: data.phone, org: data.org, payout: data.payout,
-      application: { idType: data.idType, businessDocs: data.business === "review", dot: data.dot || "" } })
-      .then(() => showApplied())
-      .catch(err => fail(4, err.message));
-    return;
-  }
-  setUser({ ...existing, ...data, role: "organizer", method: existing?.method || "organizer-signup" });
-  showFinished();
+  // Sends an application. The database never lets an account make itself an organizer or
+  // verified; the owner approves it (see supabase/SETUP.md).
+  TP.applyAsOrganizer({ name: data.name, phone: data.phone, org: data.org, payout: data.payout,
+    application: { idType: data.idType, businessDocs: data.business === "review", dot: data.dot || "" } })
+    .then(() => showApplied())
+    .catch(err => fail(4, err.message));
 });
 
 function showApplied() {
@@ -356,18 +343,6 @@ function showApplied() {
       : row("off", "x", "Business documents not added", "Add them anytime for the Business verified badge.")) +
     row("ok", "tick", `${data.payout.wallet} payout saved`, `DPs will go to ${data.payout.number}, minus TrailPeak's commission.`);
   $("actions5").innerHTML = '<a class="btn btn-primary label-caps" href="index.html">Browse trips</a>';
-  go(5);
-}
-
-function showFinished() {
-
-  const row = (cls, icon, title, note) => `<li><svg class="${cls}" width="20" height="20" aria-hidden="true"><use href="#i-${icon}"/></svg><div><strong>${title}</strong><p class="meta">${note}</p></div></li>`;
-  $("status").innerHTML =
-    row("ok", "tick", `ID verified <span class="tag-demo">${DEMO_CHECK}</span>`, `${data.idType}. Nothing was really checked: this is the offline demo.`) +
-    (data.business === "review"
-      ? row("wait", "clock", "Business documents in review", "Usually 1–2 working days. We'll text you when it's done.")
-      : row("off", "x", "Business documents not added", "Add them anytime from your account for the Business verified badge.")) +
-    row("ok", "tick", `${data.payout.wallet} payout added`, `DPs go to ${data.payout.number}, minus TrailPeak's commission.`);
   go(5);
 }
 
