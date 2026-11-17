@@ -200,8 +200,7 @@ $("pf-form").addEventListener("submit", async e => {
   err("");
   $("pf-save").disabled = true; $("pf-saved").textContent = "Saving…";
   try {
-    if (TP.online) await TP.saveProfile(r.fields);
-    else setUser({ ...getUser(), name: r.fields.name, phone: r.fields.phone, ageGroup: r.fields.age_group, emergency: r.fields.emergency });
+    await TP.saveProfile(r.fields);
     fill(getUser());
     renderOwnAvatars();
     $("pf-saved").textContent = "Saved. Your next bookings will use these details.";

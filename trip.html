@@ -380,7 +380,7 @@
 </div>
 
 <footer class="footer">
-  <div class="wrap"><a href="faq.html">FAQ</a> · <a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms of service</a> · TrailPeak prototype · built from DESIGN.md · heights, difficulty and trail class from published trail guides; organizers, dates, fees, guides and itineraries are sample data · placeholder photos from Unsplash</div>
+  <div class="wrap"><a href="faq.html">FAQ</a> · <a href="privacy.html">Privacy policy</a> · <a href="terms.html">Terms of service</a> · TrailPeak prototype · built from DESIGN.md · heights, difficulty and trail class from published trail guides; trips, dates and fees set by the organizer · mountain photos from Unsplash</div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
@@ -393,7 +393,7 @@
 const $ = id => document.getElementById(id);
 if (TP.firstSync) { document.getElementById("main").innerHTML = '<p class="loading-note" role="status">Loading trip…</p>'; TP.waitForData(); }
 // A link to a trip that isn't listed (e.g. an old sample trip) says so instead of showing another trip (#89).
-const T = tripById(location.hash.slice(1)) || (TP.online ? null : TRIPS[0]);
+const T = tripById(location.hash.slice(1));
 if (!T) {
   document.title = "Trip not found · TrailPeak";
   document.getElementById("main").innerHTML = '<div class="loading-note" role="status"><h1 style="font:700 32px/1.15 var(--font-display);margin-bottom:var(--space-sm)">This trip isn\'t available</h1><p>It may have been a sample trip or been taken down by its organizer.</p><p style="margin-top:var(--space-md)"><a class="btn btn-primary label-caps" href="index.html">See trips</a></p></div>';
@@ -404,7 +404,6 @@ if (!T) {
 TP.track("trip_view", { trip: T.id, source: TP.visitSource() });
 const FEE = T.fee, DP = T.dp, GROUP = T.group, MEET = T.meet;
 // Slots after this browser's own bookings.
-T.baseDepartures = { ...T.departures }; // before this browser's bookings, for the joiner list
 Object.keys(T.departures).forEach(d => { T.departures[d] = slotsLeft(T, d); });
 // Only today and later can be booked; past dates show as plain days.
 const dates = Object.keys(T.departures).filter(d => !isPastDate(d)).sort();
@@ -484,9 +483,7 @@ function renderStatic() {
       <p class="fine-dark" id="ask-note" aria-live="polite">Copy the message and send it to the organizer by text or Messenger.</p>
     </div>`;
   $("book-price").innerHTML = `${peso(FEE)} <small>event fee per joiner</small>`;
-  $("dp-note").innerHTML = TP.online
-    ? `You send the DP directly to ${esc(T.org)} by GCash or Maya. <a href="#how-booking-works">How booking works</a> · <a href="faq.html">FAQ</a>`
-    : `Demo: no money moves. <a href="#how-booking-works">How booking works</a> · <a href="faq.html">FAQ</a>`;
+  $("dp-note").innerHTML = `You send the DP directly to ${esc(T.org)} by GCash or Maya. <a href="#how-booking-works">How booking works</a> · <a href="faq.html">FAQ</a>`;
 }
 
 function buildCalendar() {
@@ -512,18 +509,13 @@ function buildCalendar() {
 
 async function renderGoing() {
   const date = picked;
-  let list = joinersFor(T, date);
-  if (TP.online) {
-    try {
-      const real = await TP.whosGoing(T.id, date);
-      if (date !== picked) return; // a newer date was chosen while this loaded
-      // Sample seats show names only to people booked on this date, like real ones.
-      const booked = real.some(r => r.is_you);
-      list = list.map(j => ({ ...j, listed: j.listed && booked }))
-        .concat(real.map(r => ({ name: r.display_name || "", size: r.size, listed: !!r.display_name && !r.is_you, you: !!r.is_you })));
-      list.forEach(j => { if (j.you && !j.name) j.name = "You"; });
-    } catch { /* keep the sample list */ }
-  }
+  let list = [];
+  try {
+    const real = await TP.whosGoing(T.id, date);
+    if (date !== picked) return; // a newer date was chosen while this loaded
+    list = real.map(r => ({ name: r.display_name || "", size: r.size, listed: !!r.display_name && !r.is_you, you: !!r.is_you }));
+    list.forEach(j => { if (j.you && !j.name) j.name = "You"; });
+  } catch { /* couldn't load: show no one rather than guess */ }
   const people = list.reduce((a, j) => a + j.size, 0);
   const solo = list.filter(j => j.size === 1).length, groups = list.length - solo;
   const iAmGoing = list.some(j => j.you);

@@ -1,5 +1,5 @@
-// TrailPeak data layer. With config.js filled in, accounts, trips, slots and bookings
-// come from Supabase; without it, the site runs in offline demo mode (auth.js + trips.js).
+// TrailPeak data layer. Accounts, trips, slots and bookings come from Supabase (config.js).
+// There is no offline demo any more (#95): without a connection, every page says so.
 //
 // Pages stay simple: they read the same globals as before (TRIPS, getUser(), getBookings(),
 // slotsLeft()). This file keeps a copy of the latest server data in the browser so pages
@@ -10,18 +10,30 @@ const TP_CACHE_KEY = "trailpeak.cache.v1";
 
 (function connect() {
   const c = window.TRAILPEAK_SUPABASE;
-  if (!c || !c.url || !c.anonKey || !window.supabase) return;
-  TP.online = true;
-  TP.db = window.supabase.createClient(c.url, c.anonKey);
+  if (c && c.url && c.anonKey && window.supabase) {
+    TP.online = true;
+    TP.db = window.supabase.createClient(c.url, c.anonKey);
+    return;
+  }
+  // No settings, or the Supabase library didn't load (blocked or offline): say so plainly
+  // instead of showing pretend data. Pages still run, but see no trips and no account.
+  if (typeof document === "undefined") return;
+  const show = () => {
+    const main = document.querySelector("main") || document.body;
+    main.innerHTML = `<div class="wrap" role="alert" style="padding:var(--space-xxl) 0;max-width:560px;display:grid;gap:var(--space-md)">
+      <h1 style="font:700 32px/1.15 var(--font-display)">TrailPeak can't connect right now</h1>
+      <p class="lead">Check your internet connection, then reload. If it keeps happening, the site may be updating: try again in a few minutes.</p>
+      <p><a class="btn btn-primary label-caps" href="">Reload</a></p></div>`;
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", show); else show();
 })();
 
 // ---- Cache --------------------------------------------------------------------------
 function tpReadCache() { try { return JSON.parse(localStorage.getItem(TP_CACHE_KEY)) || {}; } catch { return {}; } }
 function tpWriteCache(c) { try { localStorage.setItem(TP_CACHE_KEY, JSON.stringify(c)); } catch { /* storage blocked */ } }
 
-// Called by trips.js: swap the built-in sample trips for the server's trips and live slots.
-// First visit with no saved copy of the trips: pages show a loading state instead of the
-// built-in sample trips, then the page reloads once the real trips arrive (TP.sync).
+// Called by trips.js: fill TRIPS with the server's trips and live slots (from the saved copy).
+// First visit with no saved copy: pages show a loading state, then reload once the trips arrive (TP.sync).
 TP.firstSync = TP.online && !tpReadCache().trips;
 // Pages call this to stop drawing until the first data arrives; the quiet error ends the page script.
 TP.waitForData = () => { throw new Error("TrailPeak: waiting for the first data load"); };
@@ -33,11 +45,10 @@ TP.applyTo = function (trips) {
   if (!c.trips) return;
   trips.length = 0;
   for (const row of c.trips) {
-    // Live site: only trips from real organizer accounts. The seeded sample trips (no organizer)
-    // looked bookable but could only open a practice demo, so they're hidden (#89).
+    // Only trips from real organizer accounts. Old seeded sample trips (no organizer) stay hidden (#89).
     if (!row.organizer_id) continue;
     // `saved` keeps the stored details as they are, so editing a trip never saves page-only fields back.
-    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, status: row.status || "published", archived_at: row.archived_at || null, createdAt: row.created_at || null, bookingMode: row.organizer_id ? "pilot" : "demo", saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
+    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, status: row.status || "published", archived_at: row.archived_at || null, createdAt: row.created_at || null, saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
     for (const s of (c.slots || []).filter(s => s.trip_id === row.id)) {
       t.departures[s.date] = s.status === "open" ? s.left_count : 0;
       t.sampleBooked[s.date] = s.sample_booked || 0;
@@ -50,9 +61,9 @@ TP.applyTo = function (trips) {
 };
 
 // Server booking row -> the shape the pages already use.
-function tpBooking(b, receipts = null, mode = "pilot") {
+function tpBooking(b, receipts = null) {
   const receipt = receipts?.find(r => r.booking_ref === b.ref);
-  return { bookingMode: mode, ref: b.ref, tripId: b.trip_id, date: b.date, size: b.size, pickup: b.pickup, pickupTime: b.pickup_time,
+  return { ref: b.ref, tripId: b.trip_id, date: b.date, size: b.size, pickup: b.pickup, pickupTime: b.pickup_time,
     holdUntil: b.hold_until || null, dpReference: b.dp_reference || null, dpSentAt: b.dp_sent_at || null, expiredAt: b.expired_at || null,
     dp: b.dp, expectedDp: b.dp, receivedDp: receipts === null ? null : (receipt?.amount || 0),
     receipt, paymentsReady: receipts !== null, totalFee: b.dp + b.balance,
@@ -155,7 +166,8 @@ TP.sync = async function ({ reload = true } = {}) {
       return;
     }
 
-    saveBookings((mine || []).map(b => tpBooking(b, receipts, trips.find(t => t.id === b.trip_id)?.organizer_id ? "pilot" : "demo")));
+    // Bookings on old sample trips (no organizer) aren't shown (#89, #95).
+    saveBookings((mine || []).filter(b => trips.find(t => t.id === b.trip_id)?.organizer_id).map(b => tpBooking(b, receipts)));
     saveMyReviews((myReviews || []).map(r => ({ ref: r.booking_ref, tripId: r.trip_id, stars: r.stars, text: r.body, date: r.created_at.slice(0, 10) })));
   } else {
     if (typeof clearLocalAccount === "function") clearLocalAccount();
@@ -306,7 +318,7 @@ TP.setTripStatus = async (id, status) => {
 // ---- Pilot funnel (TP-022, ADR-012) ----------------------------------------------------
 // Counts visits, sign-in timing and reservations in TrailPeak's own database. Each browser makes
 // a random id for itself; nothing else about the person is sent (no name, email, phone or
-// account). Skipped offline and when the browser asks not to be tracked. Never blocks the page.
+// account). Skipped without a connection and when the browser asks not to be tracked. Never blocks the page.
 function tpVisitor() {
   try {
     let v = localStorage.getItem("trailpeak.vid");

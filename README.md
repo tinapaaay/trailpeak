@@ -20,7 +20,7 @@ Joiner hikes in the Philippines are organized in Facebook groups: long hand-type
 ## Try it
 
 - **Joiners:** search by mountain, date, group size and pick-up point, open a trip, choose a date, and reserve. Sign in with your email and the code it sends you.
-- **Organizers:** open **Post a trip**, then open the dashboard to see real bookings on your trips. (With an empty `config.js`, the offline demo has a sample organizer account and the test code `123456`.)
+- **Organizers:** open **Post a trip**, then open the dashboard to see real bookings on your trips. Test on staging first: add `?env=staging` (see `docs/testing/staging.md`).
 
 ## Pages
 
@@ -77,6 +77,6 @@ Target: 0 errors, 0 warnings.
 ## Credits and data
 
 - Mountain heights, difficulty (Pinoy Mountaineer 1–9 scale) and trail classes come from published trail guides such as [Pinoy Mountaineer](https://www.pinoymountaineer.com/) and [Lakbay Pinas](https://lakbaypinas.com/).
-- Organizers, dates, fees, reviews, guides and itineraries are sample data.
+- Trips, dates, fees, guides and itineraries come from organizers; reviews come from joiners who went.
 - Photos are placeholders from [Unsplash](https://unsplash.com/) and don't show the exact mountains.
 - Fonts: Bricolage Grotesque (Mathieu Triay) and Source Sans 3 (Paul D. Hunt, Adobe), self-hosted under the SIL Open Font License (OFL).

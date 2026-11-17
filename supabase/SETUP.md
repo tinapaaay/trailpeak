@@ -16,7 +16,7 @@ This adds real accounts and shared trips and bookings. **Payments stay simulated
 
 1. In the left menu, open **SQL Editor** and click **New query**.
 2. Open `supabase/schema.sql` from this repo, copy all of it, paste it in, and click **Run**. You should see "Success. No rows returned".
-3. Make another new query with all of `supabase/seed.sql` and click **Run**. This adds the 6 sample trips and their dates.
+3. **Don't run `supabase/seed.sql`** on a new project. It adds the 6 old sample trips, which the site no longer shows (#89, #95); it's kept only for older databases and local tests.
 
 Both files are safe to run again later.
 

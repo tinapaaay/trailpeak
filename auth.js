@@ -1,5 +1,5 @@
-// TrailPeak mock accounts. Prototype only: the "account" lives in this browser
-// (localStorage) and is never sent anywhere. Real accounts need a backend.
+// TrailPeak's copy of the signed-in account in this browser (localStorage). The real account
+// lives in Supabase; api.js refreshes this copy (TP.sync) and clears it on sign-out.
 const TP_USER_KEY = "trailpeak.user";
 const TP_NEXT_KEY = "trailpeak.next";
 
@@ -35,7 +35,7 @@ function clearLocalAccount() {
 
 function signOut() {
   clearLocalAccount();
-  if (typeof TP !== "undefined" && TP.online && typeof TP.signOut === "function") {
+  if (typeof TP !== "undefined" && typeof TP.signOut === "function") {
     return TP.signOut();
   }
   if (typeof location !== "undefined" && location.href) {
@@ -250,41 +250,13 @@ function dateState(status, left, iso) {
   return left > 0 ? "open" : "full";
 }
 
-// ---- Reviews written in this browser (offline demo only; online they're in Supabase) ----
+// ---- This account's reviews, copied from Supabase by TP.sync ----
 const TP_REVIEWS_KEY = "trailpeak.reviews";
 function getMyReviews() { try { return JSON.parse(localStorage.getItem(TP_REVIEWS_KEY)) || []; } catch { return []; } }
 function saveMyReviews(list) { try { localStorage.setItem(TP_REVIEWS_KEY, JSON.stringify(list)); } catch { /* storage blocked */ } }
 
 function setPending(p) { try { sessionStorage.setItem(TP_PENDING_KEY, JSON.stringify(p)); } catch { /* ignore */ } }
 function getPending() { try { return JSON.parse(sessionStorage.getItem(TP_PENDING_KEY)); } catch { return null; } }
-
-// ---- Who's going (prototype) -------------------------------------------
-// Sample joiners for a date, made the same way every time. About 6 in 10 chose to be listed.
-// Only first name + last initial and group size are ever shown, never contact details.
-function joinersFor(trip, date) {
-  const first = ["Ana", "Miguel", "Carla", "Paolo", "Bea", "Jun", "Trisha", "Marco", "Kim", "Rafa", "Joy", "Enzo", "Liza", "Nico"];
-  const last = "RSDMCLVTGB";
-  const sizes = [1, 2, 1, 3, 1, 1, 2, 4, 1, 2];
-  let seed = [...(trip.id + date)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
-  // Online, the server says how many seats are sample data; offline, it's capacity minus slots.
-  const base = (trip.baseDepartures || trip.departures)[date] ?? trip.group;
-  const sampleBooked = trip.sampleBooked ? (trip.sampleBooked[date] || 0) : Math.max(0, (trip.group || 0) - base);
-  const list = [], offset = Math.floor(rnd() * first.length);
-  let n = 0;
-  while (n < sampleBooked) {
-    const size = Math.min(sizes[Math.floor(rnd() * sizes.length)], sampleBooked - n);
-    // Step through the name list (5 doesn't divide 14) so names don't repeat on one date.
-    const k = list.length;
-    list.push({ name: `${first[(offset + k * 5) % first.length]} ${last[(offset + k * 3) % last.length]}.`, size, listed: rnd() < 0.6, you: false });
-    n += size;
-  }
-  if (typeof TP !== "undefined" && TP.online) return list; // real bookings come from TP.whosGoing()
-  const me = getUser();
-  getBookings().filter(b => b.tripId === trip.id && b.date === date && b.status !== "cancelled")
-    .forEach(b => list.push({ name: b.displayName || "You", size: b.size, listed: !!b.listed, you: true, mine: me && b.userName === me.name }));
-  return list;
-}
 
 // ---- Joiner details (names for registration + an emergency contact) -------------------
 // Used by reserve.html and mytrips.html. The booker is joiner 1; companions are joiners 2+.
