@@ -64,7 +64,12 @@ try {
   const candidates = (trips || []).filter(t => t.organizer_id && t.status === "published" && t.published !== false && open.some(s => s.trip_id === t.id))
     .sort((a, b) => (/e2e/i.test(b.details?.title || "") ? 1 : 0) - (/e2e/i.test(a.details?.title || "") ? 1 : 0));
   const trip = process.env.E2E_TRIP_ID ? candidates.find(t => t.id === process.env.E2E_TRIP_ID) : candidates[0];
-  if (!trip) throw new Error(`No bookable trip on staging: publish a trip with a date on or after ${minDate} and 2+ slots.`);
+  if (!trip) {
+    const latest = (slots || []).map(s => s.date).sort().at(-1);
+    throw new Error(`No bookable trip on staging: add a date on or after ${minDate} (with 2+ slots) to a published staging trip.`
+      + (latest ? ` The latest date on staging is ${latest}.` : " Staging has no dates at all.")
+      + " Tip: add one date per month for the next year so this doesn't come back soon.");
+  }
   const date = open.filter(s => s.trip_id === trip.id).map(s => s.date).sort()[0];
   console.log(`     using trip "${trip.details?.title}" (${trip.id}) on ${date}`);
 
