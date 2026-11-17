@@ -1,0 +1,23 @@
+name: Staging booking check (daily)
+# Runs the end-to-end booking test on staging every morning (7:00 Manila), so a problem shows up
+# as a failed run and an email to the repo owner, not on someone's PR. The usual cause of a
+# failure: the staging test trip has no date at least 4 days away; add more dates on staging.
+on:
+  schedule:
+    - cron: '0 23 * * *'   # 23:00 UTC = 07:00 Asia/Manila
+  workflow_dispatch:        # "Run workflow" button on the Actions tab
+permissions:
+  contents: read
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - run: npm ci --prefix tests
+      - run: npx --prefix tests playwright install --with-deps chromium
+      - run: npm run e2e --prefix tests
