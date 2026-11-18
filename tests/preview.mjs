@@ -78,4 +78,5 @@ const server=http.createServer(async(req,res)=>{try{
  let data=readFileSync(f);if(f.endsWith('.html'))data=data.toString().replace(/<script src="https:\/\/cdn.jsdelivr.net[^>]+><\/script>/,'');
  res.end(data);
 }catch(e){res.writeHead(500);res.end(e.message);}});
-server.listen(8015,'127.0.0.1',()=>console.log('Synthetic preview: http://127.0.0.1:8015/dashboard.html ; My trips: /mytrips.html?testRole=joiner'));
+const port=Number(process.env.PREVIEW_PORT)||8015;
+server.listen(port,'127.0.0.1',()=>console.log(`Synthetic preview: http://127.0.0.1:${port}/dashboard.html ; My trips: /mytrips.html?testRole=joiner`));
