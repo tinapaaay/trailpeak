@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="script-src-attr 'none'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My trips · TrailPeak</title>
 <link rel="stylesheet" href="styles.css">
@@ -132,7 +133,7 @@ textarea.input { width: 100%; resize: vertical; }
 <script>
 const $ = id => document.getElementById(id);
 const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = escapeHtml;
 const today = new Date(); today.setHours(0, 0, 0, 0);
 const daysUntil = iso => Math.round((new Date(iso + "T00:00") - today) / 864e5);
 const user = getUser();
@@ -243,7 +244,7 @@ function card(b) {
       <p class="meta byline">${esc(T.place)} · by ${esc(T.org)} · booking <span class="data">${b.ref}</span></p>
       <dl class="facts">
         <div><dt>Date</dt><dd>${nice(b.date)}</dd></div>
-        <div><dt>Meetup</dt><dd>${b.pickupTime} · ${esc(b.pickup)}</dd></div>
+        <div><dt>Meetup</dt><dd>${esc(b.pickupTime)} · ${esc(b.pickup)}</dd></div>
         ${!cancelled && !isPast && (T.contact || contacts[b.tripId]) ? `<div><dt>Organizer</dt><dd><a class="data" href="tel:${esc((T.contact || contacts[b.tripId]).replace(/\s/g, ""))}">${esc(T.contact || contacts[b.tripId])}</a></dd></div>` : ""}
         <div><dt>Joiners</dt><dd>${b.size}${b.size > 1 && !cancelled ? `<span class="group"> · ${esc(group)}</span>` : ""}</dd></div>
         <div><dt>DP record</dt><dd>${b.paymentsReady ? `${peso(b.receivedDp)} / ${peso(b.expectedDp)} · ${DP_STATES[pay]}` : "Unavailable: refresh after the database update"}</dd></div>

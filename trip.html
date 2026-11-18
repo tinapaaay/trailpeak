@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="script-src-attr 'none'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mt. Batulao · TrailPeak</title>
 <link rel="stylesheet" href="styles.css">
@@ -414,7 +415,7 @@ let month = (picked || todayIso()).slice(0, 7);
 
 const peso = n => "₱" + n.toLocaleString();
 const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = escapeHtml;
 const shapes = { easy: ["blaze-circle", 1], moderate: ["", 1], hard: ["blaze-diamond", 1], expert: ["blaze-diamond", 2] };
 const labels = { easy: "Easy", moderate: "Moderate", hard: "Hard", expert: "Expert" };
 const initials = n => n.split(" ").filter(w => /^[A-Z]/.test(w)).slice(0, 2).map(w => w[0]).join("");
@@ -438,12 +439,12 @@ function renderStatic() {
       <span class="organizer"><span class="org-avatar label-caps" aria-hidden="true">${initials(T.org)}</span>by ${esc(T.org)}</span>${T.verified ? claimBadge("ID verified") : ""}
     </div>`;
   $("gallery").classList.toggle("single", T.gallery.length === 1);
-  $("gallery").innerHTML = T.gallery.map(([src, alt]) => `<figure><img src="${src}" alt="${esc(alt)}"></figure>`).join("");
+  $("gallery").innerHTML = T.gallery.map(([src, alt]) => `<figure><img src="${esc(src)}" alt="${esc(alt)}"></figure>`).join("");
   const stats = [
     ["Peak", `${T.masl.toLocaleString()} MASL`, esc(T.place)],
     ["Difficulty", `${T.score}/9`, labels[T.level]],
-    ...(T.trailClass ? [["Trail class", T.trailClass, esc(T.trailNote)]] : []),
-    ["Hike time", T.hours, esc(T.hoursNote)],
+    ...(T.trailClass ? [["Trail class", esc(T.trailClass), esc(T.trailNote)]] : []),
+    ["Hike time", esc(T.hours), esc(T.hoursNote)],
     ["Group", `${T.group} max`, esc(T.groupNote)],
   ];
   $("stats").style.setProperty("--n", stats.length);
@@ -456,8 +457,8 @@ function renderStatic() {
   const tick = '<svg width="18" height="18" aria-hidden="true"><use href="#i-tick"/></svg>', cross = '<svg width="18" height="18" aria-hidden="true"><use href="#i-x"/></svg>';
   $("incl").innerHTML = T.incl.map(i => `<li>${tick}${esc(i)}</li>`).join("");
   $("excl").innerHTML = T.excl.map(i => `<li>${cross}${esc(i)}</li>`).join("");
-  $("pickup-rows").innerHTML = T.pickups.map(p => `<tr><td>${esc(p.area)}</td><td class="data">${p.time}</td><td class="data">${p.drop}</td></tr>`).join("");
-  $("pickup").innerHTML = T.pickups.map(p => `<option>${esc(p.place)} · ${p.time}</option>`).join("");
+  $("pickup-rows").innerHTML = T.pickups.map(p => `<tr><td>${esc(p.area)}</td><td class="data">${esc(p.time)}</td><td class="data">${esc(p.drop)}</td></tr>`).join("");
+  $("pickup").innerHTML = T.pickups.map(p => `<option>${esc(p.place)} · ${esc(p.time)}</option>`).join("");
   if (T.notice) { $("notice").hidden = false; $("notice").innerHTML = `<svg width="20" height="20" aria-hidden="true"><use href="#i-${T.notice[0]}"/></svg><span>${esc(T.notice[1])}</span>`; }
   const list = T.reviewList || [];
   const stars = n => `<span class="stars" aria-hidden="true">${"★".repeat(n)}<span class="off">${"☆".repeat(5 - n)}</span></span><span class="sr">${n} out of 5 stars</span>`;

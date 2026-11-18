@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="script-src-attr 'none'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Post a trip · TrailPeak</title>
 <link rel="stylesheet" href="styles.css">
@@ -372,7 +373,7 @@ $("mountain").innerHTML = `<option value="">Choose a mountain</option>` + mounta
 // Chips
 function drawChips(key) {
   const l = lists[key];
-  $(key).innerHTML = l.items.map(it => `<button type="button" class="chip" aria-pressed="${l.on.includes(it)}" data-item="${it}">${tick}${it}</button>`).join("");
+  $(key).innerHTML = l.items.map(it => `<button type="button" class="chip" aria-pressed="${l.on.includes(it)}" data-item="${escapeHtml(it)}">${tick}${escapeHtml(it)}</button>`).join("");
 }
 Object.keys(lists).forEach(drawChips);
 document.addEventListener("click", e => {
@@ -400,7 +401,7 @@ function addDate(date = "", slots = "") {
 }
 function addPickup(place = "", time = "") {
   const n = $("pickups").children.length + 1;
-  $("pickups").insertAdjacentHTML("beforeend", `<div class="row"><input class="input" value="${escapeHtml(place)}" placeholder="e.g. Cubao, near the bus terminals" aria-label="Pick-up place ${n}"><input class="input data" type="time" value="${time}" aria-label="Pick-up time ${n}">${xBtn("pick-up " + n)}</div>`);
+  $("pickups").insertAdjacentHTML("beforeend", `<div class="row"><input class="input" value="${escapeHtml(place)}" placeholder="e.g. Cubao, near the bus terminals" aria-label="Pick-up place ${n}"><input class="input data" type="time" value="${escapeHtml(time)}" aria-label="Pick-up time ${n}">${xBtn("pick-up " + n)}</div>`);
 }
 // Sample dates: the next two Saturdays at least 3 days away, so a new form never starts in the past.
 const nextSaturdays = () => { const d = new Date(); d.setDate(d.getDate() + 3); while (d.getDay() !== 6) d.setDate(d.getDate() + 1);
@@ -463,7 +464,7 @@ function update() {
     $("preview").innerHTML = `<div class="card preview-empty"><svg width="40" height="40" aria-hidden="true"><use href="#i-mountain"/></svg><p>Choose a mountain to see how your trip card will look.</p></div>`;
     return;
   }
-  $("facts").innerHTML = `<span class="data">${m.masl.toLocaleString()} MASL</span><span class="data">${m.score}/9 · ${levels[t.level].label}</span><span>${m.place}</span><span class="src">From TrailPeak's mountain list</span>`;
+  $("facts").innerHTML = `<span class="data">${escapeHtml(m.masl.toLocaleString())} MASL</span><span class="data">${escapeHtml(m.score)}/9 · ${(levels[t.level] || levels.moderate).label}</span><span>${escapeHtml(m.place)}</span><span class="src">From TrailPeak's mountain list</span>`;
   const bal = t.fee - t.dp;
   $("money-summary").innerHTML = t.fee > 0 && t.dp > 0 && bal >= 0
     ? `Each joiner pays <strong class="data">${peso(t.dp)}</strong> now and <strong class="data">${peso(bal)}</strong> on meetup day.`
@@ -485,7 +486,7 @@ function fillEditForm() {
   document.querySelector(".page-head p").innerHTML = 'Changes show on the trip page as soon as you save. Dates and slots change on the <a href="dashboard.html">dashboard</a>, one date at a time.';
   const mi = mountains.findIndex(m => m.name === E.title); if (mi >= 0) $("mountain").value = mi;
   $("hours").value = E.hours || "";
-  const type = document.querySelector(`input[name="type"][value="${E.typeLabel}"]`); if (type) type.checked = true;
+  const type = [...document.querySelectorAll('input[name="type"]')].find(r => r.value === E.typeLabel); if (type) type.checked = true;
   $("group").value = E.group; $("meet").value = to24(E.meet);
   ["dates", "add-date", "f-dates-e"].forEach(id => { $(id).hidden = true; });
   const upcoming = Object.keys(E.departures).filter(d => !isPastDate(d)).sort();

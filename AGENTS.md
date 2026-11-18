@@ -18,6 +18,7 @@ A static site (GitHub Pages, no build step) plus a light Supabase backend. Joine
 5. **`supabase/schema.sql` stays re-runnable** (safe to run twice) and upgrades the current live schema. Test both.
 6. **No secrets.** Never ask for, use or commit the Supabase `service_role` key or database password. The publishable key in `config.js` is public by design.
 7. **Organizer and verified status** are set only by `approve_organizer` / `revoke_organizer` (ADR-003).
+8. **Typed text is never HTML.** Anything a person or the database supplied goes through `escapeHtml()` (or `textContent`) before it reaches a page; trip details pass through `tpCleanDetails()` (ADR-014). `npm run e2e:security --prefix tests` attacks every page.
 
 ## How to work
 

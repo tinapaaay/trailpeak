@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="script-src-attr 'none'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reserve · TrailPeak</title>
 <link rel="stylesheet" href="styles.css">
@@ -226,7 +227,7 @@ function start() {
     const jLabel = `${size} ${size === 1 ? "joiner" : "joiners"}`;
     $("sum-lines").innerHTML = `
       <div><dt>Date</dt><dd>${nice(p.date)}</dd></div>
-      <div><dt>Meetup</dt><dd>${pick.place} · ${pick.time}</dd></div>
+      <div><dt>Meetup</dt><dd>${escapeHtml(pick.place)} · ${escapeHtml(pick.time)}</dd></div>
       <div><dt>Joiners</dt><dd>${size}</dd></div>
       <div><dt>Event fee</dt><dd>${peso(T.fee)} × ${size}</dd></div>
       <div><dt>After full DP received</dt><dd>${peso(balance)}</dd></div>
@@ -345,7 +346,7 @@ function start() {
       ["Check your balance in My trips", "The full fee remains outstanding until the organizer records your DP."],
       [`Contact ${T.org} before departure`, "Ask for the coordinator and van details. Automated texts are not connected."],
       ...(missingJoiners(b) ? [[`Add ${missingJoiners(b) === 1 ? "1 joiner's" : `${missingJoiners(b)} joiners'`} details before ${nice(dueDate(b.date))}`, "Open My trips and tap Add details. The organizer needs every name to register your group."]] : []),
-    ].map(([a, b2]) => `<li>${tick}<div><strong>${a}</strong><p class="meta">${b2}</p></div></li>`).join("");
+    ].map(([a, b2]) => `<li>${tick}<div><strong>${escapeHtml(a)}</strong><p class="meta">${escapeHtml(b2)}</p></div></li>`).join("");
     $("done-h").tabIndex = -1; $("done-h").focus();
   }
 }

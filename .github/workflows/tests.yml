@@ -59,6 +59,7 @@ jobs:
       - run: npm ci --prefix tests
       - run: npx --prefix tests playwright install --with-deps chromium
       - run: npm run e2e:dashboard --prefix tests
+      - run: npm run e2e:security --prefix tests
   design-lint:
     runs-on: ubuntu-latest
     steps:
