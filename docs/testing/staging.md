@@ -70,6 +70,8 @@ It needs, on **staging only**:
 
 Run it on your computer: `npm ci --prefix tests`, `npx --prefix tests playwright install chromium`, then `npm run e2e --prefix tests`. It refuses to run if `config.js` points staging at the live project.
 
+**Daily check:** the same test runs every morning at 7:00 (GitHub Actions → "Staging booking check (daily)"). If it fails, GitHub emails you. The usual reason is that the test trip ran out of dates 4+ days away: add one date per month for the next year. You can also run it any time with **Run workflow** on that page.
+
 The throwaway joiners stay in staging's Authentication → Users list; delete them now and then if you like.
 
 ## Organizer dashboard test (no staging needed)
