@@ -15,7 +15,7 @@ await db.query('insert into auth.users(id) values ($1),($2)',[org,joiner]);
 await db.query("update profiles set role='organizer',organizer_status='approved',name='Test Organizer',org='Local Trail Test',phone='+63 917 000 1111' where id=$1",[org]);
 await db.query("update profiles set name='Test Joiner',phone='synthetic' where id=$1",[joiner]);
 // Synthetic trip content (the built-in sample trips were removed in #95).
-const details={title:'Local receipt test hike',place:'Nasugbu, Batangas',province:'Batangas',level:'moderate',score:4,masl:811,trailClass:'3',kind:'day',typeLabel:'Day hike',hours:'5–6 hrs',
+const details={about:['A local test hike.'],gallery:[['https://images.unsplash.com/photo-1681287622401-9a77374ce790?w=900','Ridge']],hoursNote:'Day hike',groupNote:'One van',trailNote:'Some rope',bring:'Water',who:'Beginners',title:'Local receipt test hike',place:'Nasugbu, Batangas',province:'Batangas',level:'moderate',score:4,masl:811,trailClass:'3',kind:'day',typeLabel:'Day hike',hours:'5–6 hrs',
   fee:1499,dp:500,group:10,meet:'2:00 AM',photo:'1681287622401-9a77374ce790',alt:'Mountain ridge',pickups:[{place:'Cubao',time:'2:00 AM'}],incl:[],excl:[],reviews:0,rating:0,reviewList:[]};
 await db.query('insert into trips(id,organizer_id,org_name,details) values ($1,$2,$3,$4)',['receipt-test',org,'Local Trail Test',details]);
 await db.exec(`insert into departures(trip_id,date,capacity) values ('receipt-test','2099-01-01',10);
@@ -37,6 +37,19 @@ insert into trips(id,organizer_id,org_name,details) values ('old-test','${org}',
 update trips set status='archived' where id='old-test';
 insert into outside_bookings(request_id,trip_id,date,created_by,name,size,pickup,pickup_time,source)
 values (gen_random_uuid(),'receipt-test','2099-01-01','${org}','Tset Booker',2,'Cubao','2 AM','messenger');`);
+// Hostile mode (tests/e2e/xss.e2e.mjs): every piece of text people can type becomes an attack string.
+if(process.env.PREVIEW_HOSTILE){
+ const X=`x'"><img src=x data-xss=1 onerror=window.__xss=1>`;
+ const keep=new Set();
+ const evil=(v,k)=>keep.has(k)?v:typeof v==='string'?X:Array.isArray(v)?v.map(i=>evil(i)):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).map(([a,b])=>[a,evil(b,a)])):v;
+ const bad={...evil(details),level:X,kind:X,score:X,masl:X,group:X,fee:X,dp:X,reviews:X,rating:X,page:'javascript:window.__xss=1',photoUrl:X,contact:X,notice:['alert',X],itinerary:[[X,X]],guide:{name:X,exp:X},reviewList:[[X,'2026-01-01',5,X]]};
+ await db.query("update trips set org_name=$1,details=$2",[X,bad]);
+ await db.query("update profiles set name=$1,org=case when org is null then null else $1 end",[X]);
+ await db.query("update bookings set pickup=$1,pickup_time=$1,display_name=$1,listed=true,note=$1,names=$1,companions=$2::jsonb,emergency=$3::jsonb",[X,JSON.stringify([{name:X,age:'minor',guardian:1,relation:X,phone:X}]),JSON.stringify({name:X,relation:X,phone:X})]);
+ await db.query("update outside_bookings set name=$1,pickup=$1,pickup_time=$1",[X]);
+ await db.query("update organizer_activity set summary=$1",[X]);
+ await db.query("insert into reviews(booking_ref,trip_id,user_id,stars,body,display_name) values ('TP-OLD','receipt-test',$1,5,$2,$2) on conflict do nothing",[joiner,X]);
+}
 const bridge=`window.TRAILPEAK_SUPABASE={url:'local-test',anonKey:'local-test'};
 const testJoiner=new URLSearchParams(location.search).get('testRole')==='joiner';
 const testId=testJoiner?'${joiner}':'${org}';
