@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="script-src-attr 'none'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard · TrailPeak</title>
 <link rel="stylesheet" href="styles.css">
@@ -303,7 +304,7 @@ table.joiners { width: 100%; border-collapse: collapse; min-width: 720px; }
 const $ = id => document.getElementById(id);
 const pesos = n => "₱" + Math.round(n).toLocaleString(); // rounds: commission makes centavos
 const nice = iso => new Date(iso + "T00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(iso.startsWith("2026") ? {} : { year: "numeric" }) });
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = escapeHtml;
 
 // ---- Who is looking -------------------------------------------------------
 let me = getUser();
@@ -436,7 +437,7 @@ async function start() {
            <button type="button" class="link-btn" data-close="${k}">${s.status === "closed" ? "Reopen" : "Close"}<span class="sr"> ${nice(s.date)}</span></button>
            <button type="button" class="link-btn danger" data-cancel="${k}">Cancel for weather<span class="sr"> on ${nice(s.date)}</span></button>`;
         return `<div class="date-row${k === selected ? " selected" : ""}" data-key="${k}">
-          <span class="when">${nice(s.date)}<br><span class="meta" style="font-family:var(--font-body);font-weight:400">Meetup ${t.meet}</span></span>
+          <span class="when">${nice(s.date)}<br><span class="meta" style="font-family:var(--font-body);font-weight:400">Meetup ${esc(t.meet)}</span></span>
           <div class="fill"><div class="bar" role="img" aria-label="${booked} of ${s.cap} slots booked"><span style="width:${pct}%"></span></div><span class="data">${booked} of ${s.cap} booked</span></div>
           <span class="pill ${st}">${statusLabel[st]}</span>
           <div class="row-actions">${actions}</div>
@@ -819,11 +820,20 @@ async function start() {
       s.outChange = { mode: d.outEdit !== undefined ? "edit" : "cancel", index: Number(d.outEdit ?? d.outCancel) };
       renderJoiners(); ($("oe-name") || $("oc-reason"))?.focus();
       const b = s.bookings[s.outChange.index];
-      // History arrives a moment later; redraw without losing what the keyboard was on.
+      // History arrives a moment later (slowly on mountain signal). Redraw it without losing
+      // anything already typed, or where the cursor was.
+      const change = s.outChange;
       if (b?.outsideId) TP.outsideChanges(b.outsideId).then(h => {
-        if (!s.outChange) return;
-        const was = document.activeElement?.id; s.outChange.history = h; renderOutsideForm(s);
-        if (was) document.getElementById(was)?.focus();
+        if (s.outChange !== change) return;
+        change.history = h;
+        if (change.saving) return;
+        if ($("oc-reason")) change.draft = { reason: $("oc-reason").value };
+        else if ($("oe-name")) change.draft = { name: $("oe-name").value, size: $("oe-size").value, pick: $("oe-pick").value, phone: $("oe-phone").value,
+          source: document.querySelector('input[name="oe-src"]:checked')?.value, reason: $("oe-reason").value };
+        const active = document.activeElement, was = active?.id, at = active?.selectionStart;
+        renderOutsideForm(s);
+        const again = was && document.getElementById(was);
+        if (again) { again.focus(); if (at != null) try { again.setSelectionRange(at, at); } catch { /* this field has no cursor */ } }
       }).catch(() => {});
       return;
     }

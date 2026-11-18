@@ -383,7 +383,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .jd-prefix { display: grid; grid-template-columns: auto 1fr; gap: var(--space-sm); align-items: center; }
 .jd-prefix span { font-family: var(--font-label); color: var(--color-secondary); }
 @media (max-width: 767px) { .jd-row { grid-template-columns: 1fr; } }
-.jd .check { display: flex; gap: var(--space-sm); align-items: flex-start; font-size: 15px; line-height: 1.5; }
+.jd .check { display: flex; gap: var(--space-sm); align-items: flex-start; min-height: 44px; font-size: 15px; line-height: 1.5; }
 .jd .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--color-primary); flex: none; }
 .on-dark .field-label { color: var(--color-surface); }
 /* The card's own button reads as a sentence ("View & join"), matching the calmer card. */

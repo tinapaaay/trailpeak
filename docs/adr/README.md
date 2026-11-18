@@ -17,6 +17,7 @@ One short file per technical decision: the context, the options, why one won, an
 | [011](011-trip-status.md) | Trips are draft, published or archived; the database hides drafts and archived trips | Accepted |
 | [012](012-pilot-analytics.md) | Measure the pilot funnel in our own database with anonymous events; owner-only SQL views | Accepted for the pilot |
 | [013](013-joiner-profile-details.md) | Profile keeps age and emergency contact; each booking keeps its own copy; no health data | Accepted |
+| [014](014-untrusted-text.md) | Treat all typed text and trip details as untrusted: clean on load, escape on display, block inline scripts | Accepted |
 
 Planned: map provider (parked).
 

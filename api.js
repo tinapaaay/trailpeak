@@ -39,6 +39,26 @@ TP.firstSync = TP.online && !tpReadCache().trips;
 TP.waitForData = () => { throw new Error("TrailPeak: waiting for the first data load"); };
 window.addEventListener("error", e => { if (String(e.message).includes("waiting for the first data load")) e.preventDefault(); });
 
+// Trip details are free-form JSON an organizer's browser saved, so never trust their shape: numbers
+// must be numbers, choices must be known choices, photos must be plain ids or https links, and
+// page-only fields can't be planted. Pages still escape all text when they draw it.
+const TP_NUM_FIELDS = ["fee", "dp", "group", "masl", "score", "reviews", "rating", "orgTrips"];
+function tpCleanDetails(raw) {
+  const d = { ...(raw && typeof raw === "object" ? raw : {}) };
+  delete d.page; delete d.photoUrl; delete d.length;
+  for (const k of TP_NUM_FIELDS) { const n = Number(d[k]); d[k] = Number.isFinite(n) ? n : 0; }
+  if (!["easy", "moderate", "hard", "expert"].includes(d.level)) d.level = "moderate";
+  if (!["day", "overnight", "major"].includes(d.kind)) d.kind = "day";
+  if (!/^[\w-]{1,100}$/.test(d.photo || "")) d.photo = "";
+  const list = v => Array.isArray(v) ? v : [];
+  d.gallery = list(d.gallery).filter(g => Array.isArray(g) && /^https:\/\//.test(g[0] || ""));
+  d.pickups = list(d.pickups).filter(p => p && typeof p === "object");
+  d.reviewList = list(d.reviewList).filter(r => Array.isArray(r) && !Number.isNaN(new Date(r[1]).getTime()))
+    .map(([name, date, stars, text]) => [name, date, Math.min(5, Math.max(1, Math.round(Number(stars)) || 1)), text]);
+  if (d.notice && !(Array.isArray(d.notice) && /^[a-z-]{1,20}$/.test(d.notice[0] || ""))) delete d.notice;
+  return d;
+}
+
 TP.applyTo = function (trips) {
   if (!TP.online) return;
   const c = tpReadCache();
@@ -47,8 +67,9 @@ TP.applyTo = function (trips) {
   for (const row of c.trips) {
     // Only trips from real organizer accounts. Old seeded sample trips (no organizer) stay hidden (#89).
     if (!row.organizer_id) continue;
+    if (!/^[\w-]{1,120}$/.test(row.id)) continue;   // ids go into links and page attributes
     // `saved` keeps the stored details as they are, so editing a trip never saves page-only fields back.
-    const t = { ...row.details, id: row.id, org: row.org_name, organizerId: row.organizer_id, status: row.status || "published", archived_at: row.archived_at || null, createdAt: row.created_at || null, saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
+    const t = { ...tpCleanDetails(row.details), id: row.id, org: row.org_name, organizerId: row.organizer_id, status: row.status || "published", archived_at: row.archived_at || null, createdAt: row.created_at || null, saved: row.details, departures: {}, sampleBooked: {}, dateStatus: {}, capacity: {} };
     for (const s of (c.slots || []).filter(s => s.trip_id === row.id)) {
       t.departures[s.date] = s.status === "open" ? s.left_count : 0;
       t.sampleBooked[s.date] = s.sample_booked || 0;

@@ -45,6 +45,23 @@ jobs:
       - run: npm ci --prefix tests
       - run: npx --prefix tests playwright install --with-deps chromium
       - run: npm run e2e --prefix tests
+  # Organizer dashboard end to end (TP-062 follow-up): a local fake database (tests/preview.mjs,
+  # PGlite + schema.sql), no network or accounts. Record a DP, slot limits, close/reopen, publish.
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - run: npm ci --prefix tests
+      - run: npx --prefix tests playwright install --with-deps chromium
+      - run: npm run e2e:dashboard --prefix tests
+      - run: npm run e2e:security --prefix tests
+      - run: npm run e2e:flows --prefix tests
+      - run: npm run e2e:a11y --prefix tests
   design-lint:
     runs-on: ubuntu-latest
     steps:
