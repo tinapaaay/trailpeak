@@ -820,11 +820,20 @@ async function start() {
       s.outChange = { mode: d.outEdit !== undefined ? "edit" : "cancel", index: Number(d.outEdit ?? d.outCancel) };
       renderJoiners(); ($("oe-name") || $("oc-reason"))?.focus();
       const b = s.bookings[s.outChange.index];
-      // History arrives a moment later; redraw without losing what the keyboard was on.
+      // History arrives a moment later (slowly on mountain signal). Redraw it without losing
+      // anything already typed, or where the cursor was.
+      const change = s.outChange;
       if (b?.outsideId) TP.outsideChanges(b.outsideId).then(h => {
-        if (!s.outChange) return;
-        const was = document.activeElement?.id; s.outChange.history = h; renderOutsideForm(s);
-        if (was) document.getElementById(was)?.focus();
+        if (s.outChange !== change) return;
+        change.history = h;
+        if (change.saving) return;
+        if ($("oc-reason")) change.draft = { reason: $("oc-reason").value };
+        else if ($("oe-name")) change.draft = { name: $("oe-name").value, size: $("oe-size").value, pick: $("oe-pick").value, phone: $("oe-phone").value,
+          source: document.querySelector('input[name="oe-src"]:checked')?.value, reason: $("oe-reason").value };
+        const active = document.activeElement, was = active?.id, at = active?.selectionStart;
+        renderOutsideForm(s);
+        const again = was && document.getElementById(was);
+        if (again) { again.focus(); if (at != null) try { again.setSelectionRange(at, at); } catch { /* this field has no cursor */ } }
       }).catch(() => {});
       return;
     }

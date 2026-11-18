@@ -76,6 +76,8 @@ The throwaway joiners stay in staging's Authentication → Users list; delete th
 
 `npm run e2e:dashboard --prefix tests` tests the organizer side against a **local fake database** (`tests/preview.mjs`: the real `schema.sql` in PGlite, a signed-in test organizer, made-up bookings), so it needs no network or accounts and starts fresh every run. It records a DP (and checks the joiner sees it in My trips), tries slot limits, closes and reopens a date, publishes a draft, and checks that archiving a trip with bookings is refused. It runs on every PR as the **dashboard** check.
 
+Three more tests use the same fake database and run in that check: `e2e:flows` (everyday organizer and joiner actions, including slow-signal cases), `e2e:security` (attack text on every page) and `e2e:a11y` (WCAG scan at desktop and phone width, sideways scrolling, tap targets).
+
 ## Keeping staging up to date
 
 When a PR changes `supabase/schema.sql`, run it on **staging first**, try the change there, then run it on live after merging.

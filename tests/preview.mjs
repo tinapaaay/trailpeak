@@ -55,7 +55,7 @@ const testJoiner=new URLSearchParams(location.search).get('testRole')==='joiner'
 const testId=testJoiner?'${joiner}':'${org}';
 if(JSON.parse(localStorage.getItem('trailpeak.user')||'null')?.id!==testId)localStorage.setItem('trailpeak.user',JSON.stringify({id:testId,name:testJoiner?'Test Joiner':'Test Organizer',role:testJoiner?'joiner':'organizer',org:'Local Trail Test'}));
 async function request(payload){return (await fetch('/test-api',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,user:testId})})).json();}
-window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{user:{id:testId,email:'synthetic@example.test'}}}})},rpc:async(name,args)=>request({name,args}),from:(table)=>{const q={table,filters:[]};const b={select:()=>b,update:(vals)=>{q.update=vals;return b},eq:(key,value)=>{q.filters.push([key,value]);return b},order:(key,opt)=>{q.order=key;q.desc=opt?.ascending===false;return b},is:()=>b,limit:()=>b,single:()=>{q.single=true;return b},then:(yes,no)=>request(q).then(yes,no)};return b}})};`;
+window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:{user:{id:testId,email:'synthetic@example.test'}}}})},rpc:async(name,args)=>request({name,args}),from:(table)=>{const q={table,filters:[]};const b={select:()=>b,update:(vals)=>{q.update=vals;return b},insert:(vals)=>{q.insert=vals;return b},eq:(key,value)=>{q.filters.push([key,value]);return b},order:(key,opt)=>{q.order=key;q.desc=opt?.ascending===false;return b},is:()=>b,limit:()=>b,single:()=>{q.single=true;return b},then:(yes,no)=>request(q).then(yes,no)};return b}})};`;
 let queue=Promise.resolve();
 const server=http.createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost');
@@ -65,8 +65,11 @@ const server=http.createServer(async(req,res)=>{try{
   const task=async()=>{await db.exec('set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[q.user]);try{
    let result;
    if(q.name){
-    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired','edit_outside_booking','cancel_outside_booking','my_booking_contacts','organizer_overdue','release_overdue_booking','log_departure_check','log_event'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
+    if(!['all_slots','all_reviews','organizer_bookings','record_dp_receipt','mark_activity_read','send_dp_reference','expire_holds','rebook_expired','edit_outside_booking','cancel_outside_booking','my_booking_contacts','organizer_overdue','release_overdue_booking','log_departure_check','log_event','add_outside_booking','cancel_booking','move_booking','update_booking_details','add_review','whos_going'].includes(q.name))throw Error('Unexpected fixture RPC '+q.name);
     const args=Object.entries(q.args||{});result=await db.query(`select * from ${q.name}(${args.map(([k],i)=>k+'=> $'+(i+1)).join(',')})`,args.map(([,v])=>v));
+   }else if(q.insert){
+    if(q.table!=='departures')throw Error('Unexpected insert');
+    const r=q.insert;result=await db.query('insert into departures(trip_id,date,capacity) values ($1,$2,$3) returning *',[r.trip_id,r.date,r.capacity]);
    }else if(q.update){
     // Status and slot changes only (TP-053 archive/publish, TP-012 close/reopen).
     const allowed={trips:['status'],departures:['status','capacity']}[q.table];
@@ -80,7 +83,7 @@ const server=http.createServer(async(req,res)=>{try{
     const order=q.order;if(order&&!['revision','created_at','date','id'].includes(order))throw Error('Unexpected order');
     result=await db.query('select * from '+q.table+(filters.length?' where '+filters.map(([k],i)=>k+'=$'+(i+1)).join(' and '):'')+(order?' order by '+order+(q.desc?' desc':''):' '),filters.map(([,v])=>v));
    }
-   return {data:q.single||q.name==='record_dp_receipt'?result.rows[0]:result.rows,error:null};
+   return {data:q.single||['record_dp_receipt','add_outside_booking','edit_outside_booking','cancel_outside_booking'].includes(q.name)?result.rows[0]:result.rows,error:null};
   }catch(e){return {data:null,error:{message:e.message}};}finally{await db.exec('reset role');}};
   const result=queue.then(task);queue=result.catch(()=>{});res.setHeader('Content-Type','application/json');res.end(JSON.stringify(await result,(key,value)=>key==='date'&&typeof value==='string'?value.slice(0,10):value));return;
  }

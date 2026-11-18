@@ -143,7 +143,20 @@ const draft = {}; // stars picked in an open review form
 // Organizer mobile numbers for booked trips (TP-018), filled in once loaded.
 let contacts = {};
 if (!user) { rememberNext("mytrips.html"); location.replace("signin.html"); }
-else { TP.bookingContacts().then(c => { contacts = c; render(); }).catch(() => {}); render(); }
+else {
+  // The organizer's number can arrive after someone starts typing (slow signal): keep what they typed.
+  TP.bookingContacts().then(c => {
+    contacts = c;
+    const typed = [...document.querySelectorAll("main input[id], main textarea[id], main select[id]")]
+      .map(el => [el.id, el.type === "checkbox" || el.type === "radio" ? el.checked : el.value]);
+    const active = document.activeElement, was = active?.id, at = active?.selectionStart;
+    render();
+    typed.forEach(([id, v]) => { const el = document.getElementById(id); if (!el) return; if (typeof v === "boolean") el.checked = v; else el.value = v; });
+    const again = was && document.getElementById(was);
+    if (again) { again.focus(); if (at != null) try { again.setSelectionRange(at, at); } catch { /* this field has no cursor */ } }
+  }).catch(() => {});
+  render();
+}
 
 function render() {
   const all = getBookings();
