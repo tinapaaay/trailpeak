@@ -1,6 +1,6 @@
 # ADR-015: Change the database through numbered migration files, recorded in a ledger
 
-**Status:** Proposed (decide before P0 Payments work starts: TP-025–TP-031)
+**Status:** Accepted (Option C), Nov 20, 2026. Implement before P0 Payments work starts (TP-025–TP-031)
 **Date:** 2026-11-20
 **Deciders:** Christine (product owner)
 **Related:** ADR-001 (static site + Supabase), ADR-009 (concurrency), ADR-014 (untrusted text), architecture review of Nov 20, 2026
@@ -78,7 +78,7 @@ Option A was right for fast early building; its weakness is the safety of later 
 
 ## Action items
 
-1. [ ] Owner decides (accept / change / reject this ADR).
+1. [x] Owner decides: Option C accepted, Nov 20, 2026.
 2. [ ] Add `schema_migrations`, `supabase/migrations/0001_baseline.sql` and a one-time "mark as 0001" step for staging and live.
 3. [ ] Test helper that builds the database from migrations; switch the 20 test files to it.
 4. [ ] CI checks: sequence, no edits to applied files, snapshot matches.
