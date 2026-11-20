@@ -45,6 +45,17 @@ try {
   check("Dashboard shows the organizer's trips and joiners", body.includes("Local receipt test hike") && /Joiners for Thu, Jan 1, 2099/.test(body));
   check("No demo or sample-account wording", !/Prototype|sample account|sample data|Demo DP/i.test(body), body.match(/.{40}(Prototype|sample account|sample data|Demo DP).{40}/i)?.[0]);
 
+  // 1b. Opening a notification marks it read, and it stays read after a reload.
+  const unread = async () => Number((await page.locator("#activity-h").innerText()).match(/(\d+) new/)?.[1] || 0);
+  const before = await unread();
+  await page.locator("#activity-list li.unread [data-view]").first().click();
+  await page.waitForFunction(n => !new RegExp(`\\b${n} new`).test(document.querySelector("#activity-h").innerText), before, { timeout: 10000 });
+  check("Opening a notification marks it read (count goes down by 1)", await unread() === before - 1, `${before} -> ${await unread()}`);
+  check("The tab title count goes down too", (await page.title()).startsWith(before - 1 ? `(${before - 1})` : "Dashboard"), await page.title());
+  await page.waitForTimeout(500);
+  await openDashboard();
+  check("It stays read after a reload", await unread() === before - 1, `${await unread()} after reload, expected ${before - 1}`);
+
   // 2. Record a DP for the 3-joiner booking (Ben Cruz's group), then reload.
   const row = page.locator("tbody tr", { hasText: "Ben Cruz" });
   await row.locator("[data-receipt]").click();
