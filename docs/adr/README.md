@@ -18,6 +18,7 @@ One short file per technical decision: the context, the options, why one won, an
 | [012](012-pilot-analytics.md) | Measure the pilot funnel in our own database with anonymous events; owner-only SQL views | Accepted for the pilot |
 | [013](013-joiner-profile-details.md) | Profile keeps age and emergency contact; each booking keeps its own copy; no health data | Accepted |
 | [014](014-untrusted-text.md) | Treat all typed text and trip details as untrusted: clean on load, escape on display, block inline scripts | Accepted |
+| [015](015-database-migrations.md) | Change the database through numbered migration files recorded in a ledger, applied in the SQL editor | Accepted |
 
 Planned: map provider (parked).
 
