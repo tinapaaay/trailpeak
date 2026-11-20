@@ -744,7 +744,7 @@ async function start() {
     $("activity-h").textContent = n ? `Activity · ${n} new` : "Activity";
     $("activity-list").innerHTML = activity.length ? activity.slice(0, 10).map(a => {
       const key = a.trip_id + "|" + a.date, at = mine.find(t => t.id === a.trip_id);
-      return `<li class="${a.read_at ? "" : "unread"}"><div><p>${esc(a.summary)}</p><p class="meta">${a.read_at ? "" : '<span class="tag-new">New</span> '}${activityTime(a.created_at)}${at ? ` · ${esc(labelOf(at))}` : ""}</p></div>${state[key] ? `<button type="button" class="btn btn-secondary label-caps" data-view="${esc(key)}">View joiners<span class="sr"> for ${esc(nice(a.date))}</span></button>` : ""}</li>`;
+      return `<li class="${a.read_at ? "" : "unread"}"><div><p>${esc(a.summary)}</p><p class="meta">${a.read_at ? "" : '<span class="tag-new">New</span> '}${activityTime(a.created_at)}${at ? ` · ${esc(labelOf(at))}` : ""}</p></div>${state[key] ? `<button type="button" class="btn btn-secondary label-caps" data-view="${esc(key)}" data-act="${a.read_at ? "" : esc(a.id)}">View joiners<span class="sr"> for ${esc(nice(a.date))}</span></button>` : ""}</li>`;
     }).join("") : `<li class="empty-list">No activity yet. New bookings, cancellations and date moves on your trips show up here.</li>`;
     setBadge(n);
   }
@@ -778,6 +778,16 @@ async function start() {
     }
     if (t.id === "receipt-close") { state[selected].receiptIndex = null; $("receipt-panel").innerHTML = ""; document.querySelector("[data-receipt]")?.focus(); }
     if (d.view) { selected = d.view; renderTrips(); renderJoiners(); $("joiners-h").tabIndex = -1; $("joiners-h").focus(); }
+    // Opening a notification marks it read (saved, so it stays read after a reload). Shown as read
+    // right away; if saving fails it goes back to New.
+    if (d.act) {
+      const item = (activity || []).find(x => String(x.id) === d.act);
+      if (item && !item.read_at) {
+        item.read_at = new Date().toISOString(); renderActivity();
+        try { await TP.markActivityRead([item.id]); }
+        catch (err) { item.read_at = null; renderActivity(); say(`Couldn't mark it as read: ${err.message}`); }
+      }
+    }
     if (d.close) {
       const s = state[d.close], to = s.status === "closed" ? "open" : "closed";
       try { await TP.setDateStatus(s.trip.id, s.date, to); } catch (err) { say(err.message); return; }
